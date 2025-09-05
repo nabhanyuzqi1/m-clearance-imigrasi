@@ -59,7 +59,7 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 2));
 
       // VERIFY: We are on the HomePage
-      expect(find.text('Firestore Notes (${email})'), findsOneWidget);
+      expect(find.text('Firestore Notes ($email)'), findsOneWidget);
       expect(auth.currentUser, isNotNull);
       final userId = auth.currentUser!.uid;
 
