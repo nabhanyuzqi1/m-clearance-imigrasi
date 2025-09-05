@@ -1,0 +1,7 @@
+./chromedriver --port=4444
+
+CHROME_DRIVER_PORT=4444 flutter drive \
+  --driver=integration_test/app_driver.dart \
+  --target=integration_test/app_test.dart \
+  -d web-server \
+  --browser-name=chrome
