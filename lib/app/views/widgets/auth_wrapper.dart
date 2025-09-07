@@ -2,12 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
-import 'package:m_clearance_imigrasi/app/views/screens/auth/login_screen.dart';
-import 'package:m_clearance_imigrasi/app/views/screens/auth/email_verification_screen.dart';
-import 'package:m_clearance_imigrasi/app/views/screens/auth/upload_documents_screen.dart';
-import 'package:m_clearance_imigrasi/app/views/screens/auth/registration_pending_screen.dart';
-import 'package:m_clearance_imigrasi/app/views/screens/officer/admin_home_screen.dart';
-import 'package:m_clearance_imigrasi/app/views/screens/user/user_home_screen.dart';
+import 'package:m_clearance_imigrasi/app/config/routes.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -19,53 +14,100 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: _authService.authStateChanges,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.active) {
-          final User? user = snapshot.data;
-          if (user == null) {
-            return const LoginScreen();
-          } else {
-            return FutureBuilder<UserModel?>(
-              future: _authService.getUserData(user.uid),
-              builder: (context, userSnapshot) {
-                if (userSnapshot.connectionState == ConnectionState.done) {
-                  if (userSnapshot.hasData) {
-                    final userModel = userSnapshot.data!;
-                    switch (userModel.status) {
-                      case 'approved':
-                        if (userModel.role == 'admin' ||
-                            userModel.role == 'officer') {
-                          return AdminHomeScreen(
-                              adminName: userModel.username,
-                              adminUsername: userModel.email);
-                        } else {
-                          return const UserHomeScreen();
-                        }
-                      case 'pending_email_verification':
-                        return const EmailVerificationScreen();
-                      case 'pending_documents':
-                        return const UploadDocumentsScreen();
-                      case 'pending_approval':
-                        return const RegistrationPendingScreen();
-                      default:
-                        return const LoginScreen();
-                    }
-                  } else {
-                    return const LoginScreen();
-                  }
-                }
-                return const Scaffold(
-                  body: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              },
-            );
-          }
+        if (snapshot.connectionState != ConnectionState.active) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
-        return const Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
+
+        final User? user = snapshot.data;
+
+        if (user == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.pushReplacementNamed(context, AppRoutes.login);
+          });
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        // Authenticated
+        final bool emailVerified = user.emailVerified;
+        if (!emailVerified) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.pushReplacementNamed(context, AppRoutes.emailVerification);
+          });
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        // Load user document
+        return FutureBuilder<UserModel?>(
+          future: _authService.getUserData(user.uid),
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final userModel = userSnapshot.data;
+
+            if (userModel == null) {
+              // Missing user document after login; fallback to register
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                Navigator.pushReplacementNamed(context, AppRoutes.register);
+              });
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            String routeName;
+            Map<String, dynamic>? args;
+
+            switch (userModel.status) {
+              case 'pending_email_verification':
+                routeName = AppRoutes.emailVerification;
+                break;
+              case 'pending_documents':
+                routeName = AppRoutes.uploadDocuments;
+                break;
+              case 'pending_approval':
+                routeName = AppRoutes.registrationPending;
+                break;
+              case 'approved':
+                if (userModel.role == 'admin' || userModel.role == 'officer') {
+                  routeName = AppRoutes.adminHome;
+                  args = {
+                    'adminName': userModel.username,
+                    'adminUsername': userModel.email,
+                  };
+                } else {
+                  routeName = AppRoutes.userHome;
+                }
+                break;
+              case 'rejected':
+                routeName = AppRoutes.confirmation;
+                args = {
+                  'userData': {'email': userModel.email},
+                  'initialLanguage': 'EN',
+                };
+                break;
+              default:
+                // Defensive default
+                routeName = AppRoutes.registrationPending;
+            }
+
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Navigator.pushReplacementNamed(context, routeName, arguments: args);
+            });
+
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          },
         );
       },
     );

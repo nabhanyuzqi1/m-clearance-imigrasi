@@ -16,11 +16,25 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   bool _isSendingVerificationEmail = false;
   bool _isVerifying = false;
   Timer? _timer;
+  StreamSubscription? _authSub;
 
   @override
   void initState() {
     super.initState();
     _sendVerificationEmail();
+
+    // Listen for sign-out and redirect to login defensively.
+    _authSub = _authService.authStateChanges.listen((user) {
+      if (user == null && mounted) {
+        _timer?.cancel();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(context, AppRoutes.login);
+        });
+      }
+    });
+
+    // Periodically poll to reload user, reflect verification to Firestore, and navigate when ready.
     _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
       _checkEmailVerification();
     });
@@ -29,6 +43,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _authSub?.cancel();
     super.dispose();
   }
 
@@ -37,23 +52,64 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       _isSendingVerificationEmail = true;
     });
     await _authService.sendVerificationEmail();
+    if (!mounted) return;
     setState(() {
       _isSendingVerificationEmail = false;
     });
   }
 
   Future<void> _checkEmailVerification() async {
-    setState(() {
-      _isVerifying = true;
-    });
-    final isVerified = await _authService.isEmailVerified();
-    if (isVerified) {
-      _timer?.cancel();
-      Navigator.pushReplacementNamed(context, AppRoutes.uploadDocuments);
+    if (_isVerifying) return;
+
+    if (mounted) {
+      setState(() {
+        _isVerifying = true;
+      });
     }
-    setState(() {
-      _isVerifying = false;
-    });
+
+    try {
+      // Reload current user and reflect verification to Firestore.
+      await _authService.reloadUser();
+      final userModel = await _authService.updateEmailVerified();
+
+      if (!mounted) return;
+
+      if (userModel == null) {
+        // If signed out, auth listener will navigate to login.
+        // Otherwise, navigate conservatively.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(context, AppRoutes.registrationPending);
+        });
+        return;
+      }
+
+      switch (userModel.status) {
+        case 'pending_documents':
+          _timer?.cancel();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.pushReplacementNamed(context, AppRoutes.uploadDocuments);
+          });
+          return;
+        case 'pending_email_verification':
+          // Stay on this screen; keep polling.
+          break;
+        default:
+          // Defensive navigation for any unexpected status.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.pushReplacementNamed(context, AppRoutes.registrationPending);
+          });
+          return;
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isVerifying = false;
+        });
+      }
+    }
   }
 
   @override
@@ -61,6 +117,13 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Email Verification'),
+        actions: [
+          IconButton(
+            onPressed: _checkEmailVerification,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh status',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

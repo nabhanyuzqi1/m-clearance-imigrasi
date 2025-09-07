@@ -1,4 +1,11 @@
-import 'dart:math';
+// integration_test/e2e_android_test.dart
+// E2E Android entrypoint using the existing auth/document routing scenario.
+//
+// Run with one of:
+// flutter drive -d emulator-5554 --driver=integration_test/app_driver.dart --target=integration_test/e2e_android_test.dart
+// flutter drive -d emulator-5554 --driver=test_driver/integration_test.dart --target=integration_test/e2e_android_test.dart
+// flutter test -d android integration_test/e2e_android_test.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -11,51 +18,17 @@ import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/views/screens/auth/login_screen.dart';
 import 'package:m_clearance_imigrasi/main.dart' as app;
 
-Future<void> pumpUntilFound(
-  WidgetTester tester,
-  Finder finder, {
-  Duration timeout = const Duration(seconds: 10),
-  Duration step = const Duration(milliseconds: 200),
-}) async {
-  final end = DateTime.now().add(timeout);
-  while (DateTime.now().isBefore(end)) {
-    await tester.pump(step);
-    if (finder.evaluate().isNotEmpty) return;
-  }
-  // Final settle to collect any pending microtasks
-  await tester.pumpAndSettle(const Duration(milliseconds: 100));
-  expect(finder, findsOneWidget); // Will throw a readable error if not found
-}
-
-Future<void> enterRegisterFieldsByIndex(
-  WidgetTester tester, {
-  required String corporateName,
-  required String username,
-  required String nationality,
-  required String email,
-  required String password,
-}) async {
-  // RegisterScreen has 6 TextFormFields in order:
-  // 0: corporateName, 1: username, 2: nationality, 3: email, 4: password, 5: confirm password
-  final fields = find.byType(TextFormField);
-  expect(fields, findsNWidgets(6));
-
-  await tester.enterText(fields.at(0), corporateName);
-  await tester.enterText(fields.at(1), username);
-  await tester.enterText(fields.at(2), nationality);
-  await tester.enterText(fields.at(3), email);
-  await tester.enterText(fields.at(4), password);
-  await tester.enterText(fields.at(5), password);
-}
+// Reuse helpers from the existing scenario
+import 'auth_flow_test.dart' as authflow;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  group('End-to-End Auth + Routing', () {
+  group('E2E Android: Auth + Routing flow', () {
     testWidgets(
-      'New user: Register -> EmailVerification -> Upload -> RegistrationPending -> UserHome via Firestore transitions',
+      'Register -> EmailVerification -> Upload -> RegistrationPending -> UserHome',
       (WidgetTester tester) async {
-        // Initialize Firebase (app bootstrap also calls this; doing it here stabilizes test env)
+        // Initialize Firebase for the test environment.
         await Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform,
         );
@@ -65,32 +38,32 @@ void main() {
 
         // Unique test credentials
         final millis = DateTime.now().millisecondsSinceEpoch;
-        final email = 'itest+$millis@example.com';
+        final email = 'android_e2e+$millis@example.com';
         const password = 'Passw0rd!';
 
-        // 1) Launch app (AuthWrapper is home) -> navigate to Register -> submit -> land on EmailVerification
+        // 1) Launch app and allow settle for Android
         app.main();
-        await tester.pumpAndSettle(const Duration(seconds: 2));
+        await tester.pumpAndSettle(const Duration(seconds: 3));
 
-        // Expect we are on LoginScreen (AuthWrapper routes unauthenticated users to login)
+        // Expect Login
         expect(find.byType(LoginScreen), findsOneWidget);
 
-        // Navigate to Register. Prefer UI tap on "Register now" (RichText span).
+        // Navigate to Register via "Register now"
         final registerNowText = find.text('Register now');
         if (registerNowText.evaluate().isNotEmpty) {
           await tester.tap(registerNowText);
         } else {
-          // Fallback: push to register via Navigator in case RichText finder fails
+          // Fallback navigation
           final ctx = tester.element(find.byType(LoginScreen));
           Navigator.pushNamed(ctx, AppRoutes.register, arguments: {'initialLanguage': 'EN'});
         }
-        await tester.pumpAndSettle(const Duration(seconds: 1));
+        await tester.pumpAndSettle(const Duration(seconds: 2));
 
-        // Fill the registration form and submit
-        await enterRegisterFieldsByIndex(
+        // Fill registration and submit
+        await authflow.enterRegisterFieldsByIndex(
           tester,
-          corporateName: 'ITest Corp $millis',
-          username: 'itest_user_$millis',
+          corporateName: 'Android E2E Corp $millis',
+          username: 'android_e2e_$millis',
           nationality: 'ID',
           email: email,
           password: password,
@@ -102,34 +75,41 @@ void main() {
         await tester.tap(termsCheckbox);
         await tester.pump();
 
-        // Tap Continue
+        // Continue
         final continueBtn = find.widgetWithText(ElevatedButton, 'Continue');
         expect(continueBtn, findsOneWidget);
         await tester.tap(continueBtn);
-        await tester.pumpAndSettle(const Duration(seconds: 2));
+        await tester.pumpAndSettle(const Duration(seconds: 3));
 
-        // Verify EmailVerificationScreen
-        await pumpUntilFound(tester, find.text('Email Verification'), timeout: const Duration(seconds: 10));
+        // EmailVerification
+        await authflow.pumpUntilFound(
+          tester,
+          find.text('Email Verification'),
+          timeout: const Duration(seconds: 12),
+        );
 
         // Capture uid
         final uid = auth.currentUser!.uid;
 
-        // 2) Simulate email verification + route to UploadDocumentsScreen via Firestore update
+        // 2) Simulate email verification and route to UploadDocuments
         await firestore.collection('users').doc(uid).set({
           'isEmailVerified': true,
           'status': 'pending_documents',
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        // Proactively trigger verification check (instead of waiting 5s timer)
         final iHaveVerifiedBtn = find.widgetWithText(ElevatedButton, 'I have verified my email');
         if (iHaveVerifiedBtn.evaluate().isNotEmpty) {
           await tester.tap(iHaveVerifiedBtn);
         }
         await tester.pumpAndSettle(const Duration(seconds: 5));
-        await pumpUntilFound(tester, find.text('Upload Documents'), timeout: const Duration(seconds: 10));
+        await authflow.pumpUntilFound(
+          tester,
+          find.text('Upload Documents'),
+          timeout: const Duration(seconds: 12),
+        );
 
-        // 3) Simulate document upload completion -> route to RegistrationPending
+        // 3) Simulate document upload completion -> RegistrationPending
         await firestore.collection('users').doc(uid).set({
           'hasUploadedDocuments': true,
           'documents': [
@@ -143,12 +123,11 @@ void main() {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        // Force app to re-evaluate guards by signing out then signing back in.
-        // UploadDocumentsScreen listens to auth changes and will route back to Login on sign-out.
+        // Force guards by sign-out
         await auth.signOut();
         await tester.pumpAndSettle(const Duration(seconds: 2));
 
-        // Back on Login, sign in
+        // Back to Login, sign in
         expect(find.byType(LoginScreen), findsOneWidget);
         final loginEmailField = find.byType(TextFormField).at(0);
         final loginPasswordField = find.byType(TextFormField).at(1);
@@ -158,18 +137,20 @@ void main() {
         final loginBtn = find.widgetWithText(ElevatedButton, 'Login');
         expect(loginBtn, findsOneWidget);
         await tester.tap(loginBtn);
-        await tester.pumpAndSettle(const Duration(seconds: 3));
+        await tester.pumpAndSettle(const Duration(seconds: 5));
 
-        // Should be on Registration Pending
-        await pumpUntilFound(tester, find.text('Registration Pending'), timeout: const Duration(seconds: 10));
+        await authflow.pumpUntilFound(
+          tester,
+          find.text('Registration Pending'),
+          timeout: const Duration(seconds: 12),
+        );
 
-        // 4) Simulate officer approval -> route to UserHomeScreen
+        // 4) Approval -> UserHome
         await firestore.collection('users').doc(uid).set({
           'status': 'approved',
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        // Sign out to force LoginScreen to drive routing by Firestore status on next sign-in
         await auth.signOut();
         await tester.pumpAndSettle(const Duration(seconds: 2));
 
@@ -178,13 +159,13 @@ void main() {
         await tester.enterText(loginEmailField, email);
         await tester.enterText(loginPasswordField, password);
         await tester.tap(loginBtn);
-        await tester.pumpAndSettle(const Duration(seconds: 5));
+        await tester.pumpAndSettle(const Duration(seconds: 6));
 
-        // Expect User home (unique UI: AppBar 'Home' and body 'Welcome!')
+        // Expect UserHome unique UI
         expect(find.text('Home'), findsOneWidget);
         expect(find.text('Welcome!'), findsOneWidget);
       },
-      timeout: const Timeout(Duration(minutes: 3)),
+      timeout: const Timeout(Duration(minutes: 4)),
     );
   });
 }
