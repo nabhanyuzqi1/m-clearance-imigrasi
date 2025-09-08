@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/clearance_application.dart';
+import '../../../localization/app_strings.dart';
 
 class ClearanceResultScreen extends StatelessWidget {
   final ClearanceApplication application;
@@ -15,7 +16,12 @@ class ClearanceResultScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Clearance Result'),
+        title: Text(AppStrings.tr(
+          context: context,
+          screenKey: 'clearanceResult',
+          stringKey: 'title',
+          langCode: initialLanguage,
+        )),
       ),
       body: Center(
         child: Text('Clearance result for ${application.shipName}'),

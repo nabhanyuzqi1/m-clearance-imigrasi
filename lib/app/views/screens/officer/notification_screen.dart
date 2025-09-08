@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../localization/app_strings.dart';
 
 class OfficerNotificationScreen extends StatelessWidget {
   final String initialLanguage;
@@ -9,10 +10,20 @@ class OfficerNotificationScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(AppStrings.tr(
+          context: context,
+          screenKey: 'officerNotifications',
+          stringKey: 'title',
+          langCode: initialLanguage,
+        )),
       ),
-      body: const Center(
-        child: Text('Officer Notifications'),
+      body: Center(
+        child: Text(AppStrings.tr(
+          context: context,
+          screenKey: 'officerNotifications',
+          stringKey: 'empty_title',
+          langCode: initialLanguage,
+        )),
       ),
     );
   }

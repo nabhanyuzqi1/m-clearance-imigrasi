@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../localization/app_strings.dart';
 
 class DepartureVerificationScreen extends StatelessWidget {
   final String adminName;
@@ -14,7 +15,12 @@ class DepartureVerificationScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Departure Verification'),
+        title: Text(AppStrings.tr(
+          context: context,
+          screenKey: 'departureVerification',
+          stringKey: 'title',
+          langCode: initialLanguage,
+        )),
       ),
       body: Center(
         child: Text('Departure Verification Screen for $adminName'),

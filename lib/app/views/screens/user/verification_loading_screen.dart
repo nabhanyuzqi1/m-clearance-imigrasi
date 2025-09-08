@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/clearance_application.dart';
+import '../../../localization/app_strings.dart';
 
 class VerificationLoadingScreen extends StatelessWidget {
   final ClearanceApplication application;
@@ -15,7 +16,12 @@ class VerificationLoadingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Verifying...'),
+        title: Text(AppStrings.tr(
+          context: context,
+          screenKey: 'clearanceForm',
+          stringKey: 'verifying_title',
+          langCode: initialLanguage,
+        )),
       ),
       body: Center(
         child: Text('Verification loading for ${application.shipName}'),

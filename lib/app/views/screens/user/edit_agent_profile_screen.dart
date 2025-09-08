@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../localization/app_strings.dart';
 
 class EditAgentProfileScreen extends StatelessWidget {
   final String username;
@@ -18,7 +19,12 @@ class EditAgentProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Agent Profile'),
+        title: Text(AppStrings.tr(
+          context: context,
+          screenKey: 'editAgentProfile',
+          stringKey: 'title',
+          langCode: initialLanguage,
+        )),
       ),
       body: Center(
         child: Text('Editing profile for $username'),

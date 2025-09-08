@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/clearance_application.dart';
+import '../../../localization/app_strings.dart';
 
 class SubmissionDetailScreen extends StatelessWidget {
   final ClearanceApplication application;
@@ -17,7 +18,12 @@ class SubmissionDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Submission Detail'),
+        title: Text(AppStrings.tr(
+          context: context,
+          screenKey: 'submissionDetail',
+          stringKey: 'title',
+          langCode: initialLanguage,
+        )),
       ),
       body: Center(
         child: Text('Submission detail for ${application.shipName}'),

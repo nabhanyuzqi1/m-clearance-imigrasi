@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../localization/app_strings.dart';
 
 class EditProfileScreen extends StatelessWidget {
   final String initialLanguage;
@@ -9,7 +10,12 @@ class EditProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: Text(AppStrings.tr(
+          context: context,
+          screenKey: 'editOfficerProfile',
+          stringKey: 'title',
+          langCode: initialLanguage,
+        )),
       ),
       body: const Center(
         child: Text('Edit Profile Screen'),

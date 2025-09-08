@@ -394,17 +394,103 @@ class AppStrings {
         'profile_updated': 'Profile updated successfully!',
       },
       'officerNotifications': {
-        'title': 'Notifications',
-        'mark_all_read_tooltip': 'Mark all as read',
-        'mark_all_read_message': 'All notifications marked as read (simulation).',
+        'title': 'Notifikasi',
+        'mark_all_read_tooltip': 'Tandai semua terbaca',
+        'mark_all_read_message': 'Semua notifikasi ditandai terbaca (simulasi).',
+        'empty_title': 'Tidak ada apa-apa. Untuk saat ini.',
+        'empty_subtitle': 'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
+        'new_agent_reg_title': 'Pendaftaran Agen Baru',
+        'new_agent_reg_body': 'PT. Bintang Samudera telah mengajukan pendaftaran. Mohon periksa dokumennya.',
+        'submission_needs_review_title': 'Pengajuan Perlu Diperiksa',
+        'submission_needs_review_body': 'KM. Egon telah mengirimkan pengajuan kedatangan yang perlu Anda periksa.',
+        'system_notice_title': 'Pemberitahuan Sistem',
+        'system_notice_body': 'Pembaruan sistem terjadwal akan dilakukan malam ini pukul 02:00 WIB.',
+      },
+      'userNotifications': {
+        'title': 'Notifikasi',
+        'empty_title': 'Tidak ada apa-apa. Untuk saat ini.',
+        'empty_subtitle': 'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
+      },
+      'clearanceResult': {
+        'title': 'Hasil Clearance',
+        'print_simulation': 'Mencetak dokumen... (simulasi)',
+        'share_simulation': 'Membagikan dokumen... (simulasi)',
+      },
+      'clearanceForm': {
+        'verifying_title': 'Memverifikasi...',
+      },
+      'editAgentProfile': {
+        'title': 'Ubah Profil Agen',
+      },
+      'userHome': {
+        'title': 'Beranda',
+      },
+      'submissionDetail': {
+        'title': 'Detail Pengajuan',
+      },
+      'accountDetail': {
+        'title': 'Detail Akun',
+      },
+      'editOfficerProfile': {
+        'title': 'Ubah Profil',
+      },
+      'adminHome': {
+        'title': 'Beranda Admin',
+      },
+      'officerReport': {
+        'title': 'Laporan Petugas',
+      },
+      'arrivalVerification': {
+        'title': 'Verifikasi Kedatangan',
+      },
+      'departureVerification': {
+        'title': 'Verifikasi Keberangkatan',
+      },
+      'accountVerificationList': {
+        'title': 'Verifikasi Akun',
+      },
+      'userNotifications': {
+        'title': 'Notification',
         'empty_title': 'Nothing here. For now.',
         'empty_subtitle': "This is where you'll find what is\ngoing on",
-        'new_agent_reg_title': 'New Agent Registration',
-        'new_agent_reg_body': 'PT. Bintang Samudera has submitted a registration. Please check their documents.',
-        'submission_needs_review_title': 'Submission Needs Review',
-        'submission_needs_review_body': 'KM. Egon has sent an arrival submission that needs your review.',
-        'system_notice_title': 'System Notice',
-        'system_notice_body': 'A scheduled system update will be performed tonight at 02:00 WIB.',
+      },
+      'clearanceResult': {
+        'title': 'Clearance Result',
+        'print_simulation': 'Printing document... (simulation)',
+        'share_simulation': 'Sharing document... (simulation)',
+      },
+      'clearanceForm': {
+        'verifying_title': 'Verifying...',
+      },
+      'editAgentProfile': {
+        'title': 'Edit Agent Profile',
+      },
+      'userHome': {
+        'title': 'Home',
+      },
+      'submissionDetail': {
+        'title': 'Submission Detail',
+      },
+      'accountDetail': {
+        'title': 'Account Detail',
+      },
+      'editOfficerProfile': {
+        'title': 'Edit Profile',
+      },
+      'adminHome': {
+        'title': 'Admin Home',
+      },
+      'officerReport': {
+        'title': 'Officer Report',
+      },
+      'arrivalVerification': {
+        'title': 'Arrival Verification',
+      },
+      'departureVerification': {
+        'title': 'Departure Verification',
+      },
+      'accountVerificationList': {
+        'title': 'Account Verification',
       },
       //endregion
     },

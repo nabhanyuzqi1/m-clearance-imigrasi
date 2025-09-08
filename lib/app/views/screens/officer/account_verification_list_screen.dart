@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../localization/app_strings.dart';
 
 class AccountVerificationListScreen extends StatelessWidget {
   final String initialLanguage;
@@ -6,6 +7,15 @@ class AccountVerificationListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text("Account Verification")));
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(AppStrings.tr(
+          context: context,
+          screenKey: 'accountVerificationList',
+          stringKey: 'title',
+          langCode: initialLanguage,
+        )),
+      ),
+    );
   }
 }
