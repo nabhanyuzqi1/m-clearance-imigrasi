@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1059246245623",
+    "project_id": "m-clearance-imigrasi",
+    "storage_bucket": "m-clearance-imigrasi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1059246245623:android:1e9c5f0b562a30925835f2",
+        "android_client_info": {
+          "package_name": "com.mclearance.isam.m_clearance_isam"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtxiF7OuPvVWfjX2VCbjh_Jc4Ez83YRAQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

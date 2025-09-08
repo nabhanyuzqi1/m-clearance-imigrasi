@@ -1,0 +1,284 @@
+// lib/app/views/screens/auth/register_screen.dart
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../config/routes.dart';
+import '../../../localization/app_strings.dart';
+import '../../../models/user_model.dart';
+import '../../../services/auth_service.dart';
+
+class RegisterScreen extends StatefulWidget {
+  final String initialLanguage;
+  const RegisterScreen({super.key, this.initialLanguage = 'EN'});
+  @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final AuthService _authService = AuthService();
+  final TextEditingController _corporateNameController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+  bool _agreeToTerms = false;
+  late String _selectedLanguage;
+
+  String _tr(String key) {
+    return AppStrings.tr(context: context, screenKey: 'register', stringKey: key, langCode: _selectedLanguage);
+  }
+  
+  @override
+  void initState() {
+    super.initState();
+    _selectedLanguage = widget.initialLanguage;
+  }
+
+  @override
+  void dispose() {
+    _corporateNameController.dispose();
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _goToNextStep() {
+    if (!_agreeToTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_tr('terms_req')), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    if (_formKey.currentState!.validate()) {
+      _performRegistration();
+    }
+  }
+
+  Future<void> _performRegistration() async {
+    try {
+      final UserModel? user = await _authService.registerWithEmailAndPassword(
+        _emailController.text,
+        _passwordController.text,
+        _corporateNameController.text,
+        _usernameController.text,
+        '', // nationality removed from UI; pass empty to keep function signature unchanged
+      );
+      if (user != null) {
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, AppRoutes.emailVerification,
+              arguments: {'initialLanguage': _selectedLanguage});
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_tr('registration_failed')),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'email-already-in-use':
+          errorMessage = _tr('email_already_in_use');
+          break;
+        case 'weak-password':
+          errorMessage = _tr('weak_password');
+          break;
+        default:
+          errorMessage = _tr('registration_error');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_tr('registration_error')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_tr('sign_up')),
+        centerTitle: true,
+      ),
+      backgroundColor: Colors.white,
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(24.0),
+          children: [
+            Text(_tr('create_account_subtitle'), style: const TextStyle(fontSize: 16, color: Colors.black54)),
+            const SizedBox(height: 10),
+            _buildLabel(_tr('corporate_name')),
+            TextFormField(
+              controller: _corporateNameController,
+              decoration:
+                  _buildInputDecoration(hintText: _tr('corporate_name_hint')),
+              validator: (v) => v!.isEmpty ? _tr('corporate_name_req') : null,
+            ),
+            const SizedBox(height: 20),
+            _buildLabel(_tr('username')),
+            TextFormField(
+              controller: _usernameController,
+              decoration: _buildInputDecoration(hintText: _tr('username_hint')),
+              validator: (v) => v!.isEmpty ? _tr('username_req') : null,
+            ),
+            const SizedBox(height: 20),
+            // Nationality field removed per requirement.
+            _buildLabel(_tr('email')),
+            TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: _buildInputDecoration(hintText: _tr('email_hint')),
+              validator: (v) {
+                if (v!.isEmpty) return _tr('email_req');
+                if (!RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(v)) return _tr('email_invalid');
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildLabel(_tr('password')),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: !_isPasswordVisible,
+              decoration: _buildInputDecoration(
+                hintText: _tr('password_hint'),
+                suffixIcon: IconButton(
+                  icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: Colors.grey),
+                  onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                ),
+              ),
+              validator: (v) {
+                if (v!.isEmpty) return _tr('password_req');
+                if (v.length < 6) return _tr('password_length');
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildLabel(_tr('confirm_password')),
+            TextFormField(
+              controller: _confirmPasswordController,
+              obscureText: !_isConfirmPasswordVisible,
+              decoration: _buildInputDecoration(
+                hintText: _tr('confirm_password_hint'),
+                suffixIcon: IconButton(
+                  icon: Icon(_isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off, color: Colors.grey),
+                  onPressed: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
+                ),
+              ),
+              validator: (v) {
+                if (v!.isEmpty) return _tr('confirm_password_req');
+                if (v != _passwordController.text) return _tr('password_mismatch');
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildTermsCheckbox(),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: _goToNextStep,
+              child: Text(_tr('continue'), style: const TextStyle(fontSize: 17)),
+            ),
+            const SizedBox(height: 10),
+            _buildLoginRedirect(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+    );
+  }
+
+  Widget _buildTermsCheckbox() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Checkbox(
+          value: _agreeToTerms,
+          onChanged: (value) => setState(() => _agreeToTerms = value!),
+          activeColor: Colors.blue,
+        ),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(fontSize: 14, color: Colors.black54),
+              children: [
+                TextSpan(text: _tr('terms_agree')),
+                TextSpan(
+                  text: _tr('terms_and_conditions'),
+                  style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w600),
+                  recognizer: TapGestureRecognizer()..onTap = () {},
+                ),
+                TextSpan(text: _tr('and')),
+                TextSpan(
+                  text: _tr('privacy_policy'),
+                  style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w600),
+                  recognizer: TapGestureRecognizer()..onTap = () {},
+                ),
+                const TextSpan(text: '.'),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoginRedirect() {
+    return Center(
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(fontSize: 16, color: Colors.black54),
+          children: [
+            TextSpan(text: _tr('already_have_account')),
+            TextSpan(
+              text: _tr('login'),
+              style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+              recognizer: TapGestureRecognizer()..onTap = () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _buildInputDecoration({String? hintText, Widget? suffixIcon}) {
+    return InputDecoration(
+      hintText: hintText,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: Colors.grey[100],
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    );
+  }
+}
