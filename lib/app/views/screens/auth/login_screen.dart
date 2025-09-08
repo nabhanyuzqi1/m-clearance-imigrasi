@@ -58,13 +58,20 @@ class _LoginScreenState extends State<LoginScreen> {
           switch (userModel.status) {
             case 'approved':
               if (userModel.role == 'admin' || userModel.role == 'officer') {
-                Navigator.pushReplacementNamed(context, AppRoutes.adminHome);
+                Navigator.pushReplacementNamed(context, AppRoutes.adminHome, arguments: {
+                  'adminName': userModel.username,
+                  'adminUsername': userModel.email,
+                  'initialLanguage': _selectedLanguage,
+                });
               } else {
                 Navigator.pushReplacementNamed(context, AppRoutes.userHome);
               }
               break;
             case 'pending_email_verification':
-              Navigator.pushNamed(context, AppRoutes.emailVerification, arguments: {'uid': userModel.uid});
+              Navigator.pushNamed(context, AppRoutes.confirmation, arguments: {
+                'userData': {'email': userModel.email},
+                'initialLanguage': _selectedLanguage,
+              });
               break;
             case 'pending_documents':
               Navigator.pushNamed(context, AppRoutes.uploadDocuments, arguments: {'uid': userModel.uid});

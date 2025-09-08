@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../config/routes.dart';
 import '../../../localization/app_strings.dart';
+import '../../../services/functions_service.dart';
+import '../../../services/auth_service.dart';
 
 /// ConfirmationScreen
 ///
@@ -34,6 +38,16 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_focusNode);
     });
+    // Ensure user authenticated; if not, go to login
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.login);
+      });
+    } else {
+      // Proactively issue a fresh code (idempotent overwrite)
+      _resendCode(silent: true);
+    }
   }
 
   @override
@@ -45,7 +59,20 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
 
   // Verifikasi kode dan navigasi ke langkah berikutnya
   void _verifyCode() {
-    if (_codeController.text.length == 4) {
+    final code = _codeController.text.trim();
+    if (code.length != 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_tr('code_invalid')), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    final fx = FunctionsService();
+    fx.verifyEmailCode(code).then((_) async {
+      if (!mounted) return;
+      // Refresh client user and cache to reflect verification
+      try {
+        await AuthService().updateEmailVerified();
+      } catch (_) {}
       Navigator.pushNamed(
         context,
         AppRoutes.uploadDocuments,
@@ -54,9 +81,41 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
           'initialLanguage': _selectedLanguage
         },
       );
-    } else {
+    }).catchError((e) {
+      String msg = 'Verification failed';
+      if (e is FirebaseFunctionsException) {
+        msg = e.message ?? msg;
+      } else {
+        msg = e.toString();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+    });
+  }
+
+  Future<void> _resendCode({bool silent = false}) async {
+    try {
+      // Ensure signed-in state
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+        return;
+      }
+      await FunctionsService().issueEmailVerificationCode();
+      if (!mounted || silent) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('code_invalid')), backgroundColor: Colors.red),
+        SnackBar(content: Text(_tr('resend_success')), backgroundColor: Colors.blue),
+      );
+    } catch (e) {
+      if (!mounted || silent) return;
+      String msg = 'Internal error';
+      if (e is FirebaseFunctionsException) {
+        msg = e.message ?? msg;
+      } else {
+        msg = e.toString();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to resend code: $msg'), backgroundColor: Colors.red),
       );
     }
   }
@@ -90,12 +149,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
             _buildPinInput(),
             const SizedBox(height: 24),
             TextButton(
-              onPressed: () {
-                // Simulasi pengiriman ulang kode
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(_tr('resend_success')), backgroundColor: Colors.blue),
-                );
-              },
+              onPressed: () => _resendCode(),
               child: Text(_tr('resend_code'), style: const TextStyle(color: Colors.blue)),
             ),
             const Spacer(),

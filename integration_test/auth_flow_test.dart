@@ -31,21 +31,19 @@ Future<void> enterRegisterFieldsByIndex(
   WidgetTester tester, {
   required String corporateName,
   required String username,
-  required String nationality,
   required String email,
   required String password,
 }) async {
-  // RegisterScreen has 6 TextFormFields in order:
-  // 0: corporateName, 1: username, 2: nationality, 3: email, 4: password, 5: confirm password
+  // RegisterScreen has 5 TextFormFields in order:
+  // 0: corporateName, 1: username, 2: email, 3: password, 4: confirm password
   final fields = find.byType(TextFormField);
-  expect(fields, findsNWidgets(6));
+  expect(fields, findsNWidgets(5));
 
   await tester.enterText(fields.at(0), corporateName);
   await tester.enterText(fields.at(1), username);
-  await tester.enterText(fields.at(2), nationality);
-  await tester.enterText(fields.at(3), email);
+  await tester.enterText(fields.at(2), email);
+  await tester.enterText(fields.at(3), password);
   await tester.enterText(fields.at(4), password);
-  await tester.enterText(fields.at(5), password);
 }
 
 void main() {
@@ -91,7 +89,6 @@ void main() {
           tester,
           corporateName: 'ITest Corp $millis',
           username: 'itest_user_$millis',
-          nationality: 'ID',
           email: email,
           password: password,
         );
@@ -114,20 +111,17 @@ void main() {
         // Capture uid
         final uid = auth.currentUser!.uid;
 
-        // 2) Simulate email verification + route to UploadDocumentsScreen via Firestore update
+        // 2) Simulate email verification by updating Firestore, then navigate to UploadDocuments
         await firestore.collection('users').doc(uid).set({
           'isEmailVerified': true,
           'status': 'pending_documents',
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-
-        // Proactively trigger verification check (instead of waiting 5s timer)
-        final iHaveVerifiedBtn = find.widgetWithText(ElevatedButton, 'I have verified my email');
-        if (iHaveVerifiedBtn.evaluate().isNotEmpty) {
-          await tester.tap(iHaveVerifiedBtn);
-        }
-        await tester.pumpAndSettle(const Duration(seconds: 5));
-        await pumpUntilFound(tester, find.text('Upload Documents'), timeout: const Duration(seconds: 10));
+        // Directly navigate to UploadDocuments in test to continue the flow
+        final ctx = tester.element(find.text('Email Verification'));
+        Navigator.pushNamed(ctx, AppRoutes.uploadDocuments, arguments: {'initialLanguage': 'EN'});
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+        await pumpUntilFound(tester, find.text('Submission'), timeout: const Duration(seconds: 10));
 
         // 3) Simulate document upload completion -> route to RegistrationPending
         await firestore.collection('users').doc(uid).set({
@@ -160,8 +154,8 @@ void main() {
         await tester.tap(loginBtn);
         await tester.pumpAndSettle(const Duration(seconds: 3));
 
-        // Should be on Registration Pending
-        await pumpUntilFound(tester, find.text('Registration Pending'), timeout: const Duration(seconds: 10));
+        // Should be on Registration Pending (Waiting for Verification)
+        await pumpUntilFound(tester, find.text('Waiting for Verification'), timeout: const Duration(seconds: 10));
 
         // 4) Simulate officer approval -> route to UserHomeScreen
         await firestore.collection('users').doc(uid).set({

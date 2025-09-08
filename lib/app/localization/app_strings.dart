@@ -267,6 +267,7 @@ class AppStrings {
         'settings': 'Settings',
         'welcome': 'Welcome,',
         'officer': 'Officer',
+        'immigration_office': 'Immigration Office Class II Sampit',
         'arrival_verification': 'Arrival Verification',
         'departure_verification': 'Departure Verification',
         'account_verification': 'Account Verification',
@@ -277,6 +278,8 @@ class AppStrings {
         'settings': 'Settings',
         'notifications': 'Notifications',
         'language': 'Language',
+        'english': 'English',
+        'indonesian': 'Indonesia',
         'privacy_security': 'Privacy & Security',
         'change_password': 'Change Password',
         'logout': 'Logout',
@@ -394,104 +397,19 @@ class AppStrings {
         'profile_updated': 'Profile updated successfully!',
       },
       'officerNotifications': {
-        'title': 'Notifikasi',
-        'mark_all_read_tooltip': 'Tandai semua terbaca',
-        'mark_all_read_message': 'Semua notifikasi ditandai terbaca (simulasi).',
-        'empty_title': 'Tidak ada apa-apa. Untuk saat ini.',
-        'empty_subtitle': 'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
-        'new_agent_reg_title': 'Pendaftaran Agen Baru',
-        'new_agent_reg_body': 'PT. Bintang Samudera telah mengajukan pendaftaran. Mohon periksa dokumennya.',
-        'submission_needs_review_title': 'Pengajuan Perlu Diperiksa',
-        'submission_needs_review_body': 'KM. Egon telah mengirimkan pengajuan kedatangan yang perlu Anda periksa.',
-        'system_notice_title': 'Pemberitahuan Sistem',
-        'system_notice_body': 'Pembaruan sistem terjadwal akan dilakukan malam ini pukul 02:00 WIB.',
-      },
-      'userNotifications': {
-        'title': 'Notifikasi',
-        'empty_title': 'Tidak ada apa-apa. Untuk saat ini.',
-        'empty_subtitle': 'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
-      },
-      'clearanceResult': {
-        'title': 'Hasil Clearance',
-        'print_simulation': 'Mencetak dokumen... (simulasi)',
-        'share_simulation': 'Membagikan dokumen... (simulasi)',
-      },
-      'clearanceForm': {
-        'verifying_title': 'Memverifikasi...',
-      },
-      'editAgentProfile': {
-        'title': 'Ubah Profil Agen',
-      },
-      'userHome': {
-        'title': 'Beranda',
-      },
-      'submissionDetail': {
-        'title': 'Detail Pengajuan',
-      },
-      'accountDetail': {
-        'title': 'Detail Akun',
-      },
-      'editOfficerProfile': {
-        'title': 'Ubah Profil',
-      },
-      'adminHome': {
-        'title': 'Beranda Admin',
-      },
-      'officerReport': {
-        'title': 'Laporan Petugas',
-      },
-      'arrivalVerification': {
-        'title': 'Verifikasi Kedatangan',
-      },
-      'departureVerification': {
-        'title': 'Verifikasi Keberangkatan',
-      },
-      'accountVerificationList': {
-        'title': 'Verifikasi Akun',
-      },
-      'userNotifications': {
-        'title': 'Notification',
+        'title': 'Notifications',
+        'mark_all_read_tooltip': 'Mark all as read',
+        'mark_all_read_message': 'All notifications marked as read (simulation).',
         'empty_title': 'Nothing here. For now.',
         'empty_subtitle': "This is where you'll find what is\ngoing on",
+        'new_agent_reg_title': 'New Agent Registration',
+        'new_agent_reg_body': 'PT. Bintang Samudera has submitted a registration. Please review the documents.',
+        'submission_needs_review_title': 'Submission Needs Review',
+        'submission_needs_review_body': 'KM. Egon has submitted an arrival application that needs your review.',
+        'system_notice_title': 'System Notice',
+        'system_notice_body': 'A scheduled system update will occur tonight at 02:00 WIB.',
       },
-      'clearanceResult': {
-        'title': 'Clearance Result',
-        'print_simulation': 'Printing document... (simulation)',
-        'share_simulation': 'Sharing document... (simulation)',
-      },
-      'clearanceForm': {
-        'verifying_title': 'Verifying...',
-      },
-      'editAgentProfile': {
-        'title': 'Edit Agent Profile',
-      },
-      'userHome': {
-        'title': 'Home',
-      },
-      'submissionDetail': {
-        'title': 'Submission Detail',
-      },
-      'accountDetail': {
-        'title': 'Account Detail',
-      },
-      'editOfficerProfile': {
-        'title': 'Edit Profile',
-      },
-      'adminHome': {
-        'title': 'Admin Home',
-      },
-      'officerReport': {
-        'title': 'Officer Report',
-      },
-      'arrivalVerification': {
-        'title': 'Arrival Verification',
-      },
-      'departureVerification': {
-        'title': 'Departure Verification',
-      },
-      'accountVerificationList': {
-        'title': 'Account Verification',
-      },
+      // Remove duplicate/minimal re-definitions that overrode full maps
       //endregion
     },
     'ID': {
@@ -752,6 +670,7 @@ class AppStrings {
         'settings': 'Pengaturan',
         'welcome': 'Selamat Datang,',
         'officer': 'Petugas',
+        'immigration_office': 'Kantor Imigrasi Kelas II Sampit',
         'arrival_verification': 'Verifikasi Kedatangan',
         'departure_verification': 'Verifikasi Keberangkatan',
         'account_verification': 'Verifikasi Akun',
@@ -762,6 +681,8 @@ class AppStrings {
         'settings': 'Pengaturan',
         'notifications': 'Notifikasi',
         'language': 'Bahasa',
+        'english': 'English',
+        'indonesian': 'Indonesia',
         'privacy_security': 'Privasi & Keamanan',
         'change_password': 'Ubah Password',
         'logout': 'Keluar',
@@ -907,7 +828,17 @@ class AppStrings {
     required String stringKey,
     required String langCode,
   }) {
-    return _localizedStrings[langCode]?[screenKey]?[stringKey] ?? '$screenKey.$stringKey not found';
+    final code = (langCode).toUpperCase();
+    // Primary language
+    final primary = _localizedStrings[code]?[screenKey]?[stringKey];
+    if (primary != null) return primary;
+    // Fallback to English
+    final en = _localizedStrings['EN']?[screenKey]?[stringKey];
+    if (en != null) return en;
+    // Fallback to Indonesian
+    final id = _localizedStrings['ID']?[screenKey]?[stringKey];
+    if (id != null) return id;
+    // Not found
+    return '$screenKey.$stringKey not found';
   }
 }
-

@@ -121,8 +121,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   void _routeForErrorMessage(String message) {
     if (!mounted) return;
     if (message.contains('Email is not verified')) {
-      Navigator.pushReplacementNamed(context, AppRoutes.emailVerification,
-          arguments: {'initialLanguage': _selectedLanguage});
+      final email = FirebaseAuth.instance.currentUser?.email ?? '';
+      Navigator.pushReplacementNamed(context, AppRoutes.confirmation,
+          arguments: {'initialLanguage': _selectedLanguage, 'userData': {'email': email}});
     } else if (message.contains('No authenticated user') ||
         message.contains('User data not found')) {
       Navigator.pushReplacementNamed(context, AppRoutes.login);

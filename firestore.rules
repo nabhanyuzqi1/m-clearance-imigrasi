@@ -61,7 +61,7 @@ service cloud.firestore {
         // Transition 2: pending_documents -> pending_approval
         (bs == 'pending_documents' && ns == 'pending_approval'
           && new.hasUploadedDocuments == true
-          && size(new.documents) >= size(old.documents))
+          && new.documents.size() >= old.documents.size())
         ||
         // Otherwise, status must be no-op
         (ns == bs)
@@ -71,7 +71,7 @@ service cloud.firestore {
     function isOwnerAllowedUpdate(old, new) {
       return immutablesUnchanged(old, new)
         && noBackslide(old, new)
-        && size(new.documents) >= size(old.documents)
+        && new.documents.size() >= old.documents.size()
         && ownerOnlyAllowedFieldsUnchanged(old, new)
         && validOwnerStatusTransition(old, new);
     }
@@ -128,6 +128,44 @@ service cloud.firestore {
     match /reviewQueue/{reviewId} {
       // Officers/Admins only
       allow read, write: if isOfficerOrAdmin();
+    }
+
+    // Applications: applications/{appId}
+    // Fields (suggested):
+    // - agentUid: string (owner)
+    // - type: 'arrival' | 'departure'
+    // - status: 'waiting' | 'revision' | 'approved' | 'declined'
+    // - notes, officerName, createdAt, updatedAt
+    match /applications/{appId} {
+      allow read: if isSignedIn() && (
+        (resource != null && resource.data.agentUid == request.auth.uid) ||
+        isOfficerOrAdmin()
+      );
+
+      // Owner create: must set agentUid to own uid; initial status 'waiting'
+      allow create: if isSignedIn() && request.resource.data.agentUid == request.auth.uid
+        && (request.resource.data.status == 'waiting' || request.resource.data.status == null)
+        && request.resource.data.type in ['arrival','departure'];
+
+      // Owner update: only when not finalized; cannot change agentUid/type; cannot set terminal decisions
+      allow update: if isSignedIn() &&
+        get(/databases/$(database)/documents/applications/$(appId)).data.agentUid == request.auth.uid &&
+        resource.data.status in ['waiting','revision'] &&
+        request.resource.data.agentUid == resource.data.agentUid &&
+        request.resource.data.type == resource.data.type &&
+        // Owner may not set status to approved/declined
+        !(request.resource.data.status in ['approved','declined']);
+
+      // Officer/Admin update: can move waiting/revision -> approved/declined/revision; may set notes, officerName, updatedAt
+      allow update: if isOfficerOrAdmin();
+
+      allow delete: if false;
+    }
+
+    // Officer reports (aggregates/metrics)
+    match /officerReports/{reportId} {
+      allow read: if isOfficerOrAdmin();
+      allow write: if isOfficerOrAdmin();
     }
 
     // Default: deny everything else

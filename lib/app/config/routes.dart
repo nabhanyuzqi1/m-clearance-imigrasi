@@ -8,7 +8,7 @@ import '../views/screens/auth/register_screen.dart';
 import '../views/screens/auth/registration_pending_screen.dart';
 import '../views/screens/auth/splash_screen.dart';
 import '../views/screens/auth/upload_documents_screen.dart';
-import '../views/screens/auth/email_verification_screen.dart';
+// import '../views/screens/auth/email_verification_screen.dart';
 import '../views/screens/officer/account_detail_screen.dart';
 import '../views/screens/officer/account_verification_list_screen.dart';
 import '../views/screens/officer/admin_home_screen.dart';
@@ -80,8 +80,8 @@ class AppRoutes {
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => ChangePasswordScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case confirmation:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => ConfirmationScreen(userData: arguments['userData'], initialLanguage: arguments['initialLanguage']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => ConfirmationScreen(userData: arguments['userData'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case uploadDocuments:
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => UploadDocumentsScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
@@ -89,8 +89,9 @@ class AppRoutes {
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => RegistrationPendingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case emailVerification:
+        // Backwards compatibility: route to code confirmation flow instead of link method.
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => EmailVerificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return MaterialPageRoute(builder: (_) => ConfirmationScreen(userData: (arguments['userData'] as Map<String, String>?) ?? const {}, initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       
       case userHome:
         return MaterialPageRoute(builder: (_) => const UserHomeScreen());
@@ -98,21 +99,21 @@ class AppRoutes {
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => user_notif.NotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case editAgentProfile:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => EditAgentProfileScreen(username: arguments['username'], currentName: arguments['currentName'], currentEmail: arguments['currentEmail'], initialLanguage: arguments['initialLanguage']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => EditAgentProfileScreen(username: arguments['username'] ?? '', currentName: arguments['currentName'] ?? '', currentEmail: arguments['currentEmail'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case clearanceForm:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => ClearanceFormScreen(type: arguments['type'], agentName: arguments['agentName'], existingApplication: arguments['existingApplication'], initialLanguage: arguments['initialLanguage']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => ClearanceFormScreen(type: arguments['type'], agentName: arguments['agentName'], existingApplication: arguments['existingApplication'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case verificationLoading:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => VerificationLoadingScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => VerificationLoadingScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case clearanceResult:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => ClearanceResultScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => ClearanceResultScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       
       case adminHome:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => AdminHomeScreen(adminName: arguments['adminName'], adminUsername: arguments['adminUsername']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => AdminHomeScreen(adminName: arguments['adminName'] ?? '', adminUsername: arguments['adminUsername'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case adminNotification:
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => OfficerNotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
@@ -126,17 +127,22 @@ class AppRoutes {
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => AccountVerificationListScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case accountDetail:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => AccountDetailScreen(initialLanguage: arguments['initialLanguage']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(
+          builder: (_) => AccountDetailScreen(
+            uid: arguments['uid'] ?? '',
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case arrivalVerification:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => ArrivalVerificationScreen(adminName: arguments['adminName'], initialLanguage: arguments['initialLanguage']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => ArrivalVerificationScreen(adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case departureVerification:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => DepartureVerificationScreen(adminName: arguments['adminName'], initialLanguage: arguments['initialLanguage']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => DepartureVerificationScreen(adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case submissionDetail:
-        final arguments = args as Map<String, dynamic>;
-        return MaterialPageRoute(builder: (_) => SubmissionDetailScreen(application: arguments['application'], adminName: arguments['adminName'], initialLanguage: arguments['initialLanguage']));
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => SubmissionDetailScreen(application: arguments['application'], adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
 
       default:
         // Halaman default jika rute tidak ditemukan

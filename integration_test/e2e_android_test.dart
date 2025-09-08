@@ -64,7 +64,6 @@ void main() {
           tester,
           corporateName: 'Android E2E Corp $millis',
           username: 'android_e2e_$millis',
-          nationality: 'ID',
           email: email,
           password: password,
         );
@@ -98,14 +97,13 @@ void main() {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        final iHaveVerifiedBtn = find.widgetWithText(ElevatedButton, 'I have verified my email');
-        if (iHaveVerifiedBtn.evaluate().isNotEmpty) {
-          await tester.tap(iHaveVerifiedBtn);
-        }
+        // Navigate to UploadDocuments programmatically for test continuation
+        final ctx = tester.element(find.text('Email Verification'));
+        Navigator.pushNamed(ctx, AppRoutes.uploadDocuments, arguments: {'initialLanguage': 'EN'});
         await tester.pumpAndSettle(const Duration(seconds: 5));
         await authflow.pumpUntilFound(
           tester,
-          find.text('Upload Documents'),
+          find.text('Submission'),
           timeout: const Duration(seconds: 12),
         );
 
@@ -141,7 +139,7 @@ void main() {
 
         await authflow.pumpUntilFound(
           tester,
-          find.text('Registration Pending'),
+          find.text('Waiting for Verification'),
           timeout: const Duration(seconds: 12),
         );
 

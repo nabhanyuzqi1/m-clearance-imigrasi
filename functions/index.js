@@ -4,8 +4,30 @@ const admin = require("firebase-admin");
 // Initialize Admin SDK exactly once
 admin.initializeApp();
 
-const db = admin.firestore();
+const db = admin.firestore(admin.app(), 'm-clearance-imigrasi-db');
 const { FieldValue, Timestamp } = admin.firestore;
+
+// Helpers
+function requireAuth(context) {
+  if (!context.auth) {
+    const err = new functions.https.HttpsError(
+      'unauthenticated',
+      'Authentication required.'
+    );
+    throw err;
+  }
+}
+
+function callerRole(context) {
+  return (context.auth && context.auth.token && context.auth.token.role) || 'user';
+}
+
+function ensureOfficerOrAdmin(context) {
+  const role = callerRole(context);
+  if (role !== 'officer' && role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Officer or admin role required.');
+  }
+}
 
 /**
  * onAuth user create
@@ -95,6 +117,7 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
  *     * Create a notification item under notifications/{uid}/items idempotently
  */
 exports.onUserDocUpdate = functions.firestore
+  .database('m-clearance-imigrasi-db')
   .document("users/{uid}")
   .onUpdate(async (change, context) => {
     const uid = context.params.uid;
@@ -267,3 +290,255 @@ exports.onDocumentFinalize = functions.storage.object().onFinalize(async (object
     console.error("[onDocumentFinalize] Error:", error);
   }
 });
+
+/**
+ * setUserRole (callable)
+ * Admin-only function to assign a custom role (user|officer|admin) to a target user.
+ * - Updates Firebase Auth custom claims
+ * - Mirrors the role to Firestore users/{uid}.role and updates updatedAt
+ */
+exports.setUserRole = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  const role = callerRole(context);
+  if (role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Admin role required.');
+  }
+
+  const targetUid = (data && data.uid) || '';
+  const newRole = (data && data.role) || '';
+  if (!targetUid || !['user', 'officer', 'admin'].includes(newRole)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Provide uid and role in [user|officer|admin].');
+  }
+
+  await admin.auth().setCustomUserClaims(targetUid, { role: newRole });
+
+  const userRef = db.collection('users').doc(targetUid);
+  const now = FieldValue.serverTimestamp();
+  await userRef.set({ role: newRole, updatedAt: now }, { merge: true });
+
+  return { ok: true, uid: targetUid, role: newRole };
+});
+
+/**
+ * officerDecideAccount (callable)
+ * Officer/Admin decision on a user account pending approval.
+ * Input: { targetUid: string, decision: 'approved'|'rejected', note?: string }
+ * Effect: updates users/{uid}.status and updatedAt. Optionally stores decidedBy/note metadata.
+ * onUserDocUpdate will generate notifications.
+ */
+exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  ensureOfficerOrAdmin(context);
+
+  const targetUid = (data && data.targetUid) || '';
+  const decision = (data && data.decision) || '';
+  const note = (data && data.note) || '';
+
+  if (!targetUid || !['approved', 'rejected'].includes(decision)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Provide targetUid and decision in [approved|rejected].');
+  }
+
+  const callerUid = context.auth.uid;
+  const callerEmail = (context.auth.token && context.auth.token.email) || '';
+  const userRef = db.collection('users').doc(targetUid);
+
+  await db.runTransaction(async (txn) => {
+    const snap = await txn.get(userRef);
+    if (!snap.exists) {
+      throw new functions.https.HttpsError('not-found', 'User document not found.');
+    }
+    const data = snap.data() || {};
+    const status = data.status || 'pending_email_verification';
+    if (status !== 'pending_approval') {
+      throw new functions.https.HttpsError('failed-precondition', `User status must be pending_approval. Got: ${status}`);
+    }
+
+    const updates = {
+      status: decision,
+      updatedAt: FieldValue.serverTimestamp(),
+      decidedBy: callerEmail || callerUid,
+    };
+    if (note && typeof note === 'string' && note.length <= 1000) {
+      updates.decisionNote = note;
+    }
+    txn.update(userRef, updates);
+  });
+
+  return { ok: true, uid: targetUid, status: decision };
+});
+
+/**
+ * getOfficerDashboardStats (callable)
+ * Returns lightweight counts for officer dashboard cards.
+ * - pendingAccounts: users with status == 'pending_approval'
+ * - approvedToday: users moved to approved since midnight UTC
+ * - rejectedToday: users moved to rejected since midnight UTC
+ * - pendingArrival/pendingDeparture: applications awaiting review by type
+ */
+exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  ensureOfficerOrAdmin(context);
+
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  // Helper to count a query without loading all docs (no count() aggregation in v8 Admin SDK)
+  async function countQuery(q) {
+    const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
+    return snap.size;
+  }
+
+  const usersCol = db.collection('users');
+  const applicationsCol = db.collection('applications');
+
+  const [
+    pendingAccounts,
+    approvedToday,
+    rejectedToday,
+    pendingArrival,
+    pendingDeparture,
+  ] = await Promise.all([
+    countQuery(usersCol.where('status', '==', 'pending_approval')),
+    countQuery(usersCol.where('status', '==', 'approved').where('updatedAt', '>=', Timestamp.fromDate(startOfDay))),
+    countQuery(usersCol.where('status', '==', 'rejected').where('updatedAt', '>=', Timestamp.fromDate(startOfDay))),
+    countQuery(applicationsCol.where('type', '==', 'arrival').where('status', '==', 'waiting')),
+    countQuery(applicationsCol.where('type', '==', 'departure').where('status', '==', 'waiting')),
+  ]);
+
+  return {
+    pendingAccounts,
+    approvedToday,
+    rejectedToday,
+    pendingArrival,
+    pendingDeparture,
+  };
+});
+
+/**
+ * issueEmailVerificationCode (callable)
+ * Generates a short-lived 4-digit code for email verification and stores it on users/{uid}.
+ * Optionally integrate with email provider; for now we only store and return masked info.
+ */
+exports.issueEmailVerificationCode = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  const uid = context.auth.uid;
+  const userRef = db.collection('users').doc(uid);
+
+  // Generate a 4-digit code (0000-9999) as a string with leading zeros
+  const raw = Math.floor(Math.random() * 10000);
+  const code = raw.toString().padStart(4, '0');
+  const now = Timestamp.now();
+  const expiresAt = Timestamp.fromMillis(now.toMillis() + 10 * 60 * 1000); // 10 minutes
+
+  await userRef.set({
+    verification: {
+      code,
+      issuedAt: now,
+      expiresAt,
+      attempts: 0,
+    },
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  console.log('[issueEmailVerificationCode] uid:', uid, 'code:', code);
+  // In production, send the code via email here.
+  return { ok: true };
+});
+
+/**
+ * verifyEmailCode (callable)
+ * Validates a submitted 4-digit code, marks Firebase Auth emailVerified=true,
+ * and updates Firestore (isEmailVerified and status transition).
+ */
+exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  const uid = context.auth.uid;
+  const submitted = (data && data.code) ? String(data.code) : '';
+  if (!/^\d{4}$/.test(submitted)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid code format.');
+  }
+
+  const userRef = db.collection('users').doc(uid);
+  const snap = await userRef.get();
+  if (!snap.exists) {
+    throw new functions.https.HttpsError('not-found', 'User document not found.');
+  }
+  const doc = snap.data() || {};
+  const ver = doc.verification || {};
+  const code = ver.code || '';
+  const expiresAt = ver.expiresAt;
+
+  if (!code || code !== submitted) {
+    // increment attempts to allow rate limiting if needed
+    await userRef.set({ verification: { attempts: (ver.attempts || 0) + 1 } }, { merge: true });
+    throw new functions.https.HttpsError('permission-denied', 'Incorrect code.');
+  }
+  if (expiresAt && typeof expiresAt.toMillis === 'function') {
+    if (Timestamp.now().toMillis() > expiresAt.toMillis()) {
+      throw new functions.https.HttpsError('deadline-exceeded', 'Code expired.');
+    }
+  }
+
+  // Mark Auth user as emailVerified = true
+  await admin.auth().updateUser(uid, { emailVerified: true });
+
+  // Reflect in Firestore and transition status once
+  const updates = {
+    isEmailVerified: true,
+    updatedAt: FieldValue.serverTimestamp(),
+    verification: FieldValue.delete(),
+  };
+  const currentStatus = doc.status || 'pending_email_verification';
+  if (currentStatus === 'pending_email_verification') {
+    updates.status = 'pending_documents';
+  }
+  await userRef.set(updates, { merge: true });
+
+  return { ok: true };
+});
+
+/**
+ * Applications triggers
+ * - Ensure defaults on create
+ * - Notify user on status decision transitions (approved/declined)
+ */
+exports.onApplicationCreate = functions.firestore
+  .database('m-clearance-imigrasi-db')
+  .document('applications/{appId}')
+  .onCreate(async (snap, context) => {
+    const data = snap.data() || {};
+    const updates = {};
+    if (!data.createdAt) updates.createdAt = FieldValue.serverTimestamp();
+    if (!data.updatedAt) updates.updatedAt = FieldValue.serverTimestamp();
+    if (!data.status) updates.status = 'waiting';
+    if (Object.keys(updates).length) {
+      await snap.ref.update(updates);
+    }
+  });
+
+exports.onApplicationUpdate = functions.firestore
+  .database('m-clearance-imigrasi-db')
+  .document('applications/{appId}')
+  .onUpdate(async (change, context) => {
+    try {
+      const before = change.before.data() || {};
+      const after = change.after.data() || {};
+      const userUid = after.agentUid || before.agentUid;
+      if (!userUid) return;
+
+      const becameApproved = before.status !== 'approved' && after.status === 'approved';
+      const becameDeclined = before.status !== 'declined' && after.status === 'declined';
+      if (!(becameApproved || becameDeclined)) return;
+
+      const type = after.type || before.type || 'arrival';
+      const message = becameApproved
+        ? `Your ${type} application has been approved.`
+        : `Your ${type} application has been declined.`;
+      const createdAt = Timestamp.now();
+      const notifId = `${type}_${becameApproved ? 'approved' : 'declined'}_${createdAt.toMillis()}`;
+      const notifRef = db.collection('notifications').doc(userUid).collection('items').doc(notifId);
+      await notifRef.set({ type: 'application', message, createdAt });
+    } catch (e) {
+      console.error('[onApplicationUpdate] Error:', e);
+    }
+  });

@@ -32,6 +32,7 @@
     {
       "source": "functions",
       "codebase": "default",
+      "region": "asia-southeast2",
       "ignore": [
         "node_modules",
         ".git",

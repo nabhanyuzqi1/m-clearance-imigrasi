@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
+import 'package:m_clearance_imigrasi/app/services/local_storage_service.dart';
+import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
 
 class AuthService {
   final FirebaseAuth _firebaseAuth;
@@ -16,7 +19,13 @@ class AuthService {
     FirebaseStorage? storage,
   })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'm-clearance-imigrasi-db'),
-        _storage = storage ?? FirebaseStorage.instanceFor(bucket: 'm-clearance-imigrasi.firebasestorage.app');
+        _storage = storage ?? FirebaseStorage.instanceFor(bucket: 'm-clearance-imigrasi.firebasestorage.app') {
+    // Enable offline persistence for Firestore
+    _firestore.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  }
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
@@ -29,7 +38,13 @@ class AuthService {
         password: password,
       );
       if (userCredential.user != null) {
-        return await getUserData(userCredential.user!.uid);
+        final userModel = await getUserData(userCredential.user!.uid);
+        if (userModel != null) {
+          // Cache user data for offline access
+          await LocalStorageService.cacheUserData(userModel);
+          await LocalStorageService.cacheAuthState(true, userId: userModel.uid);
+        }
+        return userModel;
       }
       return null;
     } on FirebaseAuthException catch (e) {
@@ -70,7 +85,17 @@ class AuthService {
             .collection('users')
             .doc(user.uid)
             .set(newUser.toFirestore());
-        await user.sendEmailVerification();
+        // Switch to code-based verification: issue a 4-digit code via Functions
+        try {
+          await FunctionsService().issueEmailVerificationCode();
+        } catch (e) {
+          print('Failed issuing verification code: $e');
+        }
+
+        // Cache the new user data
+        await LocalStorageService.cacheUserData(newUser);
+        await LocalStorageService.cacheAuthState(true, userId: newUser.uid);
+
         return newUser;
       }
       return null;
@@ -85,14 +110,20 @@ class AuthService {
 
   Future<UserModel?> getUserData(String uid) async {
     try {
-      final DocumentSnapshot doc =
-          await _firestore.collection('users').doc(uid).get();
+      final DocumentSnapshot doc = await _firestore
+          .collection('users')
+          .doc(uid)
+          .get()
+          .timeout(const Duration(seconds: 10));
 
       if (!doc.exists || doc.data() == null) {
         return null;
       }
 
       return UserModel.fromFirestore(doc);
+    } on TimeoutException catch (e) {
+      print('Timeout getting user data: $e');
+      return null;
     } catch (e) {
       print('An unexpected error occurred: $e');
       return null;
@@ -171,31 +202,43 @@ class AuthService {
       return await getUserData(user.uid);
     }
 
-    try {
-      final docRef = _firestore.collection('users').doc(user.uid);
-      final doc = await docRef.get();
-      if (!doc.exists) {
-        return null;
+    const int maxRetries = 3;
+    int retryCount = 0;
+
+    while (retryCount < maxRetries) {
+      try {
+        final docRef = _firestore.collection('users').doc(user.uid);
+        final doc = await docRef.get();
+        if (!doc.exists) {
+          return null;
+        }
+
+        final data = doc.data() as Map<String, dynamic>;
+        final Map<String, dynamic> updates = {
+          'isEmailVerified': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        final currentStatus =
+            (data['status'] as String?) ?? 'pending_email_verification';
+        if (currentStatus == 'pending_email_verification') {
+          updates['status'] = 'pending_documents';
+        }
+
+        await docRef.update(updates);
+        return await getUserData(user.uid);
+      } catch (e) {
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          print('Failed to update email verification after $maxRetries attempts: $e');
+          return null;
+        }
+        // Wait before retrying (exponential backoff)
+        await Future.delayed(Duration(seconds: retryCount));
       }
-
-      final data = doc.data() as Map<String, dynamic>;
-      final Map<String, dynamic> updates = {
-        'isEmailVerified': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      final currentStatus =
-          (data['status'] as String?) ?? 'pending_email_verification';
-      if (currentStatus == 'pending_email_verification') {
-        updates['status'] = 'pending_documents';
-      }
-
-      await docRef.update(updates);
-      return await getUserData(user.uid);
-    } catch (e) {
-      print('An unexpected error occurred: $e');
-      return null;
     }
+
+    return null;
   }
 
   /// Guard to ensure the current user can upload documents.
@@ -299,5 +342,7 @@ class AuthService {
  
   Future<void> signOut() async {
     await _firebaseAuth.signOut();
+    // Clear all cached data on sign out
+    await LocalStorageService.clearAll();
   }
 }

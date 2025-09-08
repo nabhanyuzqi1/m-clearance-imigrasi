@@ -49,19 +49,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _goToNextStep() {
+    debugPrint('[RegisterScreen] _goToNextStep called, _agreeToTerms: $_agreeToTerms');
     if (!_agreeToTerms) {
+      debugPrint('[RegisterScreen] Terms not agreed');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_tr('terms_req')), backgroundColor: Colors.red),
       );
       return;
     }
 
-    if (_formKey.currentState!.validate()) {
+    final isValid = _formKey.currentState!.validate();
+    debugPrint('[RegisterScreen] Form valid: $isValid');
+    if (isValid) {
       _performRegistration();
     }
   }
 
   Future<void> _performRegistration() async {
+    debugPrint('[RegisterScreen] Starting registration');
     try {
       final UserModel? user = await _authService.registerWithEmailAndPassword(
         _emailController.text,
@@ -71,9 +76,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         '', // nationality removed from UI; pass empty to keep function signature unchanged
       );
       if (user != null) {
+        debugPrint('[RegisterScreen] Registration successful, navigating to email verification');
         if (mounted) {
-          Navigator.pushReplacementNamed(context, AppRoutes.emailVerification,
-              arguments: {'initialLanguage': _selectedLanguage});
+          Navigator.pushReplacementNamed(
+            context,
+            AppRoutes.confirmation,
+            arguments: {
+              'userData': {'email': _emailController.text},
+              'initialLanguage': _selectedLanguage,
+            },
+          );
         }
       } else {
         if (mounted) {
@@ -86,6 +98,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
     } on FirebaseAuthException catch (e) {
+      debugPrint('[RegisterScreen] FirebaseAuthException: ${e.code} - ${e.message}');
       String errorMessage;
       switch (e.code) {
         case 'email-already-in-use':
@@ -106,6 +119,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       }
     } catch (e) {
+      debugPrint('[RegisterScreen] Unexpected error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -155,7 +169,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: _buildInputDecoration(hintText: _tr('email_hint')),
               validator: (v) {
                 if (v!.isEmpty) return _tr('email_req');
-                if (!RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(v)) return _tr('email_invalid');
+                if (!RegExp(r"^[a-zA-Z0-9.+]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(v)) return _tr('email_invalid');
                 return null;
               },
             ),
