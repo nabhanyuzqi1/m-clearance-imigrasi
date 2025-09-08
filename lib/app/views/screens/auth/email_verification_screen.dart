@@ -4,7 +4,8 @@ import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
-  const EmailVerificationScreen({Key? key}) : super(key: key);
+  final String initialLanguage;
+  const EmailVerificationScreen({super.key, this.initialLanguage = 'EN'});
 
   @override
   _EmailVerificationScreenState createState() =>
@@ -79,7 +80,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         // Otherwise, navigate conservatively.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          Navigator.pushReplacementNamed(context, AppRoutes.registrationPending);
+          Navigator.pushReplacementNamed(context, AppRoutes.registrationPending,
+              arguments: {'initialLanguage': widget.initialLanguage});
         });
         return;
       }
@@ -89,7 +91,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
           _timer?.cancel();
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            Navigator.pushReplacementNamed(context, AppRoutes.uploadDocuments);
+            Navigator.pushReplacementNamed(context, AppRoutes.uploadDocuments,
+                arguments: {'initialLanguage': widget.initialLanguage});
           });
           return;
         case 'pending_email_verification':
@@ -99,7 +102,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
           // Defensive navigation for any unexpected status.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            Navigator.pushReplacementNamed(context, AppRoutes.registrationPending);
+            Navigator.pushReplacementNamed(context, AppRoutes.registrationPending,
+                arguments: {'initialLanguage': widget.initialLanguage});
           });
           return;
       }

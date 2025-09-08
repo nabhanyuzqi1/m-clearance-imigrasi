@@ -48,9 +48,9 @@ void main() async {
       'storageBucket=${opts.storageBucket}, authDomain=${opts.authDomain}, '
       'messagingSenderId=${opts.messagingSenderId}, measurementId=${opts.measurementId}');
 
-  if (opts.storageBucket != null && opts.storageBucket!.contains('firebasestorage.app')) {
-    debugPrint('[Startup][Warning] storageBucket looks like a download host ("firebasestorage.app"). '
-        'Bucket IDs usually end with "appspot.com" (e.g., "${opts.projectId}.appspot.com").');
+  // Note: Using firebasestorage.app bucket as specified by user
+  if (opts.storageBucket != null) {
+    debugPrint('[Startup] Storage bucket configured: ${opts.storageBucket}');
   }
 
   runApp(const MyApp());

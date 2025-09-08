@@ -2,7 +2,7 @@
   "project_info": {
     "project_number": "1059246245623",
     "project_id": "m-clearance-imigrasi",
-    "storage_bucket": "m-clearance-imigrasi.appspot.com"
+    "storage_bucket": "m-clearance-imigrasi.firebasestorage.app"
   },
   "client": [
     {

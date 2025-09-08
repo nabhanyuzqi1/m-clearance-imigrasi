@@ -55,7 +55,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1059246245623',
     projectId: 'm-clearance-imigrasi',
     authDomain: 'm-clearance-imigrasi.firebaseapp.com',
-    storageBucket: 'm-clearance-imigrasi.appspot.com',
+    storageBucket: 'm-clearance-imigrasi.firebasestorage.app',
     measurementId: 'G-Q8F0DKPDFK',
   );
 
@@ -64,6 +64,6 @@ class DefaultFirebaseOptions {
     appId: '1:1059246245623:android:1e9c5f0b562a30925835f2',
     messagingSenderId: '1059246245623',
     projectId: 'm-clearance-imigrasi',
-    storageBucket: 'm-clearance-imigrasi.appspot.com',
+    storageBucket: 'm-clearance-imigrasi.firebasestorage.app',
   );
 }

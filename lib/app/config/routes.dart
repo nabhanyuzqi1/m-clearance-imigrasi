@@ -71,7 +71,8 @@ class AppRoutes {
       case login:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case register:
-        return MaterialPageRoute(builder: (_) => const RegisterScreen());
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => RegisterScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case forgotPassword:
          final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => ForgotPasswordScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
@@ -82,11 +83,14 @@ class AppRoutes {
         final arguments = args as Map<String, dynamic>;
         return MaterialPageRoute(builder: (_) => ConfirmationScreen(userData: arguments['userData'], initialLanguage: arguments['initialLanguage']));
       case uploadDocuments:
-        return MaterialPageRoute(builder: (_) => const UploadDocumentsScreen());
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => UploadDocumentsScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case registrationPending:
-        return MaterialPageRoute(builder: (_) => const RegistrationPendingScreen());
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => RegistrationPendingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case emailVerification:
-        return MaterialPageRoute(builder: (_) => const EmailVerificationScreen());
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => EmailVerificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       
       case userHome:
         return MaterialPageRoute(builder: (_) => const UserHomeScreen());

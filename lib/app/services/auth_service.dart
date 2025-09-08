@@ -16,7 +16,7 @@ class AuthService {
     FirebaseStorage? storage,
   })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'm-clearance-imigrasi-db'),
-        _storage = storage ?? FirebaseStorage.instance;
+        _storage = storage ?? FirebaseStorage.instanceFor(bucket: 'm-clearance-imigrasi.firebasestorage.app');
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 

@@ -1,1 +1,44 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"m-clearance-imigrasi","appId":"1:1059246245623:android:1e9c5f0b562a30925835f2","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"m-clearance-imigrasi","configurations":{"android":"1:1059246245623:android:1e9c5f0b562a30925835f2","web":"1:1059246245623:web:1dbe99369c4028a05835f2"}}}}},"firestore":{"database":"m-clearance-imigrasi-db","location":"asia-southeast2","rules":"firestore.rules","indexes":"firestore.indexes.json"},"functions":[{"source":"functions","codebase":"default","ignore":["node_modules",".git","firebase-debug.log","firebase-debug.*.log","*.local"]}]}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "m-clearance-imigrasi",
+          "appId": "1:1059246245623:android:1e9c5f0b562a30925835f2",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "m-clearance-imigrasi",
+          "configurations": {
+            "android": "1:1059246245623:android:1e9c5f0b562a30925835f2",
+            "web": "1:1059246245623:web:1dbe99369c4028a05835f2"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "database": "m-clearance-imigrasi-db",
+    "location": "asia-southeast2",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
+}

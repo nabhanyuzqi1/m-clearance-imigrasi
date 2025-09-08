@@ -19,7 +19,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final AuthService _authService = AuthService();
   final TextEditingController _corporateNameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _nationalityController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
@@ -43,7 +42,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     _corporateNameController.dispose();
     _usernameController.dispose();
-    _nationalityController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -70,11 +68,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _passwordController.text,
         _corporateNameController.text,
         _usernameController.text,
-        _nationalityController.text,
+        '', // nationality removed from UI; pass empty to keep function signature unchanged
       );
       if (user != null) {
         if (mounted) {
-          Navigator.pushReplacementNamed(context, AppRoutes.emailVerification);
+          Navigator.pushReplacementNamed(context, AppRoutes.emailVerification,
+              arguments: {'initialLanguage': _selectedLanguage});
         }
       } else {
         if (mounted) {
@@ -148,13 +147,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               validator: (v) => v!.isEmpty ? _tr('username_req') : null,
             ),
             const SizedBox(height: 20),
-            _buildLabel(_tr('nationality')),
-            TextFormField(
-              controller: _nationalityController,
-              decoration: _buildInputDecoration(hintText: _tr('nationality_hint')),
-              validator: (v) => v!.isEmpty ? _tr('nationality_req') : null,
-            ),
-            const SizedBox(height: 20),
+            // Nationality field removed per requirement.
             _buildLabel(_tr('email')),
             TextFormField(
               controller: _emailController,

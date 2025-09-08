@@ -35,7 +35,8 @@ class AuthWrapper extends StatelessWidget {
         final bool emailVerified = user.emailVerified;
         if (!emailVerified) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            Navigator.pushReplacementNamed(context, AppRoutes.emailVerification);
+            Navigator.pushReplacementNamed(context, AppRoutes.emailVerification,
+                arguments: {'initialLanguage': 'EN'});
           });
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
@@ -70,12 +71,15 @@ class AuthWrapper extends StatelessWidget {
             switch (userModel.status) {
               case 'pending_email_verification':
                 routeName = AppRoutes.emailVerification;
+                args = {'initialLanguage': 'EN'};
                 break;
               case 'pending_documents':
                 routeName = AppRoutes.uploadDocuments;
+                args = {'initialLanguage': 'EN'};
                 break;
               case 'pending_approval':
                 routeName = AppRoutes.registrationPending;
+                args = {'initialLanguage': 'EN'};
                 break;
               case 'approved':
                 if (userModel.role == 'admin' || userModel.role == 'officer') {
@@ -98,6 +102,7 @@ class AuthWrapper extends StatelessWidget {
               default:
                 // Defensive default
                 routeName = AppRoutes.registrationPending;
+                args = {'initialLanguage': 'EN'};
             }
 
             WidgetsBinding.instance.addPostFrameCallback((_) {
