@@ -8,6 +8,7 @@ class LocalStorageService {
   static const String _lastRouteKey = 'last_navigation_route';
   static const String _authStateKey = 'auth_state';
   static const String _cacheTimestampKey = 'cache_timestamp';
+  static const String _verificationCodeSentKey = 'verification_code_sent';
 
   // Cache expiry time (24 hours)
   static const Duration _cacheExpiry = Duration(hours: 24);
@@ -126,6 +127,18 @@ class LocalStorageService {
   static Future<bool> hasValidCachedData() async {
     final cachedUser = await getCachedUserData();
     return cachedUser != null;
+  }
+
+  /// Check if verification code has been sent in this session
+  static Future<bool> isVerificationCodeSent() async {
+    final prefs = await _prefs;
+    return prefs.getBool(_verificationCodeSentKey) ?? false;
+  }
+
+  /// Set verification code sent flag
+  static Future<void> setVerificationCodeSent(bool sent) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_verificationCodeSentKey, sent);
   }
 }
 

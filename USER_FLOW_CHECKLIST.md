@@ -4,7 +4,7 @@ Use this as a living guide to validate user-facing flows after changes.
 
 ## Environment
 - [ ] Firebase configured (`lib/firebase_options.dart`)
-- [ ] Firestore DB ID: `m-clearance-imigrasi-db`
+- [ ] Firestore DB: default (no custom ID)
 - [ ] Auth enabled for Email/Password
 
 ## Localization
@@ -38,4 +38,3 @@ Use this as a living guide to validate user-facing flows after changes.
 ## Debug (Web)
 - `flutter run -d chrome --web-renderer canvaskit`
 - Watch console logs; use Flutter Inspector for widgets
-

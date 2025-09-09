@@ -39,6 +39,12 @@ class FunctionsService {
     await callable();
   }
 
+  Future<Map<String, dynamic>> issueEmailVerificationCodeEx() async {
+    final callable = _functions.httpsCallable('issueEmailVerificationCode');
+    final result = await callable();
+    return Map<String, dynamic>.from(result.data ?? {});
+  }
+
   Future<void> verifyEmailCode(String code) async {
     final callable = _functions.httpsCallable('verifyEmailCode');
     await callable(<String, dynamic>{'code': code});

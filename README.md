@@ -74,7 +74,7 @@ A comprehensive Flutter-based immigration clearance application system designed 
 ### Database Structure
 
 ```
-Firestore Database: m-clearance-imigrasi-db
+Firestore Database: (default)
 ├── users/
 │   ├── {uid}/
 │   │   ├── email, username, corporateName
@@ -126,7 +126,7 @@ Firestore Database: m-clearance-imigrasi-db
 
 ### Firebase Requirements
 - **Firebase Project**: Active Firebase project
-- **Firestore Database**: Named database `m-clearance-imigrasi-db`
+- **Firestore Database**: Default database
 - **Authentication**: Email/Password provider enabled
 - **Storage**: Cloud Storage bucket configured
 
@@ -183,7 +183,7 @@ cp .env.example .env
 1. Go to [Firebase Console](https://console.firebase.google.com/)
 2. Create a new project: `m-clearance-imigrasi`
 3. Enable Authentication with Email/Password provider
-4. Create Firestore Database with name: `m-clearance-imigrasi-db`
+4. Create the default Firestore Database (no custom database ID)
 5. Set up Storage bucket
 
 #### 2. Download Configuration Files
@@ -256,6 +256,76 @@ service firebase.storage {
   }
 }
 ```
+
+## Email Verification (OTP via MailerSend Extension)
+
+We use the official MailerSend Firebase Extension to send a 4‑digit OTP.
+
+1) Install the extension
+
+```
+firebase ext:install mailersend/mailersend-email --project <your-project-id>
+```
+
+2) Functions enqueue email requests into the default Firestore DB collection `emails` with:
+
+```
+{
+  to: [{ email, name }],
+  subject: 'Your verification code',
+  template_id: '<optional>',
+  personalization: [{
+    email,
+    data: { code, code_spaced, d1, d2, d3, d4, name, account_name, support_email }
+  }],
+  html: '<fallback html>',
+  text: '<fallback text>',
+  tags: ['email_verification']
+}
+```
+
+3) Template variables (add in MailerSend template)
+- `{{ code }}` or `{{ code_spaced }}`
+- `{{ d1 }} {{ d2 }} {{ d3 }} {{ d4 }}`
+- `{{ name }}`, `{{ account_name }}`, `{{ support_email }}`
+
+4) Cooldown and attempts
+- Server: cooldown (default 60s) and max attempts (default 5)
+- Client: resend button shows a countdown and disables during cooldown; masked “Sent to …” hint
+
+5) Functions .env (optional overrides)
+```
+MAILERSEND_FROM=noreply@your-mailersend-sender.com
+MAILERSEND_FROM_NAME=M-Clearance
+MAILERSEND_TEMPLATE_ID=<optional-template-id>
+MAILERSEND_ACCOUNT_NAME=M-Clearance
+MAILERSEND_SUPPORT_EMAIL=support@example.com
+MAILERSEND_COOLDOWN_SECONDS=60
+MAILERSEND_MAX_ATTEMPTS=5
+```
+
+6) Delivery Status Monitoring
+- **Automatic Monitoring**: `onEmailDeliveryUpdate` function monitors delivery status updates
+- **Failure Handling**: Updates user status to `email_verification_failed` on delivery failure
+- **Retry Mechanism**: Automatically retries failed sends up to 3 times (configurable via `MAX_EMAIL_RETRIES`)
+- **Error Logging**: Comprehensive logging for debugging delivery issues
+
+7) Environment Variables
+```
+MAILERSEND_FROM=noreply@your-mailersend-sender.com
+MAILERSEND_FROM_NAME=M-Clearance
+MAILERSEND_TEMPLATE_ID=<optional-template-id>
+MAILERSEND_ACCOUNT_NAME=M-Clearance
+MAILERSEND_SUPPORT_EMAIL=support@example.com
+MAILERSEND_COOLDOWN_SECONDS=60
+MAILERSEND_MAX_ATTEMPTS=5
+MAX_EMAIL_RETRIES=3
+```
+
+Debug:
+- Default Firestore DB → `emails` gets a doc on resend
+- Extension logs: Firebase Console → Extensions → MailerSend Email → Logs
+- Functions logs: `firebase functions:log --only issueEmailVerificationCode,verifyEmailCode,onEmailDeliveryUpdate`
 
 ## ▶️ Running the Application
 

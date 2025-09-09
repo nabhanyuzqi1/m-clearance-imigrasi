@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
 import 'package:m_clearance_imigrasi/app/services/local_storage_service.dart';
 import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
@@ -18,8 +19,8 @@ class AuthService {
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
   })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-        _firestore = firestore ?? FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'm-clearance-imigrasi-db'),
-        _storage = storage ?? FirebaseStorage.instanceFor(bucket: 'm-clearance-imigrasi.firebasestorage.app') {
+        _firestore = firestore ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance {
     // Enable offline persistence for Firestore
     _firestore.settings = const Settings(
       persistenceEnabled: true,
@@ -85,12 +86,11 @@ class AuthService {
             .collection('users')
             .doc(user.uid)
             .set(newUser.toFirestore());
-        // Switch to code-based verification: issue a 4-digit code via Functions
-        try {
-          await FunctionsService().issueEmailVerificationCode();
-        } catch (e) {
+        // Fire-and-forget email verification code issuance to avoid blocking registration
+        FunctionsService().issueEmailVerificationCode().catchError((e) {
           print('Failed issuing verification code: $e');
-        }
+          // Non-critical error, don't fail registration
+        });
 
         // Cache the new user data
         await LocalStorageService.cacheUserData(newUser);
@@ -110,20 +110,35 @@ class AuthService {
 
   Future<UserModel?> getUserData(String uid) async {
     try {
+      // Try to get from cache first for faster response
+      final cachedUser = await LocalStorageService.getCachedUserData();
+      if (cachedUser != null && cachedUser.uid == uid) {
+        // Verify cache is still valid by checking a lightweight field
+        final doc = await _firestore.collection('users').doc(uid).get(const GetOptions(source: Source.cache));
+        if (doc.exists && doc.data() != null) {
+          return cachedUser;
+        }
+      }
+
+      // Fallback to server with reduced timeout for faster response
       final DocumentSnapshot doc = await _firestore
           .collection('users')
           .doc(uid)
           .get()
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 5));
 
       if (!doc.exists || doc.data() == null) {
         return null;
       }
 
-      return UserModel.fromFirestore(doc);
+      final userModel = UserModel.fromFirestore(doc);
+      // Update cache
+      await LocalStorageService.cacheUserData(userModel);
+      return userModel;
     } on TimeoutException catch (e) {
       print('Timeout getting user data: $e');
-      return null;
+      // Return cached data if available
+      return await LocalStorageService.getCachedUserData();
     } catch (e) {
       print('An unexpected error occurred: $e');
       return null;
@@ -146,10 +161,16 @@ class AuthService {
     }
   }
 
-  Future<String?> uploadDocument(String uid, File file, String docName) async {
+  Future<String?> uploadDocument(String uid, dynamic fileOrBytes, String docName) async {
     try {
       final ref = _storage.ref().child('users/$uid/documents/$docName');
-      await ref.putFile(file);
+      if (kIsWeb && fileOrBytes is Uint8List) {
+        await ref.putData(fileOrBytes);
+      } else if (!kIsWeb && fileOrBytes is File) {
+        await ref.putFile(fileOrBytes);
+      } else {
+        throw Exception('Invalid file type for platform');
+      }
       final String downloadUrl = await ref.getDownloadURL();
       await _firestore.collection('users').doc(uid).update({
         'documents': FieldValue.arrayUnion([
@@ -164,8 +185,11 @@ class AuthService {
         'updatedAt': Timestamp.now(),
       });
       return downloadUrl;
+    } on FirebaseException catch (e) {
+      print('Firebase Storage error: ${e.message}');
+      return null;
     } catch (e) {
-      print('An unexpected error occurred: $e');
+      print('An unexpected error occurred during upload: $e');
       return null;
     }
   }

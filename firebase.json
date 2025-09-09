@@ -20,19 +20,19 @@
     }
   },
   "firestore": {
-    "database": "m-clearance-imigrasi-db",
-    "location": "asia-southeast2",
+    "location": "asia-southeast1",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "storage": {
+    "location": "asia-southeast1",
     "rules": "storage.rules"
   },
   "functions": [
     {
       "source": "functions",
       "codebase": "default",
-      "region": "asia-southeast2",
+      "region": "asia-southeast1",
       "ignore": [
         "node_modules",
         ".git",

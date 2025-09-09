@@ -4,7 +4,7 @@ Use this checklist to validate officer/admin flows end-to-end after any changes.
 
 ## Environment
 - [x] Firebase project configured via `lib/firebase_options.dart`
-- [x] Firestore databaseId: `m-clearance-imigrasi-db` (client and functions)
+- [x] Firestore: using default database (client and functions)
 - [x] Storage bucket: `m-clearance-imigrasi.firebasestorage.app`
 - [x] Functions deployed (optional for local dev): `functions/index.js`
 
@@ -73,7 +73,7 @@ Use this checklist to validate officer/admin flows end-to-end after any changes.
   - For integration tests (if configured): `flutter test integration_test/officer_flow_test.dart`
 
 ## Backend Integration Notes
-- Firestore client is pinned to `m-clearance-imigrasi-db` via `AuthService`.
+- Firestore client uses the default database via `AuthService`.
 - Functions use the same databaseId; triggers enqueue review items and send notifications.
 - Officer callable APIs (examples):
   - `setUserRole(uid, role)` -> admin only
@@ -84,4 +84,3 @@ Use this checklist to validate officer/admin flows end-to-end after any changes.
 - [ ] After editing `app_strings.dart`, re-open Admin Home in EN and ID to ensure no key regressions
 - [ ] Verify logout again: press logout, refresh browser → stays on Login
 - [ ] If adding new officer screens, add translation keys under both `EN` and `ID`
-

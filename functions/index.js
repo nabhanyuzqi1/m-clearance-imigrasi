@@ -1,10 +1,26 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+// Removed MailerSend SDK integration in favor of Firebase Trigger Email extension
+
+// === Environment (dotenv-based) ===
+// Migrate off functions.config() to process.env (dotenv) before Mar 2026.
+// Define these in functions/.env (not committed) or your deploy environment.
+const ENV = {
+  MS_API_KEY: process.env.MAILERSEND_API_KEY || '',
+  FROM: process.env.MAILERSEND_FROM || '',
+  FROM_NAME: process.env.MAILERSEND_FROM_NAME || 'M‑Clearance',
+  TEMPLATE_ID: process.env.MAILERSEND_TEMPLATE_ID || '', // unused with Trigger Email; kept for backward compat
+  ACCOUNT_NAME: process.env.MAILERSEND_ACCOUNT_NAME || 'M‑Clearance',
+  SUPPORT_EMAIL:
+    process.env.MAILERSEND_SUPPORT_EMAIL || process.env.MAILERSEND_FROM || '',
+  MAX_EMAIL_RETRIES: Number(process.env.MAX_EMAIL_RETRIES) || 3,
+};
 
 // Initialize Admin SDK exactly once
 admin.initializeApp();
 
-const db = admin.firestore(admin.app(), 'm-clearance-imigrasi-db');
+// Use default Firestore database everywhere
+const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
 
 // Helpers
@@ -16,6 +32,45 @@ function requireAuth(context) {
     );
     throw err;
   }
+}
+
+// MailerSend client (lazy-init)
+// No direct MailerSend client; we enqueue to the Trigger Email extension instead
+
+async function resolveUserEmail(uid, fallbackEmail) {
+  if (fallbackEmail) return fallbackEmail;
+  try {
+    const u = await admin.auth().getUser(uid);
+    if (u && u.email) return u.email;
+  } catch (_) {}
+  try {
+    const snap = await db.collection('users').doc(uid).get();
+    if (snap.exists) {
+      const data = snap.data() || {};
+      if (data.email) return data.email;
+    }
+  } catch (_) {}
+  return '';
+}
+
+async function resolveUserName(uid, fallbackEmail) {
+  // Try auth displayName first
+  try {
+    const u = await admin.auth().getUser(uid);
+    if (u && u.displayName) return u.displayName;
+  } catch (_) {}
+  // Try Firestore username
+  try {
+    const snap = await db.collection('users').doc(uid).get();
+    if (snap.exists) {
+      const data = snap.data() || {};
+      if (data.username) return data.username;
+    }
+  } catch (_) {}
+  // Fallback to email local-part
+  const email = await resolveUserEmail(uid, fallbackEmail);
+  if (email && email.includes('@')) return email.split('@')[0];
+  return 'User';
 }
 
 function callerRole(context) {
@@ -117,7 +172,6 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
  *     * Create a notification item under notifications/{uid}/items idempotently
  */
 exports.onUserDocUpdate = functions.firestore
-  .database('m-clearance-imigrasi-db')
   .document("users/{uid}")
   .onUpdate(async (change, context) => {
     const uid = context.params.uid;
@@ -424,25 +478,113 @@ exports.issueEmailVerificationCode = functions.https.onCall(async (data, context
   const uid = context.auth.uid;
   const userRef = db.collection('users').doc(uid);
 
-  // Generate a 4-digit code (0000-9999) as a string with leading zeros
-  const raw = Math.floor(Math.random() * 10000);
-  const code = raw.toString().padStart(4, '0');
-  const now = Timestamp.now();
-  const expiresAt = Timestamp.fromMillis(now.toMillis() + 10 * 60 * 1000); // 10 minutes
+  // Optimized transaction: minimize reads, use server timestamps
+  let code, now, expiresAt, emailDocId;
+  try {
+    const result = await db.runTransaction(async (txn) => {
+      const snap = await txn.get(userRef);
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const ver = data.verification || {};
+      const issuedAt = ver.issuedAt;
+      const nowTs = FieldValue.serverTimestamp(); // Use server timestamp for consistency
+      if (issuedAt && typeof issuedAt.toMillis === 'function') {
+        const elapsedSec = Math.floor((Timestamp.now().toMillis() - issuedAt.toMillis()) / 1000);
+        const remain = (ENV.COOLDOWN_SECONDS || 60) - elapsedSec;
+        if (remain > 0) {
+          return { cooldown: true, retryAfterSec: remain };
+        }
+      }
+      const raw = Math.floor(Math.random() * 10000);
+      const newCode = raw.toString().padStart(4, '0');
+      const expires = Timestamp.fromMillis(Timestamp.now().toMillis() + 10 * 60 * 1000);
+      const mailId = `${uid}_${Date.now()}`; // Use Date.now() for uniqueness
+      txn.set(userRef, {
+        verification: {
+          code: newCode,
+          issuedAt: nowTs,
+          expiresAt: expires,
+          attempts: 0,
+          emailDocId: mailId,
+        },
+        updatedAt: nowTs,
+      }, { merge: true });
+      return { code: newCode, now: Timestamp.now(), expiresAt: expires, emailDocId: mailId };
+    });
+    if (result && result.cooldown) {
+      return { ok: false, reason: 'cooldown', retryAfterSec: result.retryAfterSec };
+    }
+    ({ code, now, expiresAt, emailDocId } = result);
+  } catch (e) {
+    console.error('[issueEmailVerificationCode] transaction failed:', e);
+    throw e;
+  }
 
-  await userRef.set({
-    verification: {
-      code,
-      issuedAt: now,
-      expiresAt,
-      attempts: 0,
-    },
-    updatedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  console.log('[issueEmailVerificationCode] uid:', uid, 'code_issued');
 
-  console.log('[issueEmailVerificationCode] uid:', uid, 'code:', code);
-  // In production, send the code via email here.
-  return { ok: true };
+  // Enqueue to MailerSend Email Extension (mailersend/mailersend-email)
+  // It watches the default DB 'emails' collection.
+  const tokenEmail = (context.auth && context.auth.token && context.auth.token.email) || '';
+  const recipientEmail = await resolveUserEmail(uid, tokenEmail);
+  const recipientName = await resolveUserName(uid, tokenEmail);
+  if (!recipientEmail) {
+    console.warn('[issueEmailVerificationCode] Could not resolve recipient email for uid:', uid);
+    return { ok: true, queued: false, reason: 'noRecipientEmail' };
+  }
+
+  try {
+    const subject = 'Your verification code';
+    const html = `<p>Hello ${recipientName},</p><p>Your verification code is <b>${code}</b>.<br/>It expires in 10 minutes.</p><p>Regards,<br/>${ENV.ACCOUNT_NAME}</p>`;
+    const text = `Hello ${recipientName},\nYour verification code is ${code}. It expires in 10 minutes.\nRegards, ${ENV.ACCOUNT_NAME}`;
+
+    // Provide extra variables for easier templating
+    const codeSpaced = code.split('').join(' ');
+    const digits = code.split('');
+    const [d1, d2, d3, d4] = [digits[0], digits[1], digits[2], digits[3]];
+
+    const mailDoc = {
+      to: [ { email: recipientEmail, name: recipientName } ],
+      subject,
+      // Prefer template when provided
+      template_id: ENV.TEMPLATE_ID || undefined,
+      personalization: [
+        {
+          email: recipientEmail,
+          data: {
+            code: code,
+            code_spaced: codeSpaced,
+            d1, d2, d3, d4,
+            name: recipientName,
+            account_name: ENV.ACCOUNT_NAME,
+            support_email: ENV.SUPPORT_EMAIL || ENV.FROM,
+          },
+        },
+      ],
+      // Fallback content if template not present
+      html,
+      text,
+      tags: ['email_verification'],
+    };
+    if (ENV.FROM) {
+      mailDoc.from = { email: ENV.FROM, name: ENV.FROM_NAME };
+    }
+    if (ENV.SUPPORT_EMAIL || ENV.FROM) {
+      mailDoc.reply_to = { email: ENV.SUPPORT_EMAIL || ENV.FROM, name: ENV.ACCOUNT_NAME };
+    }
+    // Idempotent enqueue by deterministic ID - use set to overwrite if exists
+    const emailRef = db.collection('emails').doc(emailDocId);
+    await emailRef.set(mailDoc);
+    console.log('[issueEmailVerificationCode] Enqueued email for', recipientEmail);
+    console.log('[issueEmailVerificationCode] Enqueued email for', recipientEmail);
+    return { ok: true, queued: true };
+  } catch (e) {
+    // If thrown by cooldown guard
+    if (e && typeof e.message === 'string' && e.message.startsWith('cooldown:')) {
+      const remain = Number(e.message.split(':')[1] || '60');
+      return { ok: false, reason: 'cooldown', retryAfterSec: remain };
+    }
+    console.error('[issueEmailVerificationCode] Failed to enqueue email:', e);
+    return { ok: true, queued: false, reason: 'enqueueFailed' };
+  }
 });
 
 /**
@@ -459,40 +601,51 @@ exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
   }
 
   const userRef = db.collection('users').doc(uid);
-  const snap = await userRef.get();
-  if (!snap.exists) {
-    throw new functions.https.HttpsError('not-found', 'User document not found.');
-  }
-  const doc = snap.data() || {};
-  const ver = doc.verification || {};
-  const code = ver.code || '';
-  const expiresAt = ver.expiresAt;
 
-  if (!code || code !== submitted) {
-    // increment attempts to allow rate limiting if needed
-    await userRef.set({ verification: { attempts: (ver.attempts || 0) + 1 } }, { merge: true });
-    throw new functions.https.HttpsError('permission-denied', 'Incorrect code.');
-  }
-  if (expiresAt && typeof expiresAt.toMillis === 'function') {
-    if (Timestamp.now().toMillis() > expiresAt.toMillis()) {
-      throw new functions.https.HttpsError('deadline-exceeded', 'Code expired.');
+  // Use transaction for atomic verification
+  await db.runTransaction(async (txn) => {
+    const snap = await txn.get(userRef);
+    if (!snap.exists) {
+      throw new functions.https.HttpsError('not-found', 'User document not found.');
     }
-  }
+    const doc = snap.data() || {};
+    const ver = doc.verification || {};
+    const code = ver.code || '';
+    const expiresAt = ver.expiresAt;
+    const attempts = Number(ver.attempts || 0);
 
-  // Mark Auth user as emailVerified = true
+    if (!code) {
+      throw new functions.https.HttpsError('failed-precondition', 'No active verification code.');
+    }
+    if (attempts >= (ENV.MAX_ATTEMPTS || 5)) {
+      throw new functions.https.HttpsError('resource-exhausted', 'Too many attempts. Please request a new code later.');
+    }
+    if (expiresAt && typeof expiresAt.toMillis === 'function') {
+      if (Timestamp.now().toMillis() > expiresAt.toMillis()) {
+        throw new functions.https.HttpsError('deadline-exceeded', 'Code expired.');
+      }
+    }
+    if (code !== submitted) {
+      txn.update(userRef, { 'verification.attempts': attempts + 1 });
+      throw new functions.https.HttpsError('permission-denied', 'Incorrect code.');
+    }
+
+    // Mark Auth user as emailVerified = true (outside transaction for Auth API)
+    // Reflect in Firestore and transition status once
+    const updates = {
+      isEmailVerified: true,
+      updatedAt: FieldValue.serverTimestamp(),
+      verification: FieldValue.delete(),
+    };
+    const currentStatus = doc.status || 'pending_email_verification';
+    if (currentStatus === 'pending_email_verification') {
+      updates.status = 'pending_documents';
+    }
+    txn.update(userRef, updates);
+  });
+
+  // Update Auth after transaction succeeds
   await admin.auth().updateUser(uid, { emailVerified: true });
-
-  // Reflect in Firestore and transition status once
-  const updates = {
-    isEmailVerified: true,
-    updatedAt: FieldValue.serverTimestamp(),
-    verification: FieldValue.delete(),
-  };
-  const currentStatus = doc.status || 'pending_email_verification';
-  if (currentStatus === 'pending_email_verification') {
-    updates.status = 'pending_documents';
-  }
-  await userRef.set(updates, { merge: true });
 
   return { ok: true };
 });
@@ -503,7 +656,6 @@ exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
  * - Notify user on status decision transitions (approved/declined)
  */
 exports.onApplicationCreate = functions.firestore
-  .database('m-clearance-imigrasi-db')
   .document('applications/{appId}')
   .onCreate(async (snap, context) => {
     const data = snap.data() || {};
@@ -517,7 +669,6 @@ exports.onApplicationCreate = functions.firestore
   });
 
 exports.onApplicationUpdate = functions.firestore
-  .database('m-clearance-imigrasi-db')
   .document('applications/{appId}')
   .onUpdate(async (change, context) => {
     try {
@@ -540,5 +691,97 @@ exports.onApplicationUpdate = functions.firestore
       await notifRef.set({ type: 'application', message, createdAt });
     } catch (e) {
       console.error('[onApplicationUpdate] Error:', e);
+    }
+  });
+
+/**
+ * onEmailDeliveryUpdate
+ * Monitors the emails collection for delivery status updates from MailerSend extension.
+ * When delivery fails, updates the user's verification status and handles retries.
+ */
+exports.onEmailDeliveryUpdate = functions.firestore
+  .document('emails/{emailDocId}')
+  .onUpdate(async (change, context) => {
+    try {
+      const emailDocId = context.params.emailDocId;
+      const before = change.before.data() || {};
+      const after = change.after.data() || {};
+
+      // Check if this is an email verification email
+      const tags = after.tags || [];
+      if (!tags.includes('email_verification')) {
+        console.log('[onEmailDeliveryUpdate] Not a verification email, skipping:', emailDocId);
+        return;
+      }
+
+      // Check for delivery status change
+      const beforeDelivery = before.delivery || {};
+      const afterDelivery = after.delivery || {};
+
+      if (beforeDelivery.state === afterDelivery.state) {
+        console.log('[onEmailDeliveryUpdate] No delivery state change, skipping:', emailDocId);
+        return;
+      }
+
+      const deliveryState = afterDelivery.state;
+      console.log('[onEmailDeliveryUpdate] Delivery state changed to:', deliveryState, 'for:', emailDocId);
+
+      // Extract uid from emailDocId (format: uid_timestamp)
+      const uid = emailDocId.split('_')[0];
+      if (!uid) {
+        console.error('[onEmailDeliveryUpdate] Could not extract uid from emailDocId:', emailDocId);
+        return;
+      }
+
+      const userRef = db.collection('users').doc(uid);
+      const userSnap = await userRef.get();
+      if (!userSnap.exists) {
+        console.error('[onEmailDeliveryUpdate] User document not found for uid:', uid);
+        return;
+      }
+
+      const userData = userSnap.data() || {};
+      const currentStatus = userData.status || 'pending_email_verification';
+
+      if (deliveryState === 'SUCCESS' || deliveryState === 'DELIVERED') {
+        console.log('[onEmailDeliveryUpdate] Email delivered successfully for uid:', uid);
+        // Optionally update user with delivery confirmation, but verification is handled separately
+        return;
+      }
+
+      if (deliveryState === 'FAILED' || deliveryState === 'BOUNCED' || deliveryState === 'REJECTED') {
+        console.log('[onEmailDeliveryUpdate] Email delivery failed for uid:', uid, 'reason:', afterDelivery.error);
+
+        // Update user status to indicate email verification issue
+        const updates = {
+          status: 'email_verification_failed',
+          emailDeliveryError: afterDelivery.error || 'Unknown delivery error',
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+
+        // If user is still in pending_email_verification, we can reset or keep as failed
+        // For now, set to failed status
+        await userRef.update(updates);
+        console.log('[onEmailDeliveryUpdate] Updated user status to email_verification_failed for uid:', uid);
+
+        // Implement retry mechanism
+        const retryCount = (after.retryCount || 0) + 1;
+        const maxRetries = ENV.MAX_EMAIL_RETRIES || 3;
+
+        if (retryCount <= maxRetries) {
+          console.log('[onEmailDeliveryUpdate] Attempting retry', retryCount, 'for uid:', uid);
+
+          // Re-enqueue the email with incremented retry count
+          const retryEmailDoc = { ...after, retryCount };
+          const retryEmailRef = db.collection('emails').doc(`${emailDocId}_retry_${retryCount}`);
+          await retryEmailRef.set(retryEmailDoc);
+          console.log('[onEmailDeliveryUpdate] Re-enqueued email for retry:', retryEmailRef.id);
+        } else {
+          console.log('[onEmailDeliveryUpdate] Max retries reached for uid:', uid);
+          // Could send notification or alert admin
+        }
+      }
+    } catch (error) {
+      console.error('[onEmailDeliveryUpdate] Error:', error);
     }
   });

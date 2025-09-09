@@ -21,6 +21,5 @@ This project uses a simple, pragmatic layering that balances Clean Architecture 
 4. Keep all backend details inside repositories/services — not in the widget tree.
 
 ## Firebase setup
-- Firestore databaseId: `m-clearance-imigrasi-db` (client + functions).
+- Firestore database: default (client + functions).
 - Offline persistence enabled in `AuthService`.
-

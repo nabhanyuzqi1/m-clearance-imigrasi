@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
@@ -19,8 +21,8 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   final AuthService _authService = AuthService();
 
   // Selected files
-  File? _nibFile;
-  File? _ktpFile;
+  Object? _nibFile;
+  Object? _ktpFile;
   String? _nibFileName;
   String? _ktpFileName;
 
@@ -49,6 +51,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       'no_docs_uploaded': 'No documents were uploaded.',
       'select_at_least_one': 'Please select at least one document to upload.',
       'failed_upload': 'Failed to upload documents. Please try again.',
+      'partial_upload_success': 'Some documents failed to upload, but proceeding with uploaded ones.',
     },
     'ID': {
       'title': 'Pengajuan',
@@ -67,6 +70,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       'no_docs_uploaded': 'Tidak ada dokumen yang diunggah.',
       'select_at_least_one': 'Pilih minimal satu dokumen untuk diunggah.',
       'failed_upload': 'Gagal mengunggah dokumen. Coba lagi.',
+      'partial_upload_success': 'Beberapa dokumen gagal diunggah, tetapi melanjutkan dengan dokumen yang berhasil.',
     }
   };
 
@@ -149,31 +153,47 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       }
 
       final picked = result.files.single;
-      File? file;
       final name = picked.name.isNotEmpty ? picked.name : 'nib.pdf';
 
-      if (picked.path != null) {
-        file = File(picked.path!);
-      } else if (picked.bytes != null) {
-        final tempPath =
-            '${Directory.systemTemp.path}/nib-${DateTime.now().millisecondsSinceEpoch}.pdf';
-        final tmp = File(tempPath);
-        await tmp.writeAsBytes(picked.bytes!, flush: true);
-        file = tmp;
-      }
-
-      if (file != null) {
-        setState(() {
-          _nibFile = file!;
-          _nibFileName = name;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
-        );
+      if (kIsWeb) {
+        if (picked.bytes != null) {
+          setState(() {
+            _nibFile = picked.bytes;
+            _nibFileName = name;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          );
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-        );
+        File? file;
+        if (picked.path != null) {
+          file = File(picked.path!);
+        } else if (picked.bytes != null) {
+          final tempPath =
+              '${Directory.systemTemp.path}/nib-${DateTime.now().millisecondsSinceEpoch}.pdf';
+          final tmp = File(tempPath);
+          await tmp.writeAsBytes(picked.bytes!, flush: true);
+          file = tmp;
+        }
+
+        if (file != null) {
+          setState(() {
+            _nibFile = file;
+            _nibFileName = name;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          );
+        }
       }
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -198,33 +218,49 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       }
 
       final picked = result.files.single;
-      File? file;
       var name = picked.name.isNotEmpty ? picked.name : 'ktp.jpg';
 
-      if (picked.path != null) {
-        file = File(picked.path!);
-      } else if (picked.bytes != null) {
-        // Preserve extension if any, fallback to .jpg
-        final ext = name.contains('.') ? name.split('.').last : 'jpg';
-        final tempPath =
-            '${Directory.systemTemp.path}/ktp-${DateTime.now().millisecondsSinceEpoch}.$ext';
-        final tmp = File(tempPath);
-        await tmp.writeAsBytes(picked.bytes!, flush: true);
-        file = tmp;
-      }
-
-      if (file != null) {
-        setState(() {
-          _ktpFile = file!;
-          _ktpFileName = name;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
-        );
+      if (kIsWeb) {
+        if (picked.bytes != null) {
+          setState(() {
+            _ktpFile = picked.bytes;
+            _ktpFileName = name;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          );
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-        );
+        File? file;
+        if (picked.path != null) {
+          file = File(picked.path!);
+        } else if (picked.bytes != null) {
+          // Preserve extension if any, fallback to .jpg
+          final ext = name.contains('.') ? name.split('.').last : 'jpg';
+          final tempPath =
+              '${Directory.systemTemp.path}/ktp-${DateTime.now().millisecondsSinceEpoch}.$ext';
+          final tmp = File(tempPath);
+          await tmp.writeAsBytes(picked.bytes!, flush: true);
+          file = tmp;
+        }
+
+        if (file != null) {
+          setState(() {
+            _ktpFile = file;
+            _ktpFileName = name;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          );
+        }
       }
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -282,6 +318,11 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       }
 
       if (uploadedPaths.isNotEmpty) {
+        if (uploadedPaths.length < 2) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('partial_upload_success')), backgroundColor: Colors.orange),
+          );
+        }
         setState(() {
           _isMarking = true;
         });
