@@ -1,33 +1,14 @@
-/// Enum untuk tipe pengajuan clearance.
-enum ApplicationType { 
-  /// Pengajuan untuk clearance kedatangan kapal.
-  kedatangan, 
-  /// Pengajuan untuk clearance keberangkatan kapal.
-  keberangkatan 
-}
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Enum untuk status pengajuan clearance.
-enum ApplicationStatus { 
-  /// Pengajuan sedang menunggu verifikasi dari petugas.
-  waiting, 
-  /// Pengajuan memerlukan perbaikan dari agen.
-  revision, 
-  /// Pengajuan telah disetujui oleh petugas.
-  approved, 
-  /// Pengajuan ditolak oleh petugas.
-  declined 
-}
+enum ApplicationType { kedatangan, keberangkatan }
+enum ApplicationStatus { waiting, revision, approved, declined }
 
-/// ClearanceApplication Class
-///
-/// Merepresentasikan sebuah pengajuan clearance yang dibuat oleh agen.
-/// Model ini mencakup semua detail yang berkaitan dengan kapal, agen,
-/// perjalanan, dan status verifikasi pengajuan.
 class ClearanceApplication {
-  final String? id;
+  final String id;
   final String shipName;
   final String flag;
   final String agentName;
+  final String agentUid;
   final ApplicationStatus status;
   final ApplicationType type;
   final String? notes;
@@ -37,12 +18,15 @@ class ClearanceApplication {
   final String? wnaCrew;
   final String? officerName;
   final String? location;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   ClearanceApplication({
-    this.id,
+    required this.id,
     required this.shipName,
     required this.flag,
     required this.agentName,
+    required this.agentUid,
     required this.type,
     this.status = ApplicationStatus.waiting,
     this.notes,
@@ -52,22 +36,66 @@ class ClearanceApplication {
     this.wnaCrew,
     this.officerName,
     this.location,
-  });
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) : createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
-  /// Membuat salinan objek ClearanceApplication dengan beberapa nilai yang diperbarui.
-  /// Berguna untuk mengubah status atau menambahkan catatan tanpa memodifikasi objek asli.
+  factory ClearanceApplication.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return ClearanceApplication(
+      id: doc.id,
+      shipName: data['shipName'] ?? '',
+      flag: data['flag'] ?? '',
+      agentName: data['agentName'] ?? '',
+      agentUid: data['agentUid'] ?? '',
+      type: ApplicationType.values[data['type'] ?? 0],
+      status: ApplicationStatus.values[data['status'] ?? 0],
+      notes: data['notes'],
+      port: data['port'],
+      date: data['date'],
+      wniCrew: data['wniCrew'],
+      wnaCrew: data['wnaCrew'],
+      officerName: data['officerName'],
+      location: data['location'],
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'shipName': shipName,
+      'flag': flag,
+      'agentName': agentName,
+      'agentUid': agentUid,
+      'type': type.index,
+      'status': status.index,
+      'notes': notes,
+      'port': port,
+      'date': date,
+      'wniCrew': wniCrew,
+      'wnaCrew': wnaCrew,
+      'officerName': officerName,
+      'location': location,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+
   ClearanceApplication copyWith({
-    String? id,
     ApplicationStatus? status,
     String? notes,
     String? officerName,
     String? location,
+    DateTime? updatedAt,
   }) {
     return ClearanceApplication(
-      id: id ?? this.id,
+      id: id,
       shipName: shipName,
       flag: flag,
       agentName: agentName,
+      agentUid: agentUid,
       type: type,
       status: status ?? this.status,
       notes: notes ?? this.notes,
@@ -77,58 +105,8 @@ class ClearanceApplication {
       wnaCrew: wnaCrew,
       officerName: officerName ?? this.officerName,
       location: location ?? this.location,
-    );
-  }
-}
-
-/// Mapper utilities for converting to/from Firestore maps without coupling
-/// the model to Firestore types.
-class ClearanceApplicationMapper {
-  static ApplicationType _parseType(dynamic v) {
-    final s = (v ?? '').toString().toLowerCase();
-    switch (s) {
-      case 'arrival':
-      case 'kedatangan':
-        return ApplicationType.kedatangan;
-      case 'departure':
-      case 'keberangkatan':
-        return ApplicationType.keberangkatan;
-      default:
-        return ApplicationType.kedatangan;
-    }
-  }
-
-  static ApplicationStatus _parseStatus(dynamic v) {
-    final s = (v ?? '').toString().toLowerCase();
-    switch (s) {
-      case 'waiting':
-        return ApplicationStatus.waiting;
-      case 'revision':
-        return ApplicationStatus.revision;
-      case 'approved':
-        return ApplicationStatus.approved;
-      case 'declined':
-        return ApplicationStatus.declined;
-      default:
-        return ApplicationStatus.waiting;
-    }
-  }
-
-  static ClearanceApplication fromMap(Map<String, dynamic> data, {String? id}) {
-    return ClearanceApplication(
-      id: id,
-      shipName: (data['shipName'] ?? data['vesselName'] ?? 'Vessel').toString(),
-      flag: (data['flag'] ?? '-').toString(),
-      agentName: (data['agentName'] ?? data['agent'] ?? '-').toString(),
-      type: _parseType(data['type']),
-      status: _parseStatus(data['status']),
-      notes: data['notes']?.toString(),
-      port: (data['port'] ?? data['location'])?.toString(),
-      date: (data['date'] ?? data['arrivalDate'] ?? data['departureDate'])?.toString(),
-      wniCrew: data['wniCrew']?.toString(),
-      wnaCrew: data['wnaCrew']?.toString(),
-      officerName: data['officerName']?.toString(),
-      location: data['location']?.toString(),
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? DateTime.now(),
     );
   }
 }

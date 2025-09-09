@@ -24,6 +24,10 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "database": {
+    "location": "asia-southeast1",
+    "rules": "database.rules"
+  },
   "storage": {
     "location": "asia-southeast1",
     "rules": "storage.rules"

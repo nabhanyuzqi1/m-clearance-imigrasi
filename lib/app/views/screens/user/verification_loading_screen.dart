@@ -18,8 +18,8 @@ class VerificationLoadingScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(AppStrings.tr(
           context: context,
-          screenKey: 'clearanceForm',
-          stringKey: 'verifying_title',
+          screenKey: 'submissionSent',
+          stringKey: 'title',
           langCode: initialLanguage,
         )),
       ),

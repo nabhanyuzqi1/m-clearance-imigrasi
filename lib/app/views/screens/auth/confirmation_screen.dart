@@ -5,9 +5,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../config/routes.dart';
 import '../../../localization/app_strings.dart';
+import '../../../models/user_model.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/local_storage_service.dart';
 
 /// ConfirmationScreen
 ///
@@ -53,14 +53,10 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.login);
       });
     }
-    // Automatically send verification code on first load if not already sent
+    // Automatically send verification code on first load
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      final sent = await LocalStorageService.isVerificationCodeSent();
-      if (!sent) {
-        await _resendCode(silent: true);
-        await LocalStorageService.setVerificationCodeSent(true);
-      }
+      await _resendCode(silent: true);
     });
   }
 
@@ -88,22 +84,39 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     });
     fx.verifyEmailCode(code).then((_) async {
       if (!mounted) return;
-      // Refresh client user and cache to reflect verification
+      // Refresh client user to reflect verification
+      UserModel? updatedUser;
       try {
-        await AuthService().updateEmailVerified();
+        updatedUser = await AuthService().updateEmailVerified();
+        print('DEBUG: confirmation_screen: updateEmailVerified returned status = ${updatedUser?.status}');
       } catch (_) {}
       setState(() {
         _isVerifying = false;
         _completed = true;
       });
-      Navigator.pushNamed(
-        context,
-        AppRoutes.uploadDocuments,
-        arguments: {
-          'userData': widget.userData,
-          'initialLanguage': _selectedLanguage
-        },
-      );
+
+      // Navigate based on user status
+      String nextRoute;
+      Map<String, dynamic> arguments = {'initialLanguage': _selectedLanguage};
+      if (updatedUser != null) {
+        final status = updatedUser.status;
+        if (status == 'pending_documents') {
+          nextRoute = AppRoutes.uploadDocuments;
+          arguments['userData'] = widget.userData;
+        } else if (status == 'pending_approval') {
+          nextRoute = AppRoutes.registrationPending;
+        } else if (status == 'approved') {
+          nextRoute = AppRoutes.userHome;
+        } else {
+          // For unknown statuses, default to login
+          nextRoute = AppRoutes.login;
+        }
+      } else {
+        // If no user data, go to login
+        nextRoute = AppRoutes.login;
+      }
+
+      Navigator.pushReplacementNamed(context, nextRoute, arguments: arguments);
     }).catchError((e) {
       if (!mounted) return;
       setState(() {

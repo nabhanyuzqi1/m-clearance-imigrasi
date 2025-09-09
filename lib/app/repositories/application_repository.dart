@@ -33,8 +33,7 @@ class ApplicationRepository {
     if (limit != null) query = query.limit(limit);
 
     return query.snapshots().map((snap) => snap.docs.map((d) {
-          final data = d.data() as Map<String, dynamic>;
-          return ClearanceApplicationMapper.fromMap(data, id: d.id);
+          return ClearanceApplication.fromFirestore(d);
         }).toList());
   }
 

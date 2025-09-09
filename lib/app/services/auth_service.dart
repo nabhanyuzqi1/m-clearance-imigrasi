@@ -6,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
-import 'package:m_clearance_imigrasi/app/services/local_storage_service.dart';
 import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
 
 class AuthService {
@@ -20,31 +19,25 @@ class AuthService {
     FirebaseStorage? storage,
   })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance {
-    // Enable offline persistence for Firestore
-    _firestore.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
-  }
+        _storage = storage ?? FirebaseStorage.instance;
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
   Future<UserModel?> signInWithEmailAndPassword(
       String email, String password) async {
+    final startTime = DateTime.now();
     try {
       final UserCredential userCredential =
           await _firebaseAuth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+      final authTime = DateTime.now().difference(startTime);
+      print('DEBUG: Auth sign-in took ${authTime.inMilliseconds}ms');
       if (userCredential.user != null) {
         final userModel = await getUserData(userCredential.user!.uid);
-        if (userModel != null) {
-          // Cache user data for offline access
-          await LocalStorageService.cacheUserData(userModel);
-          await LocalStorageService.cacheAuthState(true, userId: userModel.uid);
-        }
+        final totalTime = DateTime.now().difference(startTime);
+        print('DEBUG: Total sign-in process took ${totalTime.inMilliseconds}ms');
         return userModel;
       }
       return null;
@@ -92,10 +85,6 @@ class AuthService {
           // Non-critical error, don't fail registration
         });
 
-        // Cache the new user data
-        await LocalStorageService.cacheUserData(newUser);
-        await LocalStorageService.cacheAuthState(true, userId: newUser.uid);
-
         return newUser;
       }
       return null;
@@ -109,36 +98,24 @@ class AuthService {
   }
 
   Future<UserModel?> getUserData(String uid) async {
+    final startTime = DateTime.now();
     try {
-      // Try to get from cache first for faster response
-      final cachedUser = await LocalStorageService.getCachedUserData();
-      if (cachedUser != null && cachedUser.uid == uid) {
-        // Verify cache is still valid by checking a lightweight field
-        final doc = await _firestore.collection('users').doc(uid).get(const GetOptions(source: Source.cache));
-        if (doc.exists && doc.data() != null) {
-          return cachedUser;
-        }
-      }
-
-      // Fallback to server with reduced timeout for faster response
+      final serverStart = DateTime.now();
       final DocumentSnapshot doc = await _firestore
           .collection('users')
           .doc(uid)
-          .get()
-          .timeout(const Duration(seconds: 5));
+          .get();
+      final serverTime = DateTime.now().difference(serverStart);
+      print('DEBUG: Server fetch took ${serverTime.inMilliseconds}ms');
 
       if (!doc.exists || doc.data() == null) {
         return null;
       }
 
       final userModel = UserModel.fromFirestore(doc);
-      // Update cache
-      await LocalStorageService.cacheUserData(userModel);
+      final totalTime = DateTime.now().difference(startTime);
+      print('DEBUG: getUserData took ${totalTime.inMilliseconds}ms');
       return userModel;
-    } on TimeoutException catch (e) {
-      print('Timeout getting user data: $e');
-      // Return cached data if available
-      return await LocalStorageService.getCachedUserData();
     } catch (e) {
       print('An unexpected error occurred: $e');
       return null;
@@ -215,14 +192,20 @@ class AuthService {
   /// If verified, sets isEmailVerified=true and transitions status from
   /// 'pending_email_verification' -> 'pending_documents' once. Idempotent.
   Future<UserModel?> updateEmailVerified() async {
+    print('DEBUG: updateEmailVerified called');
     final user = _firebaseAuth.currentUser;
-    if (user == null) return null;
+    if (user == null) {
+      print('DEBUG: updateEmailVerified: user is null');
+      return null;
+    }
 
     await user.reload();
     final refreshed = _firebaseAuth.currentUser;
     final verified = refreshed?.emailVerified ?? false;
+    print('DEBUG: updateEmailVerified: verified = $verified');
     if (!verified) {
       // No Firestore writes when not verified
+      print('DEBUG: updateEmailVerified: not verified, returning getUserData');
       return await getUserData(user.uid);
     }
 
@@ -234,6 +217,7 @@ class AuthService {
         final docRef = _firestore.collection('users').doc(user.uid);
         final doc = await docRef.get();
         if (!doc.exists) {
+          print('DEBUG: updateEmailVerified: doc does not exist');
           return null;
         }
 
@@ -245,12 +229,16 @@ class AuthService {
 
         final currentStatus =
             (data['status'] as String?) ?? 'pending_email_verification';
+        print('DEBUG: updateEmailVerified: currentStatus = $currentStatus');
         if (currentStatus == 'pending_email_verification') {
           updates['status'] = 'pending_documents';
+          print('DEBUG: updateEmailVerified: updating status to pending_documents');
         }
 
         await docRef.update(updates);
-        return await getUserData(user.uid);
+        final result = await getUserData(user.uid);
+        print('DEBUG: updateEmailVerified: returning userModel with status ${result?.status}');
+        return result;
       } catch (e) {
         retryCount++;
         if (retryCount >= maxRetries) {
@@ -269,24 +257,34 @@ class AuthService {
   /// Requires FirebaseAuth.currentUser.emailVerified == true and
   /// Firestore user status == 'pending_documents'.
   Future<void> ensureCanUploadDocuments() async {
+    print('DEBUG: ensureCanUploadDocuments called');
     final user = _firebaseAuth.currentUser;
+    print('DEBUG: currentUser = $user');
     if (user == null) {
+      print('DEBUG: ensureCanUploadDocuments: No authenticated user');
       throw StateError('No authenticated user.');
     }
 
     await user.reload();
+    print('DEBUG: after reload, emailVerified = ${user.emailVerified}');
     if (!(user.emailVerified)) {
+      print('DEBUG: ensureCanUploadDocuments: Email is not verified');
       throw StateError('Email is not verified.');
     }
 
     final userModel = await getUserData(user.uid);
+    print('DEBUG: userModel = $userModel');
     if (userModel == null) {
+      print('DEBUG: ensureCanUploadDocuments: User data not found');
       throw StateError('User data not found.');
     }
+    print('DEBUG: userModel.status = ${userModel.status}');
     if (userModel.status != 'pending_documents') {
+      print('DEBUG: ensureCanUploadDocuments: Status not pending_documents, throwing');
       throw StateError(
           'User is not eligible to upload documents. Current status: ${userModel.status}.');
     }
+    print('DEBUG: ensureCanUploadDocuments: All checks passed');
   }
 
   /// Mark documents as uploaded and move user to 'pending_approval' if in
@@ -366,7 +364,5 @@ class AuthService {
  
   Future<void> signOut() async {
     await _firebaseAuth.signOut();
-    // Clear all cached data on sign out
-    await LocalStorageService.clearAll();
   }
 }

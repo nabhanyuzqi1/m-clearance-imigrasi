@@ -1,23 +1,12 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-// Removed MailerSend SDK integration in favor of Firebase Trigger Email extension
-
-// === Environment (dotenv-based) ===
-// Migrate off functions.config() to process.env (dotenv) before Mar 2026.
-// Define these in functions/.env (not committed) or your deploy environment.
-const ENV = {
-  MS_API_KEY: process.env.MAILERSEND_API_KEY || '',
-  FROM: process.env.MAILERSEND_FROM || '',
-  FROM_NAME: process.env.MAILERSEND_FROM_NAME || 'M‑Clearance',
-  TEMPLATE_ID: process.env.MAILERSEND_TEMPLATE_ID || '', // unused with Trigger Email; kept for backward compat
-  ACCOUNT_NAME: process.env.MAILERSEND_ACCOUNT_NAME || 'M‑Clearance',
-  SUPPORT_EMAIL:
-    process.env.MAILERSEND_SUPPORT_EMAIL || process.env.MAILERSEND_FROM || '',
-  MAX_EMAIL_RETRIES: Number(process.env.MAX_EMAIL_RETRIES) || 3,
-};
+const { Resend } = require("resend");
 
 // Initialize Admin SDK exactly once
 admin.initializeApp();
+
+// Initialize Realtime Database
+const rtdb = admin.database();
 
 // Use default Firestore database everywhere
 const db = admin.firestore();
@@ -34,8 +23,47 @@ function requireAuth(context) {
   }
 }
 
-// MailerSend client (lazy-init)
-// No direct MailerSend client; we enqueue to the Trigger Email extension instead
+// Counter management helpers
+async function updateUserCounters(oldStatus, newStatus) {
+  const countersRef = db.collection('counters').doc('dashboard');
+  const updates = {};
+
+  if (oldStatus && oldStatus !== newStatus) {
+    if (oldStatus === 'pending_approval') updates.pendingAccounts = FieldValue.increment(-1);
+  }
+  if (newStatus) {
+    if (newStatus === 'pending_approval') updates.pendingAccounts = FieldValue.increment(1);
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await countersRef.set(updates, { merge: true });
+  }
+}
+
+async function updateApplicationCounters(oldType, oldStatus, newType, newStatus) {
+  const countersRef = db.collection('counters').doc('dashboard');
+  const updates = {};
+
+  if (oldType && oldStatus && (oldType !== newType || oldStatus !== newStatus)) {
+    if (oldStatus === 'waiting') {
+      if (oldType === 'arrival') updates.pendingArrival = FieldValue.increment(-1);
+      else if (oldType === 'departure') updates.pendingDeparture = FieldValue.increment(-1);
+    }
+  }
+  if (newType && newStatus) {
+    if (newStatus === 'waiting') {
+      if (newType === 'arrival') updates.pendingArrival = FieldValue.increment(1);
+      else if (newType === 'departure') updates.pendingDeparture = FieldValue.increment(1);
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await countersRef.set(updates, { merge: true });
+  }
+}
+
+// Resend client (lazy-init)
+// Direct Resend integration using Resend SDK
 
 async function resolveUserEmail(uid, fallbackEmail) {
   if (fallbackEmail) return fallbackEmail;
@@ -85,6 +113,115 @@ function ensureOfficerOrAdmin(context) {
 }
 
 /**
+ * Email Configuration Service
+ * Fetches email settings from Firebase Realtime Database with caching and fallback to environment variables.
+ */
+class EmailConfigService {
+  constructor() {
+    this.config = null;
+    this.lastFetched = 0;
+    this.cacheDuration = 5 * 60 * 1000; // 5 minutes cache
+  }
+
+  async getConfig() {
+    const now = Date.now();
+    if (this.config && (now - this.lastFetched) < this.cacheDuration) {
+      return this.config;
+    }
+
+    try {
+      const snapshot = await rtdb.ref('email_config').once('value');
+      const data = snapshot.val();
+      if (data) {
+        this.config = data;
+        this.lastFetched = now;
+        console.log('[EmailConfigService] Fetched config from RTDB at email_config');
+        return this.config;
+      }
+    } catch (error) {
+      console.error('[EmailConfigService] Failed to fetch config from RTDB:', error);
+    }
+
+    // Fallback to environment variables
+    console.log('[EmailConfigService] Using fallback config from environment');
+    return this.getFallbackConfig();
+  }
+
+  getFallbackConfig() {
+    return {
+      global: {
+        apiKey: process.env.RESEND_API_KEY || '',
+        from: 'noreply@mclearanceisam.com',
+        fromName: 'M-Clearance',
+        accountName: 'M-Clearance',
+        supportEmail: 'support@mclearanceisam.com',
+        maxRetries: Number(process.env.MAX_EMAIL_RETRIES) || 3,
+        cooldownSeconds: Number(process.env.MAILERSEND_COOLDOWN_SECONDS) || 60,
+        maxAttempts: Number(process.env.MAILERSEND_MAX_ATTEMPTS) || 5,
+      },
+      templates: {
+        verification: {
+          templateId: '',
+          subject: 'Your verification code',
+          tags: ['email_verification'],
+        },
+      },
+    };
+  }
+
+  async getGlobalSettings() {
+    const config = await this.getConfig();
+    // Handle both RTDB flat structure and fallback nested structure
+    const globalConfig = config.global || config;
+    return {
+      apiKey: globalConfig.apiKey || process.env.RESEND_API_KEY || '',
+      from: globalConfig.fromEmail || globalConfig.from || '',
+      fromName: globalConfig.fromName || 'M-Clearance System',
+      accountName: globalConfig.accountName || globalConfig.fromName || 'M-Clearance System',
+      supportEmail: globalConfig.supportEmail || globalConfig.fromEmail || globalConfig.from || '',
+      maxRetries: globalConfig.maxRetries || 3,
+      cooldownSeconds: globalConfig.cooldownSeconds || 60,
+      maxAttempts: globalConfig.maxAttempts || 5,
+    };
+  }
+
+  async getTemplateSettings(templateName = 'verification') {
+    const config = await this.getConfig();
+    // Handle both RTDB flat structure and fallback nested structure
+    const templatesConfig = config.templates || config;
+    const templateFieldMap = {
+      verification: {
+        subject: templatesConfig.verification?.subject || 'Your verification code - M-Clearance',
+        html: templatesConfig.verification?.html || '<p>Your verification code is: {code}</p>',
+        text: templatesConfig.verification?.text || 'Your verification code is: {code}',
+        tags: ['email_verification']
+      },
+      passwordReset: {
+        subject: templatesConfig.passwordReset?.subject || 'Password Reset Request - M-Clearance',
+        html: templatesConfig.passwordReset?.html || '<p>Reset your password: {resetLink}</p>',
+        text: templatesConfig.passwordReset?.text || 'Reset your password: {resetLink}',
+        tags: ['password_reset']
+      },
+      approval: {
+        subject: templatesConfig.approval?.subject || 'Application Approved - M-Clearance',
+        html: templatesConfig.approval?.html || '<p>Your application has been approved.</p>',
+        text: templatesConfig.approval?.text || 'Your application has been approved.',
+        tags: ['application_approval']
+      },
+      rejection: {
+        subject: templatesConfig.rejection?.subject || 'Application Status Update - M-Clearance',
+        html: templatesConfig.rejection?.html || '<p>Your application requires additional information.</p>',
+        text: templatesConfig.rejection?.text || 'Your application requires additional information.',
+        tags: ['application_rejection']
+      }
+    };
+    return templateFieldMap[templateName] || {};
+  }
+}
+
+const emailConfig = new EmailConfigService();
+
+/**
  * onAuth user create
  * - Create users/{uid} doc if absent with initial fields aligned to app schema
  * - Idempotent updates when doc already exists
@@ -124,11 +261,17 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
         };
         txn.set(userRef, initDoc);
         console.log("[onUserCreate] Created user doc:", uid);
+
+        // Update counters if status is pending_approval (though initially it's not)
+        if (initDoc.status === 'pending_approval') {
+          await updateUserCounters(null, initDoc.status);
+        }
         return;
       }
 
       // If doc exists, only update fields once and keep idempotent behavior
       const data = snap.data() || {};
+      const oldStatus = data.status;
       const updates = {};
 
       // Ensure required fields exist without flipping user-defined values
@@ -154,6 +297,11 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
         updates.updatedAt = now;
         txn.update(userRef, updates);
         console.log("[onUserCreate] Updated existing user doc:", uid, updates);
+
+        // Update counters if status changed
+        if (updates.status && updates.status !== oldStatus) {
+          await updateUserCounters(oldStatus, updates.status);
+        }
       } else {
         console.log("[onUserCreate] No-op for existing user doc:", uid);
       }
@@ -213,13 +361,21 @@ exports.onUserDocUpdate = functions.firestore
               updatedAt: FieldValue.serverTimestamp(),
             });
             console.log("[onUserDocUpdate] Enforced pending_approval for uid:", uid);
+            // Update counters for the enforced status change
+            await updateUserCounters(curStatus, "pending_approval");
           } else {
             console.log("[onUserDocUpdate] Skipped enforcement; current status:", curStatus);
           }
         });
       }
 
-      // 2) Enqueue review item idempotently
+      // 2) Update counters for status changes
+      if (beforeStatus !== afterStatus) {
+        await updateUserCounters(beforeStatus, afterStatus);
+        console.log("[onUserDocUpdate] Updated counters for status change:", beforeStatus, "->", afterStatus);
+      }
+
+      // 3) Enqueue review item idempotently
       if (hasDocsNowTrue || movedToPendingApproval) {
         const submittedAtMs = getUpdatedAtMillis();
         const reviewId = `${uid}_${submittedAtMs}`;
@@ -237,7 +393,7 @@ exports.onUserDocUpdate = functions.firestore
         }
       }
 
-      // 3) Notifications on terminal decision transitions (approved/rejected)
+      // 4) Notifications on terminal decision transitions (approved/rejected)
       if (becameApproved || becameRejected) {
         const statusType = becameApproved ? "approved" : "rejected";
         const message =
@@ -433,18 +589,35 @@ exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) 
   requireAuth(context);
   ensureOfficerOrAdmin(context);
 
+  const functionStart = DateTime.now();
+  console.log('[getOfficerDashboardStats] Function started');
+
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
 
-  // Helper to count a query without loading all docs (no count() aggregation in v8 Admin SDK)
-  async function countQuery(q) {
+  // Try to get from counters first for better performance
+  const countersRef = db.collection('counters').doc('dashboard');
+  const countersSnap = await countersRef.get();
+  let counters = {};
+  if (countersSnap.exists) {
+    counters = countersSnap.data() || {};
+  }
+
+  // Helper to count a query without loading all docs (fallback)
+  async function countQuery(q, label) {
+    const queryStart = DateTime.now();
     const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
+    const queryTime = DateTime.now().difference(queryStart);
+    console.log(`[getOfficerDashboardStats] ${label} count took ${queryTime.inMilliseconds}ms, returned ${snap.size} docs`);
     return snap.size;
   }
 
   const usersCol = db.collection('users');
   const applicationsCol = db.collection('applications');
 
+  const countStart = DateTime.now();
+
+  // Use counters where available, fallback to counting
   const [
     pendingAccounts,
     approvedToday,
@@ -452,12 +625,18 @@ exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) 
     pendingArrival,
     pendingDeparture,
   ] = await Promise.all([
-    countQuery(usersCol.where('status', '==', 'pending_approval')),
-    countQuery(usersCol.where('status', '==', 'approved').where('updatedAt', '>=', Timestamp.fromDate(startOfDay))),
-    countQuery(usersCol.where('status', '==', 'rejected').where('updatedAt', '>=', Timestamp.fromDate(startOfDay))),
-    countQuery(applicationsCol.where('type', '==', 'arrival').where('status', '==', 'waiting')),
-    countQuery(applicationsCol.where('type', '==', 'departure').where('status', '==', 'waiting')),
+    counters.pendingAccounts !== undefined ? Promise.resolve(counters.pendingAccounts) : countQuery(usersCol.where('status', '==', 'pending_approval'), 'pendingAccounts'),
+    countQuery(usersCol.where('status', '==', 'approved').where('updatedAt', '>=', Timestamp.fromDate(startOfDay)), 'approvedToday'), // Daily counts still need query
+    countQuery(usersCol.where('status', '==', 'rejected').where('updatedAt', '>=', Timestamp.fromDate(startOfDay)), 'rejectedToday'), // Daily counts still need query
+    counters.pendingArrival !== undefined ? Promise.resolve(counters.pendingArrival) : countQuery(applicationsCol.where('type', '==', 'arrival').where('status', '==', 'waiting'), 'pendingArrival'),
+    counters.pendingDeparture !== undefined ? Promise.resolve(counters.pendingDeparture) : countQuery(applicationsCol.where('type', '==', 'departure').where('status', '==', 'waiting'), 'pendingDeparture'),
   ]);
+
+  const countTime = DateTime.now().difference(countStart);
+  console.log(`[getOfficerDashboardStats] All counts took ${countTime.inMilliseconds}ms`);
+
+  const totalTime = DateTime.now().difference(functionStart);
+  console.log(`[getOfficerDashboardStats] Total function time: ${totalTime.inMilliseconds}ms`);
 
   return {
     pendingAccounts,
@@ -478,6 +657,10 @@ exports.issueEmailVerificationCode = functions.https.onCall(async (data, context
   const uid = context.auth.uid;
   const userRef = db.collection('users').doc(uid);
 
+  // Fetch dynamic configuration
+  const globalSettings = await emailConfig.getGlobalSettings();
+  const templateSettings = await emailConfig.getTemplateSettings('verification');
+
   // Optimized transaction: minimize reads, use server timestamps
   let code, now, expiresAt, emailDocId;
   try {
@@ -489,7 +672,7 @@ exports.issueEmailVerificationCode = functions.https.onCall(async (data, context
       const nowTs = FieldValue.serverTimestamp(); // Use server timestamp for consistency
       if (issuedAt && typeof issuedAt.toMillis === 'function') {
         const elapsedSec = Math.floor((Timestamp.now().toMillis() - issuedAt.toMillis()) / 1000);
-        const remain = (ENV.COOLDOWN_SECONDS || 60) - elapsedSec;
+        const remain = (globalSettings.cooldownSeconds || 60) - elapsedSec;
         if (remain > 0) {
           return { cooldown: true, retryAfterSec: remain };
         }
@@ -521,69 +704,57 @@ exports.issueEmailVerificationCode = functions.https.onCall(async (data, context
 
   console.log('[issueEmailVerificationCode] uid:', uid, 'code_issued');
 
-  // Enqueue to MailerSend Email Extension (mailersend/mailersend-email)
-  // It watches the default DB 'emails' collection.
+  // Send email directly using Resend API
   const tokenEmail = (context.auth && context.auth.token && context.auth.token.email) || '';
   const recipientEmail = await resolveUserEmail(uid, tokenEmail);
   const recipientName = await resolveUserName(uid, tokenEmail);
   if (!recipientEmail) {
     console.warn('[issueEmailVerificationCode] Could not resolve recipient email for uid:', uid);
-    return { ok: true, queued: false, reason: 'noRecipientEmail' };
+    return { ok: true, sent: false, reason: 'noRecipientEmail' };
   }
 
   try {
-    const subject = 'Your verification code';
-    const html = `<p>Hello ${recipientName},</p><p>Your verification code is <b>${code}</b>.<br/>It expires in 10 minutes.</p><p>Regards,<br/>${ENV.ACCOUNT_NAME}</p>`;
-    const text = `Hello ${recipientName},\nYour verification code is ${code}. It expires in 10 minutes.\nRegards, ${ENV.ACCOUNT_NAME}`;
+    // Initialize Resend client
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
-    // Provide extra variables for easier templating
-    const codeSpaced = code.split('').join(' ');
-    const digits = code.split('');
-    const [d1, d2, d3, d4] = [digits[0], digits[1], digits[2], digits[3]];
+    const subject = templateSettings.subject || 'Your verification code';
+    const html = (templateSettings.html || '<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.<br/>It expires in 10 minutes.</p><p>Regards,<br/>{accountName}</p>')
+      .replace(/{name}/g, recipientName)
+      .replace(/{code}/g, code)
+      .replace(/{accountName}/g, globalSettings.accountName);
+    const text = (templateSettings.text || 'Hello {name},\nYour verification code is {code}. It expires in 10 minutes.\nRegards, {accountName}')
+      .replace(/{name}/g, recipientName)
+      .replace(/{code}/g, code)
+      .replace(/{accountName}/g, globalSettings.accountName);
 
-    const mailDoc = {
-      to: [ { email: recipientEmail, name: recipientName } ],
-      subject,
-      // Prefer template when provided
-      template_id: ENV.TEMPLATE_ID || undefined,
-      personalization: [
-        {
-          email: recipientEmail,
-          data: {
-            code: code,
-            code_spaced: codeSpaced,
-            d1, d2, d3, d4,
-            name: recipientName,
-            account_name: ENV.ACCOUNT_NAME,
-            support_email: ENV.SUPPORT_EMAIL || ENV.FROM,
-          },
-        },
-      ],
-      // Fallback content if template not present
-      html,
-      text,
-      tags: ['email_verification'],
+    // Prepare email data for Resend
+    const emailData = {
+      from: `${globalSettings.fromName} <${globalSettings.from}>`,
+      to: recipientEmail,
+      subject: subject,
+      html: html,
+      text: text,
+      reply_to: globalSettings.supportEmail || globalSettings.from,
     };
-    if (ENV.FROM) {
-      mailDoc.from = { email: ENV.FROM, name: ENV.FROM_NAME };
+
+    // Send the email
+    const { data, error } = await resend.emails.send(emailData);
+
+    if (error) {
+      console.error('[issueEmailVerificationCode] Failed to send email:', error);
+      return { ok: true, sent: false, reason: 'sendFailed', error: error.message };
     }
-    if (ENV.SUPPORT_EMAIL || ENV.FROM) {
-      mailDoc.reply_to = { email: ENV.SUPPORT_EMAIL || ENV.FROM, name: ENV.ACCOUNT_NAME };
-    }
-    // Idempotent enqueue by deterministic ID - use set to overwrite if exists
-    const emailRef = db.collection('emails').doc(emailDocId);
-    await emailRef.set(mailDoc);
-    console.log('[issueEmailVerificationCode] Enqueued email for', recipientEmail);
-    console.log('[issueEmailVerificationCode] Enqueued email for', recipientEmail);
-    return { ok: true, queued: true };
+
+    console.log('[issueEmailVerificationCode] Email sent successfully:', data);
+    return { ok: true, sent: true, messageId: data?.id };
   } catch (e) {
     // If thrown by cooldown guard
     if (e && typeof e.message === 'string' && e.message.startsWith('cooldown:')) {
       const remain = Number(e.message.split(':')[1] || '60');
       return { ok: false, reason: 'cooldown', retryAfterSec: remain };
     }
-    console.error('[issueEmailVerificationCode] Failed to enqueue email:', e);
-    return { ok: true, queued: false, reason: 'enqueueFailed' };
+    console.error('[issueEmailVerificationCode] Failed to send email:', e);
+    return { ok: true, sent: false, reason: 'sendFailed', error: e.message };
   }
 });
 
@@ -592,6 +763,42 @@ exports.issueEmailVerificationCode = functions.https.onCall(async (data, context
  * Validates a submitted 4-digit code, marks Firebase Auth emailVerified=true,
  * and updates Firestore (isEmailVerified and status transition).
  */
+/**
+ * initializeCounters (callable)
+ * Initialize dashboard counters by counting existing documents.
+ * Run this once after deployment to set up counters.
+ */
+exports.initializeCounters = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  ensureOfficerOrAdmin(context);
+
+  console.log('[initializeCounters] Starting counter initialization');
+
+  const countersRef = db.collection('counters').doc('dashboard');
+
+  // Count users
+  const pendingAccountsSnap = await db.collection('users').where('status', '==', 'pending_approval').select(admin.firestore.FieldPath.documentId()).get();
+  const pendingAccounts = pendingAccountsSnap.size;
+
+  // Count applications
+  const pendingArrivalSnap = await db.collection('applications').where('type', '==', 'arrival').where('status', '==', 'waiting').select(admin.firestore.FieldPath.documentId()).get();
+  const pendingArrival = pendingArrivalSnap.size;
+
+  const pendingDepartureSnap = await db.collection('applications').where('type', '==', 'departure').where('status', '==', 'waiting').select(admin.firestore.FieldPath.documentId()).get();
+  const pendingDeparture = pendingDepartureSnap.size;
+
+  await countersRef.set({
+    pendingAccounts,
+    pendingArrival,
+    pendingDeparture,
+    lastUpdated: FieldValue.serverTimestamp(),
+  });
+
+  console.log('[initializeCounters] Counters initialized:', { pendingAccounts, pendingArrival, pendingDeparture });
+
+  return { success: true, counters: { pendingAccounts, pendingArrival, pendingDeparture } };
+});
+
 exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
   requireAuth(context);
   const uid = context.auth.uid;
@@ -601,6 +808,9 @@ exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
   }
 
   const userRef = db.collection('users').doc(uid);
+
+  // Fetch dynamic configuration
+  const globalSettings = await emailConfig.getGlobalSettings();
 
   // Use transaction for atomic verification
   await db.runTransaction(async (txn) => {
@@ -617,7 +827,7 @@ exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
     if (!code) {
       throw new functions.https.HttpsError('failed-precondition', 'No active verification code.');
     }
-    if (attempts >= (ENV.MAX_ATTEMPTS || 5)) {
+    if (attempts >= (globalSettings.maxAttempts || 5)) {
       throw new functions.https.HttpsError('resource-exhausted', 'Too many attempts. Please request a new code later.');
     }
     if (expiresAt && typeof expiresAt.toMillis === 'function') {
@@ -651,8 +861,88 @@ exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
 });
 
 /**
+ * testEmailSend (callable)
+ * Test function to verify direct Resend integration
+ * Sends a test email directly using Resend API
+ */
+exports.testEmailSend = functions.https.onCall(async (data, context) => {
+  try {
+    console.log('[testEmailSend] Testing direct Resend integration...');
+
+    // Get configuration
+    const globalSettings = await emailConfig.getGlobalSettings();
+    const templateSettings = await emailConfig.getTemplateSettings('verification');
+
+    console.log('[testEmailSend] Global settings:', JSON.stringify(globalSettings, null, 2));
+    console.log('[testEmailSend] Template settings:', JSON.stringify(templateSettings, null, 2));
+
+    // Initialize Resend client
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    // Test email parameters - use provided data or defaults
+    const testRecipient = (data && data.email) || 'mclearanceisam@gmail.com';
+    const testName = (data && data.name) || 'Test User';
+
+    const subject = templateSettings.subject || 'Test Email - Direct Resend Integration';
+    const html = (templateSettings.html || '<p>Hello {name},</p><p>This is a test email sent using Resend API.</p><p>Regards,<br/>{accountName}</p>')
+      .replace(/{name}/g, testName)
+      .replace(/{accountName}/g, globalSettings.accountName);
+    const text = (templateSettings.text || 'Hello {name},\n\nThis is a test email sent using Resend API.\n\nRegards,\n{accountName}')
+      .replace(/{name}/g, testName)
+      .replace(/{accountName}/g, globalSettings.accountName);
+
+    // Prepare email data for Resend
+    const emailData = {
+      from: `${globalSettings.fromName} <${globalSettings.from}>`,
+      to: testRecipient,
+      subject: subject,
+      html: html,
+      text: text,
+      reply_to: globalSettings.supportEmail || globalSettings.from,
+    };
+
+    console.log('[testEmailSend] Sending email to:', testRecipient);
+    console.log('[testEmailSend] From:', emailData.from);
+    console.log('[testEmailSend] Subject:', emailData.subject);
+
+    // Send the email
+    const { data: emailDataResponse, error } = await resend.emails.send(emailData);
+
+    if (error) {
+      console.error('[testEmailSend] Failed to send email:', error);
+      return {
+        success: false,
+        error: error.message,
+        recipient: testRecipient,
+        message: 'Test email sending failed'
+      };
+    }
+
+    console.log('[testEmailSend] Email sent successfully:', emailDataResponse);
+
+    return {
+      success: true,
+      messageId: emailDataResponse?.id,
+      recipient: testRecipient,
+      templateUsed: !!templateSettings.html,
+      templateSubject: templateSettings.subject,
+      message: 'Test email sent successfully via direct Resend integration with HTML templates'
+    };
+  } catch (error) {
+    console.error('[testEmailSend] Error:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Test email sending failed'
+    };
+  }
+});
+
+
+/**
  * Applications triggers
  * - Ensure defaults on create
+ * - Update counters on create
  * - Notify user on status decision transitions (approved/declined)
  */
 exports.onApplicationCreate = functions.firestore
@@ -666,6 +956,12 @@ exports.onApplicationCreate = functions.firestore
     if (Object.keys(updates).length) {
       await snap.ref.update(updates);
     }
+
+    // Update counters for new application
+    const type = data.type || 'arrival';
+    const status = updates.status || data.status || 'waiting';
+    await updateApplicationCounters(null, null, type, status);
+    console.log("[onApplicationCreate] Updated counters for new application:", type, status);
   });
 
 exports.onApplicationUpdate = functions.firestore
@@ -675,6 +971,18 @@ exports.onApplicationUpdate = functions.firestore
       const before = change.before.data() || {};
       const after = change.after.data() || {};
       const userUid = after.agentUid || before.agentUid;
+
+      const beforeType = before.type;
+      const afterType = after.type;
+      const beforeStatus = before.status;
+      const afterStatus = after.status;
+
+      // Update counters if type or status changed
+      if (beforeType !== afterType || beforeStatus !== afterStatus) {
+        await updateApplicationCounters(beforeType, beforeStatus, afterType, afterStatus);
+        console.log("[onApplicationUpdate] Updated counters for application change:", beforeType, beforeStatus, "->", afterType, afterStatus);
+      }
+
       if (!userUid) return;
 
       const becameApproved = before.status !== 'approved' && after.status === 'approved';
@@ -694,94 +1002,3 @@ exports.onApplicationUpdate = functions.firestore
     }
   });
 
-/**
- * onEmailDeliveryUpdate
- * Monitors the emails collection for delivery status updates from MailerSend extension.
- * When delivery fails, updates the user's verification status and handles retries.
- */
-exports.onEmailDeliveryUpdate = functions.firestore
-  .document('emails/{emailDocId}')
-  .onUpdate(async (change, context) => {
-    try {
-      const emailDocId = context.params.emailDocId;
-      const before = change.before.data() || {};
-      const after = change.after.data() || {};
-
-      // Check if this is an email verification email
-      const tags = after.tags || [];
-      if (!tags.includes('email_verification')) {
-        console.log('[onEmailDeliveryUpdate] Not a verification email, skipping:', emailDocId);
-        return;
-      }
-
-      // Check for delivery status change
-      const beforeDelivery = before.delivery || {};
-      const afterDelivery = after.delivery || {};
-
-      if (beforeDelivery.state === afterDelivery.state) {
-        console.log('[onEmailDeliveryUpdate] No delivery state change, skipping:', emailDocId);
-        return;
-      }
-
-      const deliveryState = afterDelivery.state;
-      console.log('[onEmailDeliveryUpdate] Delivery state changed to:', deliveryState, 'for:', emailDocId);
-
-      // Extract uid from emailDocId (format: uid_timestamp)
-      const uid = emailDocId.split('_')[0];
-      if (!uid) {
-        console.error('[onEmailDeliveryUpdate] Could not extract uid from emailDocId:', emailDocId);
-        return;
-      }
-
-      const userRef = db.collection('users').doc(uid);
-      const userSnap = await userRef.get();
-      if (!userSnap.exists) {
-        console.error('[onEmailDeliveryUpdate] User document not found for uid:', uid);
-        return;
-      }
-
-      const userData = userSnap.data() || {};
-      const currentStatus = userData.status || 'pending_email_verification';
-
-      if (deliveryState === 'SUCCESS' || deliveryState === 'DELIVERED') {
-        console.log('[onEmailDeliveryUpdate] Email delivered successfully for uid:', uid);
-        // Optionally update user with delivery confirmation, but verification is handled separately
-        return;
-      }
-
-      if (deliveryState === 'FAILED' || deliveryState === 'BOUNCED' || deliveryState === 'REJECTED') {
-        console.log('[onEmailDeliveryUpdate] Email delivery failed for uid:', uid, 'reason:', afterDelivery.error);
-
-        // Update user status to indicate email verification issue
-        const updates = {
-          status: 'email_verification_failed',
-          emailDeliveryError: afterDelivery.error || 'Unknown delivery error',
-          updatedAt: FieldValue.serverTimestamp(),
-        };
-
-        // If user is still in pending_email_verification, we can reset or keep as failed
-        // For now, set to failed status
-        await userRef.update(updates);
-        console.log('[onEmailDeliveryUpdate] Updated user status to email_verification_failed for uid:', uid);
-
-        // Implement retry mechanism
-        const retryCount = (after.retryCount || 0) + 1;
-        const maxRetries = ENV.MAX_EMAIL_RETRIES || 3;
-
-        if (retryCount <= maxRetries) {
-          console.log('[onEmailDeliveryUpdate] Attempting retry', retryCount, 'for uid:', uid);
-
-          // Re-enqueue the email with incremented retry count
-          const retryEmailDoc = { ...after, retryCount };
-          const retryEmailRef = db.collection('emails').doc(`${emailDocId}_retry_${retryCount}`);
-          await retryEmailRef.set(retryEmailDoc);
-          console.log('[onEmailDeliveryUpdate] Re-enqueued email for retry:', retryEmailRef.id);
-        } else {
-          console.log('[onEmailDeliveryUpdate] Max retries reached for uid:', uid);
-          // Could send notification or alert admin
-        }
-      }
-    } catch (error) {
-      console.error('[onEmailDeliveryUpdate] Error:', error);
-    }
-  });

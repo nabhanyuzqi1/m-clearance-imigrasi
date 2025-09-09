@@ -1,0 +1,24 @@
+{
+  "email_config": {
+    "approvalBody": "Hello {name},\n\nCongratulations! Your application has been approved.\n\nYou can now access all features of the M-Clearance system.\n\nBest regards,\nM-Clearance Team",
+    "approvalSubject": "Application Approved",
+    "approvalTemplateId": "your-approval-template-id-here",
+    "fromEmail": "noreply@mclearanceisam.com",
+    "fromName": "M-Clearance",
+    "passwordResetBody": "Hello {name},\n\nYou have requested to reset your password. Click the link below to reset your password:\n\n{resetLink}\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nM-Clearance Team",
+    "passwordResetSubject": "Password Reset Request",
+    "passwordResetTemplateId": "your-password-reset-template-id-here",
+    "rejectionBody": "Hello {name},\n\nWe regret to inform you that your application has been rejected.\n\nPlease contact support for more information.\n\nBest regards,\nM-Clearance Team",
+    "rejectionSubject": "Application Status Update",
+    "rejectionTemplateId": "your-rejection-template-id-here",
+    "smtpHost": "smtp.mailersend.net",
+    "smtpPassword": "mlsn.4022c4e9073bf6b50641265b553fac695e007f1bf62a4d073de55f54291dbf16",
+    "smtpPort": 587,
+    "smtpUseTls": true,
+    "smtpUsername": "M-Clearance",
+    "updatedAt": 1733760000000,
+    "verificationBody": "Hello {name},\n\nYour verification code is: {code}\n\nThis code will expire in 10 minutes.\n\nBest regards,\nM-Clearance Team",
+    "verificationSubject": "Your verification code",
+    "verificationTemplateId": "k68zxl21v994j905"
+  }
+}

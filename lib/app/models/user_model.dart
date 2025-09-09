@@ -73,6 +73,17 @@ class UserModel {
       'documents': documents,
     };
   }
+  static dynamic _serializeValue(dynamic value) {
+    if (value is Timestamp) {
+      return value.millisecondsSinceEpoch;
+    } else if (value is Map<String, dynamic>) {
+      return value.map((k, v) => MapEntry(k, _serializeValue(v)));
+    } else if (value is List) {
+      return value.map(_serializeValue).toList();
+    } else {
+      return value;
+    }
+  }
 
   /// Convert to JSON-compatible map for local storage
   Map<String, dynamic> toJson() {
@@ -88,8 +99,20 @@ class UserModel {
       'hasUploadedDocuments': hasUploadedDocuments,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
-      'documents': documents,
+      'documents': documents.map((doc) => _serializeValue(doc)).toList(),
     };
+  }
+
+  static dynamic _deserializeValue(dynamic value) {
+    if (value is int && value > 0) {
+      return Timestamp.fromMillisecondsSinceEpoch(value);
+    } else if (value is Map<String, dynamic>) {
+      return value.map((k, v) => MapEntry(k, _deserializeValue(v)));
+    } else if (value is List) {
+      return value.map(_deserializeValue).toList();
+    } else {
+      return value;
+    }
   }
 
   /// Create UserModel from JSON map (for local storage deserialization)
@@ -106,7 +129,7 @@ class UserModel {
       hasUploadedDocuments: json['hasUploadedDocuments'] ?? false,
       createdAt: Timestamp.fromMillisecondsSinceEpoch(json['createdAt'] ?? 0),
       updatedAt: Timestamp.fromMillisecondsSinceEpoch(json['updatedAt'] ?? 0),
-      documents: List<Map<String, dynamic>>.from(json['documents'] ?? []),
+      documents: (json['documents'] as List<dynamic>?)?.map((doc) => _deserializeValue(doc) as Map<String, dynamic>).toList() ?? [],
     );
   }
 }

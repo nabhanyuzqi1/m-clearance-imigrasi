@@ -3,7 +3,7 @@ import '../models/clearance_application.dart';
 import '../views/screens/auth/change_password_screen.dart';
 import '../views/screens/auth/confirmation_screen.dart';
 import '../views/screens/auth/forgot_password_screen.dart';
-import '../views/screens/auth/login_screen.dart';
+import '../views/screens/auth/login_screen.dart' as auth;
 import '../views/screens/auth/register_screen.dart';
 import '../views/screens/auth/registration_pending_screen.dart';
 import '../views/screens/auth/splash_screen.dart';
@@ -24,6 +24,9 @@ import '../views/screens/user/edit_agent_profile_screen.dart';
 import '../views/screens/user/notification_screen.dart' as user_notif;
 import '../views/screens/user/user_home_screen.dart';
 import '../views/screens/user/verification_loading_screen.dart';
+import '../views/screens/user/submission_sent_screen.dart';
+import '../views/screens/user/submission_waiting_screen.dart';
+import '../views/screens/officer/email_config_screen.dart';
 
 /// AppRoutes Class
 ///
@@ -49,6 +52,8 @@ class AppRoutes {
   static const String clearanceForm = '/clearance-form';
   static const String verificationLoading = '/verification-loading';
   static const String clearanceResult = '/clearance-result';
+  static const String submissionSent = '/submission-sent';
+  static const String submissionWaiting = '/submission-waiting';
 
   static const String adminHome = '/admin-home';
   static const String adminNotification = '/admin-notification';
@@ -59,6 +64,7 @@ class AppRoutes {
   static const String arrivalVerification = '/arrival-verification';
   static const String departureVerification = '/departure-verification';
   static const String submissionDetail = '/submission-detail';
+  static const String emailConfig = '/email-config';
   
   // === GENERATOR RUTE ===
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -69,7 +75,7 @@ class AppRoutes {
       case splash:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
       case login:
-        return MaterialPageRoute(builder: (_) => const LoginScreen());
+        return MaterialPageRoute(builder: (_) => const auth.LoginScreen());
       case register:
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => RegisterScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
@@ -110,7 +116,13 @@ class AppRoutes {
       case clearanceResult:
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => ClearanceResultScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
-      
+      case submissionSent:
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => SubmissionSentScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+      case submissionWaiting:
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => SubmissionWaitingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+
       case adminHome:
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => AdminHomeScreen(adminName: arguments['adminName'] ?? '', adminUsername: arguments['adminUsername'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
@@ -143,6 +155,9 @@ class AppRoutes {
       case submissionDetail:
         final arguments = args as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => SubmissionDetailScreen(application: arguments['application'], adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+      case emailConfig:
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(builder: (_) => EmailConfigScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
 
       default:
         // Halaman default jika rute tidak ditemukan

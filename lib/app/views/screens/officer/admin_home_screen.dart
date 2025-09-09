@@ -7,6 +7,7 @@ import 'account_verification_list_screen.dart';
 import 'arrival_verification_screen.dart';
 import 'departure_verification_screen.dart';
 import 'edit_profile_screen.dart';
+import 'email_config_screen.dart';
 import 'officer_report_screen.dart';
 import 'notification_screen.dart';
 import '../../../services/functions_service.dart';
@@ -198,6 +199,17 @@ class AdminMenuScreen extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 16),
+          _buildServiceCard(context,
+            title: tr('email_configuration'),
+            subtitle: tr('manage_email_settings'),
+            iconData: Icons.email_outlined,
+            color: Colors.green,
+            isPrimary: false,
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => EmailConfigScreen(initialLanguage: initialLanguage)));
+            },
+          ),
         ],
       ),
     );
@@ -302,7 +314,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12)),
                 child: Text(tr('logout'), style: const TextStyle(color: Colors.white)),
                 onPressed: () async {
-                  // Ensure true logout (Firebase + local cache) so refresh stays logged out
+                  // Ensure true logout from Firebase
                   try {
                     await AuthService().signOut();
                   } catch (_) {}
