@@ -32,27 +32,24 @@ service cloud.firestore {
     }
 
     function immutablesUnchanged(old, new) {
-      // uid, email, role, createdAt must not change
+      // uid, role, createdAt must not change
       return new.uid == old.uid &&
-             new.email == old.email &&
              new.role == old.role &&
              new.createdAt == old.createdAt;
     }
 
     function ownerOnlyAllowedFieldsUnchanged(old, new) {
-      // Owner may ONLY change: isEmailVerified, hasUploadedDocuments, documents, status, updatedAt
-      // Keep other known profile fields unchanged in client updates
-      return new.corporateName == old.corporateName &&
-             new.username == old.username &&
-             new.nationality == old.nationality;
+      // Owner may change: isEmailVerified, hasUploadedDocuments, documents, status, updatedAt, corporateName, username, nationality, email
+      // Keep other known profile fields unchanged in client updates if any
+      return true; // Allow profile field updates
     }
 
     function validOwnerStatusTransition(old, new) {
       let bs = old.status;
       let ns = new.status;
 
-      // Only allow client-set statuses within the allowed set
-      return isClientAllowedStatus(ns) && (
+      // Allow no-op status transitions for all user statuses
+      return (isClientAllowedStatus(ns) && (
         // Transition 1: pending_email_verification -> pending_documents
         (bs == 'pending_email_verification' && ns == 'pending_documents'
           && request.auth.token.email_verified == true
@@ -62,10 +59,7 @@ service cloud.firestore {
         (bs == 'pending_documents' && ns == 'pending_approval'
           && new.hasUploadedDocuments == true
           && new.documents.size() >= old.documents.size())
-        ||
-        // Otherwise, status must be no-op
-        (ns == bs)
-      );
+      )) || (ns == bs);
     }
 
     function isOwnerAllowedUpdate(old, new) {
@@ -142,9 +136,9 @@ service cloud.firestore {
         isOfficerOrAdmin()
       );
 
-      // Owner create: must set agentUid to own uid; initial status 'waiting'
+      // Owner create: must set agentUid to own uid; initial status 'waiting' or 0
       allow create: if isSignedIn() && request.resource.data.agentUid == request.auth.uid
-        && (request.resource.data.status == 'waiting' || request.resource.data.status == null)
+        && (request.resource.data.status == 'waiting' || request.resource.data.status == 0 || request.resource.data.status == null)
         && request.resource.data.type in ['arrival','departure'];
 
       // Owner update: only when not finalized; cannot change agentUid/type; cannot set terminal decisions

@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
+import 'dart:io' if (dart.library.html) 'dart:html' as io;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -138,16 +138,14 @@ class AuthService {
     }
   }
 
-  Future<String?> uploadDocument(String uid, dynamic fileOrBytes, String docName) async {
+  /// Uploads a document to Firebase Storage.
+  ///
+  /// Uses file bytes for upload, handled uniformly across platforms by file_picker.
+  Future<String?> uploadDocument(String uid, Uint8List fileBytes, String docName) async {
     try {
       final ref = _storage.ref().child('users/$uid/documents/$docName');
-      if (kIsWeb && fileOrBytes is Uint8List) {
-        await ref.putData(fileOrBytes);
-      } else if (!kIsWeb && fileOrBytes is File) {
-        await ref.putFile(fileOrBytes);
-      } else {
-        throw Exception('Invalid file type for platform');
-      }
+      await ref.putData(fileBytes);
+
       final String downloadUrl = await ref.getDownloadURL();
       await _firestore.collection('users').doc(uid).update({
         'documents': FieldValue.arrayUnion([

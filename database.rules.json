@@ -1,0 +1,10 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "email_config": {
+      ".read": "auth != null && (auth.token.role == 'officer' || auth.token.role == 'admin')",
+      ".write": "auth != null && (auth.token.role == 'officer' || auth.token.role == 'admin')"
+    }
+  }
+}

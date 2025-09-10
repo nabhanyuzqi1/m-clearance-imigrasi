@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/clearance_application.dart';
@@ -20,7 +19,13 @@ class UserService {
 
       final doc = await _firestore.collection('users').doc(user.uid).get();
       if (doc.exists) {
-        return UserAccount.fromFirestore(doc);
+        try {
+          final userAccount = UserAccount.fromFirestore(doc);
+          return userAccount;
+        } catch (e) {
+          print('Error creating UserAccount from Firestore: $e');
+          return null;
+        }
       }
       return null;
     } catch (e) {
@@ -33,17 +38,32 @@ class UserService {
   Future<bool> updateUserProfile(String name, String email) async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return false;
+      if (user == null) {
+        print('DEBUG: No authenticated user found');
+        return false;
+      }
 
-      await _firestore.collection('users').doc(user.uid).update({
+      final updateData = {
         'name': name,
         'email': email,
         'updatedAt': Timestamp.now(),
-      });
+      };
 
+      print('DEBUG: Attempting to update user profile with data: $updateData');
+      print('DEBUG: User UID: ${user.uid}');
+
+      await _firestore.collection('users').doc(user.uid).update(updateData);
+
+      print('DEBUG: User profile updated successfully');
       return true;
     } catch (e) {
-      print('Error updating user profile: $e');
+      print('DEBUG: Error updating user profile: $e');
+      print('DEBUG: Error type: ${e.runtimeType}');
+      if (e is FirebaseException) {
+        final firebaseError = e as FirebaseException;
+        print('DEBUG: Firebase error code: ${firebaseError.code}');
+        print('DEBUG: Firebase error message: ${firebaseError.message}');
+      }
       return false;
     }
   }
@@ -52,18 +72,37 @@ class UserService {
   Future<String?> submitClearanceApplication(ClearanceApplication application) async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return null;
+      if (user == null) {
+        print('DEBUG: No authenticated user found for application submission');
+        return null;
+      }
 
-      final docRef = await _firestore.collection('applications').add({
-        ...application.toFirestore(),
+      final firestoreData = application.toFirestore();
+      final dataToSend = {
+        ...firestoreData,
         'agentUid': user.uid,
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
-      });
+      };
 
+      print('DEBUG: Submitting application with data: $dataToSend');
+      print('DEBUG: User UID: ${user.uid}');
+      print('DEBUG: Application status: ${application.status} (index: ${application.status.index})');
+      print('DEBUG: Application type: ${application.type} (index: ${application.type.index})');
+      print('DEBUG: Firestore data from toFirestore(): $firestoreData');
+
+      final docRef = await _firestore.collection('applications').add(dataToSend);
+
+      print('DEBUG: Application submitted successfully with ID: ${docRef.id}');
       return docRef.id;
     } catch (e) {
-      print('Error submitting clearance application: $e');
+      print('DEBUG: Error submitting clearance application: $e');
+      print('DEBUG: Error type: ${e.runtimeType}');
+      if (e is FirebaseException) {
+        final firebaseError = e as FirebaseException;
+        print('DEBUG: Firebase error code: ${firebaseError.code}');
+        print('DEBUG: Firebase error message: ${firebaseError.message}');
+      }
       return null;
     }
   }

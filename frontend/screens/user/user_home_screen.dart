@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../models/clearance_application.dart';
 import '../../models/user_account.dart';
@@ -171,7 +170,7 @@ class AgentMenuScreen extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: Colors.grey.shade200,
-                backgroundImage: UserService.currentProfileImagePath != null ? FileImage(File(UserService.currentProfileImagePath!)) : null,
+                backgroundImage: null, // Web doesn't support local file images
                 child: UserService.currentProfileImagePath == null ? const Icon(Icons.person, size: 30, color: Colors.grey) : null,
               ),
               const SizedBox(width: 12),

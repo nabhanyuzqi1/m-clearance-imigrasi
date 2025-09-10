@@ -1,10 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
 
-// Reuse existing generated mocks
+// Generate mocks
+@GenerateMocks([
+  FirebaseAuth,
+  FirebaseFirestore,
+  FirebaseStorage,
+  CollectionReference,
+  DocumentReference,
+  DocumentSnapshot,
+  User,
+])
 import 'auth_service_test.mocks.dart';
 
 void main() {

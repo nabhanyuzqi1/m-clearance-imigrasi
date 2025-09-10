@@ -18,6 +18,9 @@ class ClearanceApplication {
   final String? wnaCrew;
   final String? officerName;
   final String? location;
+  final String? portClearanceFile;
+  final String? crewListFile;
+  final String? notificationLetterFile;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -36,10 +39,13 @@ class ClearanceApplication {
     this.wnaCrew,
     this.officerName,
     this.location,
+    this.portClearanceFile,
+    this.crewListFile,
+    this.notificationLetterFile,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) : createdAt = createdAt ?? DateTime.now(),
-       updatedAt = updatedAt ?? DateTime.now();
+        updatedAt = updatedAt ?? DateTime.now();
 
   factory ClearanceApplication.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -49,7 +55,7 @@ class ClearanceApplication {
       flag: data['flag'] ?? '',
       agentName: data['agentName'] ?? '',
       agentUid: data['agentUid'] ?? '',
-      type: ApplicationType.values[data['type'] ?? 0],
+      type: data['type'] == 'arrival' ? ApplicationType.kedatangan : ApplicationType.keberangkatan,
       status: ApplicationStatus.values[data['status'] ?? 0],
       notes: data['notes'],
       port: data['port'],
@@ -58,18 +64,20 @@ class ClearanceApplication {
       wnaCrew: data['wnaCrew'],
       officerName: data['officerName'],
       location: data['location'],
+      portClearanceFile: data['portClearanceFile'],
+      crewListFile: data['crewListFile'],
+      notificationLetterFile: data['notificationLetterFile'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toFirestore() {
-    return {
+    final data = {
       'shipName': shipName,
       'flag': flag,
       'agentName': agentName,
-      'agentUid': agentUid,
-      'type': type.index,
+      'type': type == ApplicationType.kedatangan ? 'arrival' : 'departure',
       'status': status.index,
       'notes': notes,
       'port': port,
@@ -78,20 +86,31 @@ class ClearanceApplication {
       'wnaCrew': wnaCrew,
       'officerName': officerName,
       'location': location,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'portClearanceFile': portClearanceFile,
+      'crewListFile': crewListFile,
+      'notificationLetterFile': notificationLetterFile,
     };
+
+    print('DEBUG: ClearanceApplication.toFirestore() data: $data');
+    print('DEBUG: Type enum value: $type (string: ${type == ApplicationType.kedatangan ? 'arrival' : 'departure'})');
+    print('DEBUG: Status enum value: $status (index: ${status.index})');
+
+    return data;
   }
 
   ClearanceApplication copyWith({
+    String? id,
     ApplicationStatus? status,
     String? notes,
     String? officerName,
     String? location,
+    String? portClearanceFile,
+    String? crewListFile,
+    String? notificationLetterFile,
     DateTime? updatedAt,
   }) {
     return ClearanceApplication(
-      id: id,
+      id: id ?? this.id,
       shipName: shipName,
       flag: flag,
       agentName: agentName,
@@ -105,6 +124,9 @@ class ClearanceApplication {
       wnaCrew: wnaCrew,
       officerName: officerName ?? this.officerName,
       location: location ?? this.location,
+      portClearanceFile: portClearanceFile ?? this.portClearanceFile,
+      crewListFile: crewListFile ?? this.crewListFile,
+      notificationLetterFile: notificationLetterFile ?? this.notificationLetterFile,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );

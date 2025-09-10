@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../services/user_service.dart';
 import '../auth/change_password_screen.dart';
@@ -116,7 +115,7 @@ class AdminMenuScreen extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: Colors.grey.shade200,
-                backgroundImage: UserService.officerProfileImagePath != null ? FileImage(File(UserService.officerProfileImagePath!)) : null,
+                backgroundImage: null, // Web doesn't support local file images
                 child: UserService.officerProfileImagePath == null ? const Icon(Icons.person, size: 30, color: Colors.grey) : null,
               ),
               const SizedBox(width: 12),
@@ -222,9 +221,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 CircleAvatar(
                   radius: 50,
                   backgroundColor: const Color(0xFFE3F2FD),
-                  backgroundImage: UserService.officerProfileImagePath != null
-                      ? FileImage(File(UserService.officerProfileImagePath!))
-                      : null,
+                  backgroundImage: null, // Web doesn't support local file images
                   child: UserService.officerProfileImagePath == null
                       ? const Icon(Icons.person, size: 60, color: Color(0xFF90CAF9))
                       : null,

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/user_service.dart';
@@ -26,7 +25,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   final _formKey = GlobalKey<FormState>();
-  File? _imageFile;
+  dynamic _imageFile;
   
   // PERBAIKAN: Menambahkan state untuk bahasa yang dipilih dan map terjemahan.
   late String _selectedLanguage;
@@ -71,7 +70,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
     _nameController = TextEditingController(text: widget.currentName);
     _emailController = TextEditingController(text: widget.currentEmail);
     if (UserService.currentProfileImagePath != null) {
-      _imageFile = File(UserService.currentProfileImagePath!);
+      _imageFile = UserService.currentProfileImagePath;
     }
   }
 
@@ -107,7 +106,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
       final XFile? pickedFile = await picker.pickImage(source: source);
       if (pickedFile != null) {
         setState(() {
-          _imageFile = File(pickedFile.path);
+          _imageFile = pickedFile.path;
         });
       }
     }
@@ -143,7 +142,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               child: CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.blueGrey,
-                backgroundImage: _imageFile != null ? FileImage(_imageFile!) : null,
+                backgroundImage: null, // Web doesn't support local file images
                 child: _imageFile == null ? const Icon(Icons.person, size: 70, color: Colors.white) : null,
               ),
             ),

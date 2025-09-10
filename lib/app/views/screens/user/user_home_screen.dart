@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../localization/app_strings.dart';
@@ -8,9 +7,8 @@ import '../../../services/notification_service.dart';
 import '../../../services/user_service.dart';
 import '../../../config/routes.dart';
 import 'clearance_form_screen.dart';
-import 'clearance_result_screen.dart';
-import 'edit_agent_profile_screen.dart';
 import 'notification_screen.dart';
+import 'history_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   final String initialLanguage;
@@ -128,7 +126,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       ),
       UserHistoryScreen(
         userAccount: currentUser!,
-        initialLanguage: _selectedLanguage
+        initialLanguage: _selectedLanguage,
       ),
       UserProfileScreen(
         userAccount: currentUser!,
@@ -240,12 +238,8 @@ class UserMenuScreen extends StatelessWidget {
                       CircleAvatar(
                         radius: 24,
                         backgroundColor: Colors.grey.shade200,
-                        backgroundImage: UserService.currentProfileImagePath != null
-                            ? FileImage(File(UserService.currentProfileImagePath!))
-                            : null,
-                        child: UserService.currentProfileImagePath == null
-                            ? const Icon(Icons.person, size: 30, color: Colors.grey)
-                            : null,
+                        backgroundImage: null, // Web doesn't support local file images
+                        child: const Icon(Icons.person, size: 30, color: Colors.grey),
                       ),
                       const SizedBox(width: 12),
                       Column(
@@ -414,22 +408,7 @@ class UserMenuScreen extends StatelessWidget {
   }
 }
 
-// Placeholder classes for other screens
-class UserHistoryScreen extends StatelessWidget {
-  final UserAccount userAccount;
-  final String initialLanguage;
-
-  const UserHistoryScreen({
-    super.key,
-    required this.userAccount,
-    required this.initialLanguage,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('History Screen')));
-  }
-}
+// User History Screen - now imported from history_screen.dart
 
 class UserProfileScreen extends StatelessWidget {
   final UserAccount userAccount;
@@ -447,9 +426,177 @@ class UserProfileScreen extends StatelessWidget {
     required this.onLogout,
   });
 
+  String _tr(BuildContext context, String screenKey, String stringKey) => AppStrings.tr(
+    context: context,
+    screenKey: screenKey,
+    stringKey: stringKey,
+    langCode: selectedLanguage,
+  );
+
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Profile Screen')));
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: Text(_tr(context, 'userProfile', 'profile')),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // Profile Picture Section
+            Center(
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: null, // Web doesn't support local file images
+                    child: const Icon(Icons.person, size: 60, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // User Info
+            Text(
+              userAccount.name,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              userAccount.email,
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 32),
+
+            // Menu Items
+            _buildMenuItem(
+              context,
+              icon: Icons.edit,
+              title: _tr(context, 'userProfile', 'edit_profile'),
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.editAgentProfile,
+                  arguments: {
+                    'username': userAccount.username,
+                    'currentName': userAccount.name,
+                    'currentEmail': userAccount.email,
+                    'initialLanguage': selectedLanguage,
+                  },
+                ).then((result) {
+                  if (result == true) {
+                    onRefresh();
+                  }
+                });
+              },
+            ),
+
+            _buildMenuItem(
+              context,
+              icon: Icons.language,
+              title: _tr(context, 'userProfile', 'language'),
+              trailing: selectedLanguage == 'EN' ? 'English' : 'Bahasa Indonesia',
+              onTap: () {
+                _showLanguageDialog(context);
+              },
+            ),
+
+            const Divider(height: 32),
+
+            _buildMenuItem(
+              context,
+              icon: Icons.logout,
+              title: _tr(context, 'userProfile', 'logout'),
+              textColor: Colors.red,
+              onTap: onLogout,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    String? trailing,
+    Color? textColor,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: textColor ?? Colors.black),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: textColor ?? Colors.black,
+          fontSize: 16,
+        ),
+      ),
+      trailing: trailing != null
+          ? Text(trailing, style: TextStyle(color: Colors.grey.shade600))
+          : const Icon(Icons.arrow_forward_ios, size: 16),
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+    );
+  }
+
+  void _showLanguageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(_tr(context, 'userProfile', 'select_language')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('English'),
+                leading: Radio<String>(
+                  value: 'EN',
+                  groupValue: selectedLanguage,
+                  onChanged: (value) {
+                    if (value != null) {
+                      onLanguageChange(value);
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
+                ),
+                onTap: () {
+                  onLanguageChange('EN');
+                  Navigator.of(dialogContext).pop();
+                },
+              ),
+              ListTile(
+                title: const Text('Bahasa Indonesia'),
+                leading: Radio<String>(
+                  value: 'ID',
+                  groupValue: selectedLanguage,
+                  onChanged: (value) {
+                    if (value != null) {
+                      onLanguageChange(value);
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
+                ),
+                onTap: () {
+                  onLanguageChange('ID');
+                  Navigator.of(dialogContext).pop();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

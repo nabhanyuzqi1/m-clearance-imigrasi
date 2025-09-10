@@ -30,22 +30,44 @@ class UserAccount {
 
   factory UserAccount.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    AccountStatus status;
+    if (data['status'] is int) {
+      status = AccountStatus.values[data['status']];
+    } else if (data['status'] is String) {
+      switch (data['status']) {
+        case 'approved':
+          status = AccountStatus.verified;
+          break;
+        case 'pending_email_verification':
+        case 'pending_documents':
+        case 'pending_approval':
+          status = AccountStatus.pending;
+          break;
+        case 'rejected':
+          status = AccountStatus.rejected;
+          break;
+        default:
+          status = AccountStatus.pending;
+      }
+    } else {
+      status = AccountStatus.pending;
+    }
     return UserAccount(
       uid: doc.id,
-      name: data['name'] ?? '',
+      name: data['corporateName'] ?? data['name'] ?? '',
       username: data['username'] ?? '',
       email: data['email'] ?? '',
       password: data['password'] ?? '',
       nibFileName: data['nibFileName'] ?? '',
       ktpFileName: data['ktpFileName'] ?? '',
-      status: AccountStatus.values[data['status'] ?? 0],
+      status: status,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toFirestore() {
-    return {
+    final data = {
       'name': name,
       'username': username,
       'email': email,
@@ -56,6 +78,11 @@ class UserAccount {
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
+
+    print('DEBUG: UserAccount.toFirestore() data: $data');
+    print('DEBUG: Status enum value: $status (index: ${status.index})');
+
+    return data;
   }
 
   UserAccount copyWith({

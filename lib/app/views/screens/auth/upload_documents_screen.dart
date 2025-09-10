@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -21,8 +20,8 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   final AuthService _authService = AuthService();
 
   // Selected files
-  Object? _nibFile;
-  Object? _ktpFile;
+  Uint8List? _nibFile;
+  Uint8List? _ktpFile;
   String? _nibFileName;
   String? _ktpFileName;
 
@@ -168,7 +167,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         allowedExtensions: const ['pdf'],
         withData: true,
       );
-      if (result == null) {
+      if (result == null || result.files.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
         );
@@ -176,48 +175,21 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       }
 
       final picked = result.files.single;
-      final name = picked.name.isNotEmpty ? picked.name : 'nib.pdf';
-
-      if (kIsWeb) {
-        if (picked.bytes != null) {
-          setState(() {
-            _nibFile = picked.bytes;
-            _nibFileName = name;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-          );
-        }
-      } else {
-        File? file;
-        if (picked.path != null) {
-          file = File(picked.path!);
-        } else if (picked.bytes != null) {
-          final tempPath =
-              '${Directory.systemTemp.path}/nib-${DateTime.now().millisecondsSinceEpoch}.pdf';
-          final tmp = File(tempPath);
-          await tmp.writeAsBytes(picked.bytes!, flush: true);
-          file = tmp;
-        }
-
-        if (file != null) {
-          setState(() {
-            _nibFile = file;
-            _nibFileName = name;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-          );
-        }
+      if (picked.bytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+        );
+        return;
       }
+
+      final name = picked.name.isNotEmpty ? picked.name : 'nib.pdf';
+      setState(() {
+        _nibFile = picked.bytes;
+        _nibFileName = name;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
+      );
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
@@ -233,7 +205,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         allowedExtensions: const ['jpg', 'jpeg', 'pdf'],
         withData: true,
       );
-      if (result == null) {
+      if (result == null || result.files.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
         );
@@ -241,50 +213,21 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       }
 
       final picked = result.files.single;
-      var name = picked.name.isNotEmpty ? picked.name : 'ktp.jpg';
-
-      if (kIsWeb) {
-        if (picked.bytes != null) {
-          setState(() {
-            _ktpFile = picked.bytes;
-            _ktpFileName = name;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-          );
-        }
-      } else {
-        File? file;
-        if (picked.path != null) {
-          file = File(picked.path!);
-        } else if (picked.bytes != null) {
-          // Preserve extension if any, fallback to .jpg
-          final ext = name.contains('.') ? name.split('.').last : 'jpg';
-          final tempPath =
-              '${Directory.systemTemp.path}/ktp-${DateTime.now().millisecondsSinceEpoch}.$ext';
-          final tmp = File(tempPath);
-          await tmp.writeAsBytes(picked.bytes!, flush: true);
-          file = tmp;
-        }
-
-        if (file != null) {
-          setState(() {
-            _ktpFile = file;
-            _ktpFileName = name;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-          );
-        }
+      if (picked.bytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+        );
+        return;
       }
+
+      var name = picked.name.isNotEmpty ? picked.name : 'ktp.jpg';
+      setState(() {
+        _ktpFile = picked.bytes;
+        _ktpFileName = name;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
+      );
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),

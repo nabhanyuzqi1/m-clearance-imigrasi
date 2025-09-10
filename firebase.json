@@ -1,32 +1,8 @@
 {
-  "flutter": {
-    "platforms": {
-      "android": {
-        "default": {
-          "projectId": "m-clearance-imigrasi",
-          "appId": "1:1059246245623:android:1e9c5f0b562a30925835f2",
-          "fileOutput": "android/app/google-services.json"
-        }
-      },
-      "dart": {
-        "lib/firebase_options.dart": {
-          "projectId": "m-clearance-imigrasi",
-          "configurations": {
-            "android": "1:1059246245623:android:1e9c5f0b562a30925835f2",
-            "web": "1:1059246245623:web:1dbe99369c4028a05835f2"
-          }
-        }
-      }
-    }
-  },
   "firestore": {
     "location": "asia-southeast1",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
-  },
-  "database": {
-    "location": "asia-southeast1",
-    "rules": "database.rules"
   },
   "storage": {
     "location": "asia-southeast1",
@@ -45,5 +21,8 @@
         "*.local"
       ]
     }
-  ]
+  ],
+  "database": {
+    "rules": "database.rules.json"
+  }
 }

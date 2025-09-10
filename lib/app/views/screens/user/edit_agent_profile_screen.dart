@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../localization/app_strings.dart';
@@ -217,12 +216,8 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                     CircleAvatar(
                       radius: 60,
                       backgroundColor: Colors.grey.shade200,
-                      backgroundImage: UserService.currentProfileImagePath != null
-                          ? FileImage(File(UserService.currentProfileImagePath!))
-                          : null,
-                      child: UserService.currentProfileImagePath == null
-                          ? const Icon(Icons.person, size: 60, color: Colors.grey)
-                          : null,
+                      backgroundImage: null, // Web doesn't support local file images
+                      child: const Icon(Icons.person, size: 60, color: Colors.grey),
                     ),
                     InkWell(
                       onTap: _showImageSourceDialog,
