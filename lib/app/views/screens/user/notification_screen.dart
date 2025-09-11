@@ -3,12 +3,7 @@ import '../../../models/notification_item.dart';
 import '../../../services/notification_service.dart';
 
 class NotificationScreen extends StatefulWidget {
-  final String initialLanguage;
-
-  const NotificationScreen({
-    super.key,
-    required this.initialLanguage,
-  });
+  const NotificationScreen({super.key});
 
   @override
   State<NotificationScreen> createState() => _NotificationScreenState();
@@ -16,46 +11,11 @@ class NotificationScreen extends StatefulWidget {
 
 class _NotificationScreenState extends State<NotificationScreen> {
   final NotificationService _notificationService = NotificationService();
-  String _selectedLanguage = 'EN';
-
-  final Map<String, Map<String, String>> _translations = {
-    'EN': {
-      'notifications': 'Notifications',
-      'no_notifications': 'No notifications yet',
-      'no_notifications_desc': 'You will receive notifications about your applications here',
-      'mark_all_read': 'Mark All as Read',
-      'unread': 'Unread',
-      'read': 'Read',
-      'update': 'Update',
-      'approved': 'Approved',
-      'revision': 'Revision',
-      'today': 'Today',
-      'yesterday': 'Yesterday',
-      'days_ago': 'days ago',
-    },
-    'ID': {
-      'notifications': 'Notifikasi',
-      'no_notifications': 'Belum ada notifikasi',
-      'no_notifications_desc': 'Anda akan menerima notifikasi tentang permohonan Anda di sini',
-      'mark_all_read': 'Tandai Semua Dibaca',
-      'unread': 'Belum Dibaca',
-      'read': 'Dibaca',
-      'update': 'Update',
-      'approved': 'Disetujui',
-      'revision': 'Revisi',
-      'today': 'Hari ini',
-      'yesterday': 'Kemarin',
-      'days_ago': 'hari yang lalu',
-    }
-  };
-
-  String _tr(String key) => _translations[_selectedLanguage]![key] ?? key;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedLanguage = widget.initialLanguage;
-  }
+  String _tr(String key) => AppStrings.tr(
+        context: context,
+        screenKey: 'notifications',
+        stringKey: key,
+      );
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();

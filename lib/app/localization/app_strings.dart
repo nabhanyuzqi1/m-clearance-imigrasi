@@ -27,6 +27,7 @@ class AppStrings {
         'invalid_credentials': 'Invalid username or password.',
         'account_pending': 'Your account is pending verification.',
         'account_rejected': 'Your account registration was rejected.',
+        'logging_in': 'Logging in...',
       },
       'register': {
         'sign_up': 'Sign up',
@@ -127,6 +128,7 @@ class AppStrings {
         'last_port': 'Last Port',
         'next_port': 'Next Port',
         'notifications': 'Notifications',
+        'loading_user': 'Loading user data...',
       },
       'userHistory': {
         'history': 'History',
@@ -166,6 +168,9 @@ class AppStrings {
         'logout_confirm_title': 'Logout',
         'logout_confirm_body': 'Are you sure you want to logout?',
         'cancel': 'Cancel',
+      },
+      'languageSelection': {
+        'title': 'Select Language',
       },
       'editAgentProfile': {
         'title': 'Edit Agent Profile',
@@ -471,6 +476,7 @@ class AppStrings {
         'invalid_credentials': 'Nama pengguna atau kata sandi salah.',
         'account_pending': 'Akun Anda sedang menunggu verifikasi.',
         'account_rejected': 'Pendaftaran akun Anda ditolak.',
+        'logging_in': 'Masuk...',
       },
       'register': {
         'sign_up': 'Daftar',
@@ -571,6 +577,7 @@ class AppStrings {
         'last_port': 'Pelabuhan Asal',
         'next_port': 'Pelabuhan Tujuan',
         'notifications': 'Notifikasi',
+        'loading_user': 'Memuat data pengguna...',
       },
       'userHistory': {
         'history': 'Riwayat',
@@ -610,6 +617,9 @@ class AppStrings {
         'logout_confirm_title': 'Keluar',
         'logout_confirm_body': 'Apakah Anda yakin ingin keluar?',
         'cancel': 'Batal',
+      },
+      'languageSelection': {
+        'title': 'Pilih Bahasa',
       },
       'editAgentProfile': {
         'title': 'Ubah Profil Agen',

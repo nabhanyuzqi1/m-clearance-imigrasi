@@ -13,12 +13,10 @@ enum HistoryFilter { all, arrival, departure }
 
 class UserHistoryScreen extends StatefulWidget {
   final UserAccount userAccount;
-  final String initialLanguage;
 
   const UserHistoryScreen({
     super.key,
     required this.userAccount,
-    required this.initialLanguage,
   });
 
   @override
@@ -27,7 +25,6 @@ class UserHistoryScreen extends StatefulWidget {
 
 class _UserHistoryScreenState extends State<UserHistoryScreen> {
   HistoryFilter _currentFilter = HistoryFilter.all;
-  late String _selectedLanguage;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -35,13 +32,11 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         context: context,
         screenKey: 'userHistory',
         stringKey: key,
-        langCode: _selectedLanguage,
       );
 
   @override
   void initState() {
     super.initState();
-    _selectedLanguage = widget.initialLanguage;
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text;
@@ -152,7 +147,6 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         MaterialPageRoute(
           builder: (context) => ArrivalDetailScreen(
             application: app,
-            initialLanguage: _selectedLanguage,
           ),
         ),
       );
@@ -162,7 +156,6 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         MaterialPageRoute(
           builder: (context) => DepartureDetailScreen(
             application: app,
-            initialLanguage: _selectedLanguage,
           ),
         ),
       );
@@ -193,11 +186,11 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   Widget _buildDialogActions(ClearanceApplication app) {
     switch (app.status) {
       case ApplicationStatus.revision:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceFormScreen(type: app.type, agentName: widget.userAccount.name, existingApplication: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('fix_button')));
+        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceFormScreen(type: app.type, agentName: widget.userAccount.name, existingApplication: app))); }, child: Text(_tr('fix_button')));
       case ApplicationStatus.declined:
         return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(context), child: Text(_tr('done_button')));
       case ApplicationStatus.approved:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceResultScreen(application: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('reports_button')));
+        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceResultScreen(application: app))); }, child: Text(_tr('reports_button')));
       case ApplicationStatus.waiting:
       default:
         return TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"));
@@ -250,7 +243,6 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
               ),
             ),
           ),
-          const Divider(),
           Expanded(
             child: StreamBuilder<List<ClearanceApplication>>(
               stream: UserService().getUserApplications(),

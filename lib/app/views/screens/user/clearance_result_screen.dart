@@ -4,74 +4,18 @@ import '../../../models/clearance_application.dart';
 
 class ClearanceResultScreen extends StatelessWidget {
   final ClearanceApplication application;
-  final String initialLanguage;
-
   const ClearanceResultScreen({
     super.key,
     required this.application,
-    required this.initialLanguage,
   });
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, Map<String, String>> translations = {
-      'EN': {
-        'application_submitted': 'Application Submitted',
-        'application_details': 'Application Details',
-        'ship_name': 'Ship Name',
-        'flag': 'Flag',
-        'type': 'Type',
-        'port': 'Port',
-        'date': 'Date',
-        'wni_crew': 'WNI Crew',
-        'wna_crew': 'WNA Crew',
-        'officer_name': 'Officer Name',
-        'location': 'Location',
-        'status': 'Status',
-        'notes': 'Notes',
-        'arrival': 'Arrival',
-        'departure': 'Departure',
-        'waiting': 'Waiting for Verification',
-        'approved': 'Approved',
-        'revision': 'Requires Revision',
-        'declined': 'Declined',
-        'back_to_home': 'Back to Home',
-        'view_reports': 'View Reports',
-        'edit_application': 'Edit Application',
-        'application_id': 'Application ID',
-        'submitted_at': 'Submitted At',
-        'no_notes': 'No additional notes',
-      },
-      'ID': {
-        'application_submitted': 'Permohonan Dikirim',
-        'application_details': 'Detail Permohonan',
-        'ship_name': 'Nama Kapal',
-        'flag': 'Bendera',
-        'type': 'Tipe',
-        'port': 'Pelabuhan',
-        'date': 'Tanggal',
-        'wni_crew': 'ABK WNI',
-        'wna_crew': 'ABK WNA',
-        'officer_name': 'Nama Petugas',
-        'location': 'Lokasi',
-        'status': 'Status',
-        'notes': 'Catatan',
-        'arrival': 'Kedatangan',
-        'departure': 'Keberangkatan',
-        'waiting': 'Menunggu Verifikasi',
-        'approved': 'Disetujui',
-        'revision': 'Perlu Revisi',
-        'declined': 'Ditolak',
-        'back_to_home': 'Kembali ke Beranda',
-        'view_reports': 'Lihat Laporan',
-        'edit_application': 'Edit Permohonan',
-        'application_id': 'ID Permohonan',
-        'submitted_at': 'Dikirim Pada',
-        'no_notes': 'Tidak ada catatan tambahan',
-      }
-    };
-
-    String tr(String key) => translations[initialLanguage]![key] ?? key;
+    String tr(String key) => AppStrings.tr(
+          context: context,
+          screenKey: 'clearanceResult',
+          stringKey: key,
+        );
 
     return Scaffold(
       backgroundColor: Colors.white,

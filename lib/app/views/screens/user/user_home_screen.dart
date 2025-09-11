@@ -9,20 +9,17 @@ import '../../../services/auth_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_bottom_navbar.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 import '../../widgets/skeleton_loader.dart';
 import '../auth/change_password_screen.dart';
 import 'clearance_form_screen.dart';
 import 'notification_screen.dart';
 import 'history_screen.dart';
 import 'notification_settings_screen.dart';
+import 'language_selection_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
-  final String initialLanguage;
-
-  const UserHomeScreen({
-    super.key,
-    this.initialLanguage = 'EN'
-  });
+  const UserHomeScreen({super.key});
 
   @override
   State<UserHomeScreen> createState() => _UserHomeScreenState();
@@ -31,22 +28,12 @@ class UserHomeScreen extends StatefulWidget {
 class _UserHomeScreenState extends State<UserHomeScreen> {
   int _selectedIndex = 0;
   UserAccount? currentUser;
-  String _selectedLanguage = 'EN';
   bool _isLoadingUser = true;
   final UserService _userService = UserService();
-  final NotificationService _notificationService = NotificationService();
-
-  String _tr(String screenKey, String stringKey) => AppStrings.tr(
-    context: context,
-    screenKey: screenKey,
-    stringKey: stringKey,
-    langCode: _selectedLanguage,
-  );
 
   @override
   void initState() {
     super.initState();
-    _selectedLanguage = widget.initialLanguage;
     _loadCurrentUser();
   }
 
@@ -80,7 +67,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     _loadCurrentUser();
   }
 
-  void _changeLanguage(String langCode) => setState(() => _selectedLanguage = langCode);
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
   void _showLogoutDialog(BuildContext context) {
@@ -94,12 +80,33 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Center(child: Text(_tr('userProfile', 'logout_confirm_title'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045))),
-          content: Text(_tr('userProfile', 'logout_confirm_body'), textAlign: TextAlign.center, style: TextStyle(fontSize: fontSize)),
+          title: Center(
+              child: Text(
+            AppStrings.tr(
+              context: context,
+              screenKey: 'userProfile',
+              stringKey: 'logout_confirm_title',
+            ),
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045),
+          )),
+          content: Text(
+            AppStrings.tr(
+              context: context,
+              screenKey: 'userProfile',
+              stringKey: 'logout_confirm_body',
+            ),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: fontSize),
+          ),
           actionsAlignment: MainAxisAlignment.center,
           actions: <Widget>[
             CustomButton(
-              text: _tr('userProfile', 'cancel'),
+              text: AppStrings.tr(
+                context: context,
+                screenKey: 'userProfile',
+                stringKey: 'cancel',
+              ),
               type: CustomButtonType.outlined,
               borderColor: Colors.red.shade200,
               foregroundColor: Colors.red,
@@ -107,7 +114,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             ),
             SizedBox(width: screenWidth * 0.02),
             CustomButton(
-              text: _tr('userProfile', 'logout'),
+              text: AppStrings.tr(
+                context: context,
+                screenKey: 'userProfile',
+                stringKey: 'logout',
+              ),
               type: CustomButtonType.elevated,
               backgroundColor: Colors.red.shade400,
               onPressed: () async {
@@ -132,10 +143,14 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const CircularProgressIndicator(),
+              const BouncingDotsLoader(),
               const SizedBox(height: 16),
               Text(
-                _tr('userHome', 'loading_user'),
+                AppStrings.tr(
+                  context: context,
+                  screenKey: 'userHome',
+                  stringKey: 'loading_user',
+                ),
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
             ],
@@ -151,18 +166,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     final List<Widget> pages = <Widget>[
       UserMenuScreen(
         userAccount: currentUser!,
-        initialLanguage: _selectedLanguage,
-        onLanguageChange: _changeLanguage,
       ),
       UserHistoryScreen(
         userAccount: currentUser!,
-        initialLanguage: _selectedLanguage,
       ),
       UserProfileScreen(
         userAccount: currentUser!,
         onRefresh: _refresh,
-        selectedLanguage: _selectedLanguage,
-        onLanguageChange: _changeLanguage,
         onLogout: () => _showLogoutDialog(context),
       ),
     ];
@@ -191,14 +201,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 // User Menu Screen Component
 class UserMenuScreen extends StatelessWidget {
   final UserAccount userAccount;
-  final String initialLanguage;
-  final Function(String) onLanguageChange;
 
   const UserMenuScreen({
     super.key,
     required this.userAccount,
-    required this.initialLanguage,
-    required this.onLanguageChange,
   });
 
   @override
@@ -209,11 +215,10 @@ class UserMenuScreen extends StatelessWidget {
     final verticalSpacing = screenWidth * 0.03;
 
     String screenTr(String key) => AppStrings.tr(
-      context: context,
-      screenKey: 'userHome',
-      stringKey: key,
-      langCode: initialLanguage,
-    );
+          context: context,
+          screenKey: 'userHome',
+          stringKey: key,
+        );
 
     return StreamBuilder<int>(
       stream: NotificationService().getUnreadCount(),
@@ -228,7 +233,10 @@ class UserMenuScreen extends StatelessWidget {
               NotificationIconWithBadge(
                 badgeCount: unreadCount,
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationScreen(initialLanguage: initialLanguage)));
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const NotificationScreen()));
                 },
               ),
               SizedBox(width: screenWidth * 0.02),
@@ -284,9 +292,7 @@ class UserMenuScreen extends StatelessWidget {
                         MaterialPageRoute(
                           builder: (context) => ClearanceFormScreen(
                             type: ApplicationType.kedatangan,
-                            agentName: userAccount.name,
-                            initialLanguage: initialLanguage,
-                          ),
+                            agentName: userAccount.name),
                         ),
                       );
                     },
@@ -305,9 +311,7 @@ class UserMenuScreen extends StatelessWidget {
                         MaterialPageRoute(
                           builder: (context) => ClearanceFormScreen(
                             type: ApplicationType.keberangkatan,
-                            agentName: userAccount.name,
-                            initialLanguage: initialLanguage,
-                          ),
+                            agentName: userAccount.name),
                         ),
                       );
                     },
@@ -501,25 +505,21 @@ class UserMenuScreen extends StatelessWidget {
 class UserProfileScreen extends StatelessWidget {
   final UserAccount userAccount;
   final VoidCallback onRefresh;
-  final String selectedLanguage;
-  final Function(String) onLanguageChange;
   final VoidCallback onLogout;
 
   const UserProfileScreen({
     super.key,
     required this.userAccount,
     required this.onRefresh,
-    required this.selectedLanguage,
-    required this.onLanguageChange,
     required this.onLogout,
   });
 
-  String _tr(BuildContext context, String screenKey, String stringKey) => AppStrings.tr(
-    context: context,
-    screenKey: screenKey,
-    stringKey: stringKey,
-    langCode: selectedLanguage,
-  );
+  String _tr(BuildContext context, String screenKey, String stringKey) =>
+      AppStrings.tr(
+        context: context,
+        screenKey: screenKey,
+        stringKey: stringKey,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -587,7 +587,6 @@ class UserProfileScreen extends StatelessWidget {
                     'currentName': userAccount.name,
                     'currentEmail': userAccount.email,
                     'currentProfileImageUrl': userAccount.profileImageUrl,
-                    'initialLanguage': selectedLanguage,
                   },
                 ).then((result) {
                   if (result == true) {
@@ -602,40 +601,42 @@ class UserProfileScreen extends StatelessWidget {
               icon: Icons.notifications_none_outlined,
               title: _tr(context, 'userProfile', 'notifications'),
               onTap: () {
+                Navigator.pushNamed(context, AppRoutes.userNotification);
+              },
+            ),
+
+            _buildMenuItem(
+              context,
+              icon: Icons.language,
+              title: _tr(context, 'userProfile', 'language'),
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => NotificationSettingsScreen(
-                      initialLanguage: selectedLanguage,
-                    ),
+                    builder: (context) => const LanguageSelectionScreen(),
                   ),
                 );
               },
             ),
-
-            const Divider(indent: 16, endIndent: 16),
-
-            _buildLanguageSection(context),
-
-            const Divider(indent: 16, endIndent: 16),
 
             _buildMenuItem(
               context,
               icon: Icons.lock_outline,
               title: _tr(context, 'userProfile', 'privacy_security'),
               onTap: () {
-                // TODO: Navigate to privacy & security screen
+                Navigator.pushNamed(context, AppRoutes.privacySecurity);
               },
             ),
-
-            const Divider(indent: 16, endIndent: 16),
 
             _buildMenuItem(
               context,
               icon: Icons.password_outlined,
               title: _tr(context, 'userProfile', 'change_password'),
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => ChangePasswordScreen(initialLanguage: selectedLanguage)));
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const ChangePasswordScreen()));
               },
             ),
 
@@ -685,38 +686,5 @@ class UserProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLanguageSection(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            _tr(context, 'userProfile', 'language'),
-            style: const TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w500,
-              fontSize: 16,
-            ),
-          ),
-          DropdownButton<String>(
-            value: selectedLanguage,
-            icon: const Icon(Icons.arrow_drop_down),
-            items: ['EN', 'ID'].map((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value == 'EN' ? 'English' : 'Indonesia'),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              if (newValue != null) {
-                onLanguageChange(newValue);
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
 }
 

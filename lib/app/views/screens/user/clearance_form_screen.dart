@@ -19,14 +19,12 @@ import 'document_view_screen.dart';
 class ClearanceFormScreen extends StatefulWidget {
   final ApplicationType type;
   final String agentName;
-  final String initialLanguage;
   final ClearanceApplication? existingApplication;
 
   const ClearanceFormScreen({
     super.key,
     required this.type,
     required this.agentName,
-    required this.initialLanguage,
     this.existingApplication,
   });
 
@@ -59,7 +57,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   String? _portClearanceFileName, _crewListFileName, _notificationLetterFileName;
 
   final ImagePicker _picker = ImagePicker();
-  late String _selectedLanguage;
 
   bool _isSubmitting = false;
 
@@ -76,11 +73,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   late String _saving;
 
   String _tr(String key) => AppStrings.tr(
-    context: context,
-    screenKey: 'clearanceForm',
-    stringKey: key,
-    langCode: _selectedLanguage,
-  );
+        context: context,
+        screenKey: 'clearanceForm',
+        stringKey: key,
+      );
 
   void _cacheTranslations() {
     _arrivalTitle = _tr('arrival_title');
@@ -98,7 +94,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedLanguage = widget.initialLanguage;
     _cacheTranslations();
 
     if (widget.existingApplication != null) {
@@ -522,7 +517,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           MaterialPageRoute(
             builder: (context) => ClearanceResultScreen(
               application: application.copyWith(id: applicationId!),
-              initialLanguage: _selectedLanguage,
             ),
           ),
         );
@@ -594,35 +588,16 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 600; // Consider screens smaller than 600px as small
 
-    if (isSmallScreen) {
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: screenWidth * 1.2, // Ensure the width is constrained
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildStepIndicator(step: 1, label: _tr('step1'), isDone: _currentStep > 1),
-              _buildStepDivider(),
-              _buildStepIndicator(step: 2, label: _tr('step2'), isDone: _currentStep > 2),
-              _buildStepDivider(),
-              _buildStepIndicator(step: 3, label: _tr('step3'), isDone: false),
-            ],
-          ),
-        ),
-      );
-    } else {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildStepIndicator(step: 1, label: _tr('step1'), isDone: _currentStep > 1),
-          _buildStepDivider(),
-          _buildStepIndicator(step: 2, label: _tr('step2'), isDone: _currentStep > 2),
-          _buildStepDivider(),
-          _buildStepIndicator(step: 3, label: _tr('step3'), isDone: false),
-        ],
-      );
-    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildStepIndicator(step: 1, label: _tr('step1'), isDone: _currentStep > 1),
+        _buildStepDivider(),
+        _buildStepIndicator(step: 2, label: _tr('step2'), isDone: _currentStep > 2),
+        _buildStepDivider(),
+        _buildStepIndicator(step: 3, label: _tr('step3'), isDone: false),
+      ],
+    );
   }
 
   Widget _buildStepIndicator({required int step, required String label, required bool isDone}) {
@@ -646,7 +621,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   }
 
   Widget _buildStepDivider() {
-    return const Expanded(
+    return const Flexible(
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 8.0),
         child: Divider(color: Colors.grey, thickness: 1),

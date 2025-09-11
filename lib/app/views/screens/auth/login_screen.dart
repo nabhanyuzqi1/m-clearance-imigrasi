@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
@@ -9,6 +10,7 @@ import '../../../services/auth_service.dart';
 import '../../../models/user_model.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
+import '../../../providers/language_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,24 +19,17 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with RestorationMixin {
-  @override
-  String? get restorationId => 'login_screen';
-
-  final RestorableString _selectedLanguage = RestorableString('EN');
-
-  @override
-  void restoreState(RestorationBucket? oldBucket, bool initialRestore) {
-    registerForRestoration(_selectedLanguage, 'selected_language');
-  }
-
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
+
   String _tr(String key) {
-    return AppStrings.tr(context: context, screenKey: 'login', stringKey: key, langCode: _selectedLanguage.value);
+    final langCode = Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
+    return AppStrings.tr(context: context, screenKey: 'login', stringKey: key, langCode: langCode.toUpperCase());
   }
 
   @override
@@ -50,7 +45,6 @@ class _LoginScreenState extends State<LoginScreen> with RestorationMixin {
 
   @override
   void dispose() {
-    _selectedLanguage.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
@@ -59,6 +53,9 @@ class _LoginScreenState extends State<LoginScreen> with RestorationMixin {
 
   void _performLogin() async {
     if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
       try {
         final userModel = await _authService.signInWithEmailAndPassword(
           _emailController.text,
@@ -71,7 +68,6 @@ class _LoginScreenState extends State<LoginScreen> with RestorationMixin {
                 Navigator.pushReplacementNamed(context, AppRoutes.adminHome, arguments: {
                   'adminName': userModel.username,
                   'adminUsername': userModel.email,
-                  'initialLanguage': _selectedLanguage.value,
                 });
               } else {
                 Navigator.pushReplacementNamed(context, AppRoutes.userHome);
@@ -80,7 +76,6 @@ class _LoginScreenState extends State<LoginScreen> with RestorationMixin {
             case 'pending_email_verification':
               Navigator.pushNamed(context, AppRoutes.confirmation, arguments: {
                 'userData': {'email': userModel.email},
-                'initialLanguage': _selectedLanguage.value,
               });
               break;
             case 'pending_documents':
@@ -103,6 +98,12 @@ class _LoginScreenState extends State<LoginScreen> with RestorationMixin {
         }
       } on FirebaseAuthException catch (e) {
         _showErrorSnackbar(e.message ?? 'An unknown error occurred.');
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -121,227 +122,234 @@ class _LoginScreenState extends State<LoginScreen> with RestorationMixin {
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
-      child: Scaffold(
-        resizeToAvoidBottomInset: true,
-        backgroundColor: AppTheme.backgroundColor,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Harbor image (top)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Image.asset(
-                'assets/images/dermaga.png',
-                fit: BoxFit.cover,
-                width: screenWidth,
-                errorBuilder: (context, error, stackTrace) =>
-                    const SizedBox.shrink(),
-              ),
-            ),
-            // Ship image (bottom)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Image.asset(
-                'assets/images/shipping.png',
-                fit: BoxFit.cover,
-                width: screenWidth,
-                errorBuilder: (context, error, stackTrace) =>
-                    const SizedBox.shrink(),
-              ),
-            ),
-            // Scrollable content
-            SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: responsivePadding * 2),
-                    child: Container(
-                      padding: EdgeInsets.all(responsivePadding * 2),
-                      decoration: BoxDecoration(
-                        color: AppTheme.whiteColor,
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusLarge),
-                      ),
-                      child: _buildLoginForm(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: MediaQuery.of(context).padding.top + AppTheme.paddingSmall,
-              right: responsivePadding * 2,
-              child: _buildLanguageSwitcher(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoginForm() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        key: ValueKey(_selectedLanguage.value),
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Center(
-            child: Image.asset(
-              'assets/images/logo.png',
-              height: AppTheme.fontSizeXXXXLarge * 3,
-              errorBuilder: (context, error, stackTrace) => Icon(
-                  Icons.directions_boat,
-                  size: AppTheme.fontSizeXXXXLarge * 2,
-                  color: AppTheme.primaryColor),
-            ),
-          ),
-          const SizedBox(height: AppTheme.paddingLarge),
-          Text(
-            _tr('welcome'),
-            style: TextStyle(
-              fontSize: AppTheme.responsiveFontSize(context,
-                  mobile: AppTheme.fontSizeH5,
-                  tablet: AppTheme.fontSizeH4,
-                  desktop: AppTheme.fontSizeH4),
-              fontWeight: FontWeight.bold,
-              color: AppTheme.headingColor,
-              fontFamily: 'Poppins',
-            ),
-          ),
-          const SizedBox(height: AppTheme.paddingLarge  ),
-          CustomTextField(
-            controller: _emailController,
-            label: _tr('email'),
-            hint: _tr('email_hint'),
-            prefixIcon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
-            validator: (v) {
-              if (v!.isEmpty) return _tr('email_req');
-              if (!RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
-                  .hasMatch(v)) {
-                return _tr('email_invalid');
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: AppTheme.paddingMedium),
-          CustomTextField(
-            controller: _passwordController,
-            label: _tr('password'),
-            hint: _tr('password_hint'),
-            prefixIcon: Icons.lock_outline,
-            obscureText: !_isPasswordVisible,
-            suffixIcon: IconButton(
-              icon: Icon(
-                  _isPasswordVisible
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: AppTheme.subtitleColor),
-              onPressed: () =>
-                  setState(() => _isPasswordVisible = !_isPasswordVisible),
-            ),
-            validator: (v) => v!.isEmpty ? _tr('password_req') : null,
-          ),
-          const SizedBox(),
-          Align(
-            alignment: Alignment.centerRight,
-            child: CustomButton(
-              text: _tr('forgot_password'),
-              type: CustomButtonType.text,
-              onPressed: () => Navigator.pushNamed(
-                  context, AppRoutes.forgotPassword,
-                  arguments: {'initialLanguage': _selectedLanguage.value}),
-            ),
-          ),
-          const SizedBox(height: AppTheme.paddingMedium),
-          CustomButton(
-            text: _tr('login_button'),
-            type: CustomButtonType.elevated,
-            isFullWidth: true,
-            onPressed: _performLogin,
-          ),
-          const SizedBox(height: AppTheme.paddingMedium),
-          Center(
-            child: RichText(
-              text: TextSpan(
-                style: TextStyle(
-                  fontSize: AppTheme.fontSizeLarge,
-                  color: AppTheme.blackColor54,
-                  fontFamily: 'Poppins',
-                ),
-                children: [
-                  TextSpan(text: _tr('not_a_member')),
-                  TextSpan(
-                    text: _tr('register_now'),
-                    style: TextStyle(
-                      color: AppTheme.primaryColor,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Poppins',
-                    ),
-                    recognizer: TapGestureRecognizer()
-                      ..onTap = () => Navigator.pushNamed(
-                          context, AppRoutes.register,
-                          arguments: {'initialLanguage': _selectedLanguage.value}),
+          Scaffold(
+            resizeToAvoidBottomInset: true,
+            backgroundColor: AppTheme.backgroundColor,
+            body: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Harbor image (top)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Image.asset(
+                    'assets/images/dermaga.png',
+                    fit: BoxFit.cover,
+                    width: screenWidth,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
                   ),
-                ],
+                ),
+                // Ship image (bottom)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Image.asset(
+                    'assets/images/shipping.png',
+                    fit: BoxFit.cover,
+                    width: screenWidth,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
+                  ),
+                ),
+                // Scrollable content
+                SafeArea(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: responsivePadding * 2),
+                        child: Container(
+                          padding: EdgeInsets.all(responsivePadding * 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.whiteColor,
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusLarge),
+                          ),
+                          child: _buildLoginForm(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + AppTheme.paddingSmall,
+                  right: responsivePadding * 2,
+                  child: _buildLanguageSwitcher(),
+                ),
+              ],
+            ),
+          ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: AppTheme.paddingLarge),
+                    Text(
+                      _tr('logging_in'),
+                      style: const TextStyle(
+                        color: AppTheme.whiteColor,
+                        fontSize: AppTheme.fontSizeLarge,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildLanguageSwitcher() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppTheme.backgroundColor.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-        boxShadow: [BoxShadow(color: AppTheme.blackColor12, blurRadius: 5)],
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedLanguage.value,
-          icon: const Icon(Icons.arrow_drop_down, color: AppTheme.subtitleColor),
-          items: ['EN', 'ID'].map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Row(
-                children: [
-                  const Icon(Icons.language_outlined,
-                      color: AppTheme.subtitleColor,
-                      size: AppTheme.fontSizeLarge),
-                  const SizedBox(width: AppTheme.paddingSmall),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: AppTheme.fontSizeMedium,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.subtitleColor,
+  Widget _buildLoginForm() {
+    return Consumer<LanguageProvider>(
+      builder: (context, languageProvider, child) {
+        return Form(
+          key: _formKey,
+          child: Column(
+            key: ValueKey(languageProvider.locale),
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  height: AppTheme.fontSizeXXXXLarge * 3,
+                  errorBuilder: (context, error, stackTrace) => Icon(
+                      Icons.directions_boat,
+                      size: AppTheme.fontSizeXXXXLarge * 2,
+                      color: AppTheme.primaryColor),
+                ),
+              ),
+              const SizedBox(height: AppTheme.paddingLarge),
+              Text(
+                _tr('welcome'),
+                style: TextStyle(
+                  fontSize: AppTheme.responsiveFontSize(context,
+                      mobile: AppTheme.fontSizeLarge,
+                      tablet: AppTheme.fontSizeExtraLarge,
+                      desktop: AppTheme.fontSizeXXLarge),
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.headingColor,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+              const SizedBox(height: AppTheme.paddingLarge),
+              CustomTextField(
+                controller: _emailController,
+                label: _tr('email'),
+                hint: _tr('email_hint'),
+                prefixIcon: Icons.email_outlined,
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) {
+                  if (v!.isEmpty) return _tr('email_req');
+                  if (!RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
+                      .hasMatch(v)) {
+                    return _tr('email_invalid');
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: AppTheme.paddingMedium),
+              CustomTextField(
+                controller: _passwordController,
+                label: _tr('password'),
+                hint: _tr('password_hint'),
+                prefixIcon: Icons.lock_outline,
+                obscureText: !_isPasswordVisible,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                      _isPasswordVisible
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: AppTheme.subtitleColor),
+                  onPressed: () =>
+                      setState(() => _isPasswordVisible = !_isPasswordVisible),
+                ),
+                validator: (v) => v!.isEmpty ? _tr('password_req') : null,
+              ),
+              const SizedBox(),
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: CustomButton(
+                    text: _tr('forgot_password'),
+                    type: CustomButtonType.text,
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.forgotPassword),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppTheme.paddingMedium),
+              CustomButton(
+                text: _tr('login_button'),
+                type: CustomButtonType.elevated,
+                isFullWidth: true,
+                onPressed: _performLogin,
+              ),
+              const SizedBox(height: AppTheme.paddingMedium),
+              Center(
+                child: RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontSize: AppTheme.fontSizeLarge,
+                      color: AppTheme.blackColor54,
                       fontFamily: 'Poppins',
                     ),
+                    children: [
+                      TextSpan(text: _tr('not_a_member')),
+                      TextSpan(
+                        text: _tr('register_now'),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Poppins',
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap =
+                              () => Navigator.pushNamed(context, AppRoutes.register),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            );
-          }).toList(),
-          onChanged: (String? newValue) {
-            if (newValue != null) {
-              setState(() {
-                _selectedLanguage.value = newValue;
-              });
-            }
-          },
-          dropdownColor: AppTheme.backgroundColor,
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLanguageSwitcher() {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.language, color: AppTheme.whiteColor),
+      onSelected: (String newValue) {
+        final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+        languageProvider.setLocale(Locale(newValue.toLowerCase()));
+      },
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        const PopupMenuItem<String>(
+          value: 'EN',
+          child: Text('English'),
         ),
+        const PopupMenuItem<String>(
+          value: 'ID',
+          child: Text('Bahasa Indonesia'),
+        ),
+      ],
+      color: AppTheme.whiteColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       ),
     );
   }

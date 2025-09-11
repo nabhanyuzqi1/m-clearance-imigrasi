@@ -5,19 +5,16 @@ import '../../widgets/custom_app_bar.dart';
 
 class ArrivalDetailScreen extends StatelessWidget {
   final ClearanceApplication application;
-  final String initialLanguage;
 
   const ArrivalDetailScreen({
     super.key,
     required this.application,
-    this.initialLanguage = 'EN',
   });
 
   String _tr(BuildContext context, String key) => AppStrings.tr(
         context: context,
         screenKey: 'userHistory',
         stringKey: key,
-        langCode: initialLanguage,
       );
 
   @override

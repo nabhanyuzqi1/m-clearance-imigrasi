@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/config/routes.dart';
 import 'app/config/theme.dart';
 import 'firebase_options.dart';
 import 'app/views/widgets/auth_wrapper.dart';
+import 'app/providers/language_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,7 +58,12 @@ void main() async {
   }
 
   // Preload critical assets for better startup performance
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => LanguageProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -70,6 +78,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _preloadAssets();
   }
 
@@ -121,13 +134,27 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'M-Clearance ISAM',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.themeData,
-      home: const AuthWrapper(),
-      onGenerateRoute: AppRoutes.onGenerateRoute,
-      restorationScopeId: 'app', // Enable state restoration
+    return Consumer<LanguageProvider>(
+      builder: (context, languageProvider, child) {
+        return MaterialApp(
+          title: 'M-Clearance ISAM',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.themeData,
+          locale: languageProvider.locale,
+          supportedLocales: const [
+            Locale('en', 'US'),
+            Locale('id', 'ID'),
+          ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: const AuthWrapper(),
+          onGenerateRoute: AppRoutes.onGenerateRoute,
+          restorationScopeId: 'app', // Enable state restoration
+        );
+      },
     );
   }
 }

@@ -28,6 +28,7 @@ import '../views/screens/user/verification_loading_screen.dart';
 import '../views/screens/user/submission_sent_screen.dart';
 import '../views/screens/user/submission_waiting_screen.dart';
 import '../views/screens/officer/email_config_screen.dart';
+import '../views/screens/user/privacy_security_screen.dart';
 
 /// AppRoutes Class
 ///
@@ -55,6 +56,7 @@ class AppRoutes {
   static const String clearanceResult = '/clearance-result';
   static const String submissionSent = '/submission-sent';
   static const String submissionWaiting = '/submission-waiting';
+  static const String privacySecurity = '/privacy-security';
 
   static const String adminHome = '/admin-home';
   static const String adminNotification = '/admin-notification';
@@ -123,6 +125,8 @@ class AppRoutes {
       case submissionWaiting:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: SubmissionWaitingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+      case privacySecurity:
+        return FadeRoute(page: const PrivacySecurityScreen());
 
       case adminHome:
         final arguments = args as Map<String, dynamic>? ?? {};
