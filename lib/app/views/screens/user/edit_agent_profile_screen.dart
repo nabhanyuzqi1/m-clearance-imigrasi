@@ -2,16 +2,18 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import '../../../services/user_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../config/routes.dart';
+import '../../../providers/language_provider.dart';
+import '../../../localization/app_strings.dart';
 
 class EditAgentProfileScreen extends StatefulWidget {
   final String username;
   final String currentName;
   final String currentEmail;
   final String? currentProfileImageUrl;
-  final String initialLanguage;
 
   const EditAgentProfileScreen({
     super.key,
@@ -19,7 +21,6 @@ class EditAgentProfileScreen extends StatefulWidget {
     required this.currentName,
     required this.currentEmail,
     this.currentProfileImageUrl,
-    required this.initialLanguage,
   });
 
   @override
@@ -33,63 +34,21 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
   final _emailController = TextEditingController();
 
   bool _isLoading = false;
-  String _selectedLanguage = 'EN';
 
-  final Map<String, Map<String, String>> _translations = {
-    'EN': {
-      'edit_profile': 'Edit Profile',
-      'full_name': 'Full Name',
-      'email': 'Email',
-      'change_photo': 'Change Photo',
-      'save': 'Save',
-      'saving': 'Saving...',
-      'cancel': 'Cancel',
-      'required_field': 'This field is required',
-      'invalid_email': 'Please enter a valid email',
-      'success': 'Profile updated successfully',
-      'error': 'Failed to update profile',
-      'camera': 'Camera',
-      'gallery': 'Gallery',
-      'select_image_source': 'Select Image Source',
-      'permission_required': 'Permission Required',
-      'camera_permission_message': 'Camera permission is required to take photos. Please enable it in app settings.',
-      'storage_permission_message': 'Storage permission is required to access photos. Please enable it in app settings.',
-      'open_settings': 'Open Settings',
-      'email_changed_title': 'Email Changed',
-      'email_changed_body': 'Your email has been updated. A verification link has been sent to your new email address. Please verify your new email to log in again.',
-      'ok': 'OK',
-    },
-    'ID': {
-      'edit_profile': 'Edit Profil',
-      'full_name': 'Nama Lengkap',
-      'email': 'Email',
-      'change_photo': 'Ubah Foto',
-      'save': 'Simpan',
-      'saving': 'Menyimpan...',
-      'cancel': 'Batal',
-      'required_field': 'Field ini wajib diisi',
-      'invalid_email': 'Masukkan email yang valid',
-      'success': 'Profil berhasil diperbarui',
-      'error': 'Gagal memperbarui profil',
-      'camera': 'Kamera',
-      'gallery': 'Galeri',
-      'select_image_source': 'Pilih Sumber Gambar',
-      'permission_required': 'Izin Diperlukan',
-      'camera_permission_message': 'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
-      'storage_permission_message': 'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
-      'open_settings': 'Buka Pengaturan',
-      'email_changed_title': 'Email Diubah',
-      'email_changed_body': 'Email Anda telah diperbarui. Tautan verifikasi telah dikirim ke alamat email baru Anda. Harap verifikasi email baru Anda untuk masuk kembali.',
-      'ok': 'OK',
-    }
-  };
-
-  String _tr(String key) => _translations[_selectedLanguage]![key] ?? key;
+  String _tr(BuildContext context, String key) {
+    final langCode = Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
+    return AppStrings.tr(
+      context: context,
+      screenKey: 'editAgentProfile',
+      stringKey: key,
+      langCode: langCode.toUpperCase(),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
-    _selectedLanguage = widget.initialLanguage;
+    debugPrint('[EditAgentProfileScreen] initState');
     _nameController.text = widget.currentName;
     _emailController.text = widget.currentEmail;
   }
@@ -113,19 +72,19 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: Text(_tr('permission_required')),
-                content: Text(_tr('camera_permission_message')),
+                title: Text(_tr(context, 'permission_required')),
+                content: Text(_tr(context, 'camera_permission_message')),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: Text(_tr('cancel')),
+                    child: Text(_tr(context,'cancel')),
                   ),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
                       openAppSettings();
                     },
-                    child: Text(_tr('open_settings')),
+                    child: Text(_tr(context,'open_settings')),
                   ),
                 ],
               );
@@ -141,19 +100,19 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: Text(_tr('permission_required')),
-                content: Text(_tr('storage_permission_message')),
+                title: Text(_tr(context,'permission_required')),
+                content: Text(_tr(context,'storage_permission_message')),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: Text(_tr('cancel')),
+                    child: Text(_tr(context,'cancel')),
                   ),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
                       openAppSettings();
                     },
-                    child: Text(_tr('open_settings')),
+                    child: Text(_tr(context,'open_settings')),
                   ),
                 ],
               );
@@ -186,7 +145,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(_tr('select_image_source')),
+          title: Text(_tr(context,'select_image_source')),
           actions: [
             TextButton(
               onPressed: () async {
@@ -196,7 +155,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                   _pickImage(ImageSource.camera);
                 }
               },
-              child: Text(_tr('camera')),
+              child: Text(_tr(context,'camera')),
             ),
             TextButton(
               onPressed: () async {
@@ -206,11 +165,11 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                   _pickImage(ImageSource.gallery);
                 }
               },
-              child: Text(_tr('gallery')),
+              child: Text(_tr(context,'gallery')),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(_tr('cancel')),
+              child: Text(_tr(context,'cancel')),
             ),
           ],
         );
@@ -252,15 +211,15 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
             context: context,
             barrierDismissible: false,
             builder: (context) => AlertDialog(
-              title: Text(_tr('email_changed_title')),
-              content: Text(_tr('email_changed_body')),
+              title: Text(_tr(context,'email_changed_title')),
+              content: Text(_tr(context,'email_changed_body')),
               actions: [
                 TextButton(
                   onPressed: () async {
                     await AuthService().signOut();
                     Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
                   },
-                  child: Text(_tr('ok')),
+                  child: Text(_tr(context,'ok')),
                 ),
               ],
             ),
@@ -268,7 +227,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_tr('success')),
+              content: Text(_tr(context,'success')),
               backgroundColor: Colors.green,
             ),
           );
@@ -282,7 +241,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_tr('error')),
+            content: Text(_tr(context,'error')),
             backgroundColor: Colors.red,
           ),
         );
@@ -296,17 +255,19 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Consumer<LanguageProvider>(
+      builder: (context, languageProvider, child) {
+        return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(_tr('edit_profile')),
+        title: Text(_tr(context,'title')),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
         actions: [
-          TextButton(
+          IconButton(
             onPressed: _isLoading ? null : _saveProfile,
-            child: _isLoading
+            icon: _isLoading
                 ? SizedBox(
                     width: 20,
                     height: 20,
@@ -315,13 +276,11 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                       color: Colors.blue,
                     ),
                   )
-                : Text(
-                    _tr('save'),
-                    style: const TextStyle(
-                      color: Colors.blue,
-                      fontWeight: FontWeight.bold,
-                    ),
+                : const Icon(
+                    Icons.save,
+                    color: Colors.blue,
                   ),
+            tooltip: _tr(context,'save_changes'),
           ),
         ],
       ),
@@ -371,7 +330,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               TextButton(
                 onPressed: _showImageSourceDialog,
                 child: Text(
-                  _tr('change_photo'),
+                  _tr(context,'change_profile_photo'),
                   style: const TextStyle(color: Colors.blue),
                 ),
               ),
@@ -380,20 +339,20 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
 
               // Form Fields
               _buildTextField(
-                _tr('full_name'),
+                _tr(context,'full_name'),
                 _nameController,
                 validator: (value) =>
-                    value?.isEmpty ?? true ? _tr('required_field') : null,
+                    value?.isEmpty ?? true ? _tr(context,'full_name_empty') : null,
               ),
 
               _buildTextField(
-                _tr('email'),
+                _tr(context,'email_address'),
                 _emailController,
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
-                  if (value?.isEmpty ?? true) return _tr('required_field');
+                  if (value?.isEmpty ?? true) return _tr(context,'email_empty');
                   final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                  if (!emailRegex.hasMatch(value!)) return _tr('invalid_email');
+                  if (!emailRegex.hasMatch(value!)) return _tr(context,'email_invalid');
                   return null;
                 },
               ),
@@ -424,10 +383,10 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Text(_tr('saving')),
+                            Text(_tr(context,'saving')),
                           ],
                         )
-                      : Text(_tr('save')),
+                      : Text(_tr(context,'save')),
                 ),
               ),
 
@@ -436,6 +395,8 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 

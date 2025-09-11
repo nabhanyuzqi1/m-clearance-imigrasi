@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../widgets/bouncing_dots_loader.dart';
 import '../../../services/auth_service.dart';
 import '../../../config/routes.dart';
+import 'package:m_clearance_imigrasi/app/localization/app_strings.dart';
 
 class RegistrationPendingScreen extends StatefulWidget {
   final String initialLanguage;
@@ -15,6 +16,10 @@ class RegistrationPendingScreen extends StatefulWidget {
 class _RegistrationPendingScreenState extends State<RegistrationPendingScreen> {
   final AuthService _authService = AuthService();
 
+  String _tr(String key) {
+    return AppStrings.tr(context: context, screenKey: 'registrationPending', stringKey: key, langCode: widget.initialLanguage);
+  }
+
   Future<void> _signOutAndGoToLogin() async {
     await _authService.signOut();
     if (mounted) {
@@ -24,23 +29,6 @@ class _RegistrationPendingScreenState extends State<RegistrationPendingScreen> {
 
   @override
   Widget build(BuildContext context) {
-
-    final Map<String, Map<String, String>> translations = {
-      'EN': {
-        'title': 'Waiting for Verification',
-        'message': 'You have successfully registered, please wait for verification. Check your email regularly.',
-        'done_button': 'Done',
-      },
-      'ID': {
-        'title': 'Menunggu Verifikasi',
-        'message': 'Anda telah berhasil mendaftar, mohon tunggu verifikasi. Periksa email Anda secara berkala.',
-        'done_button': 'Selesai',
-      }
-    };
-
-    String tr(String key) {
-      return translations[widget.initialLanguage]![key] ?? key;
-    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -54,13 +42,13 @@ class _RegistrationPendingScreenState extends State<RegistrationPendingScreen> {
               const Spacer(),
               BouncingDotsLoader(),
               const SizedBox(height: 48),
-              Text(tr('title'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
+              Text(_tr('title'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
               const SizedBox(height: 16),
-              Text(tr('message'), textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey.shade600, height: 1.5)),
+              Text(_tr('message'), textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey.shade600, height: 1.5)),
               const Spacer(),
               ElevatedButton(
                 onPressed: _signOutAndGoToLogin,
-                child: Text(tr('done_button')),
+                child: Text(_tr('done_button')),
               ),
             ],
           ),

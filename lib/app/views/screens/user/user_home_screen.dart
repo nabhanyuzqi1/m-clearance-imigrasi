@@ -1,21 +1,24 @@
  import 'package:flutter/material.dart';
-import '../../../localization/app_strings.dart';
-import '../../../models/clearance_application.dart';
-import '../../../models/user_account.dart';
-import '../../../services/notification_service.dart';
-import '../../../services/user_service.dart';
-import '../../../config/routes.dart';
-import '../../../services/auth_service.dart';
-import '../../widgets/custom_app_bar.dart';
-import '../../widgets/custom_bottom_navbar.dart';
-import '../../widgets/custom_button.dart';
-import '../../widgets/bouncing_dots_loader.dart';
-import '../../widgets/skeleton_loader.dart';
-import '../auth/change_password_screen.dart';
-import 'clearance_form_screen.dart';
-import 'notification_screen.dart';
-import 'history_screen.dart';
-import 'language_selection_screen.dart';
+ import 'package:provider/provider.dart';
+ import '../../../localization/app_strings.dart';
+ import '../../../providers/language_provider.dart';
+ import '../../../models/clearance_application.dart';
+ import '../../../models/user_account.dart';
+ import '../../../services/notification_service.dart';
+ import '../../../services/user_service.dart';
+ import '../../../config/routes.dart';
+ import '../../../services/auth_service.dart';
+ import '../../../config/theme.dart';
+ import '../../widgets/custom_app_bar.dart';
+ import '../../widgets/custom_bottom_navbar.dart';
+ import '../../widgets/custom_button.dart';
+ import '../../widgets/bouncing_dots_loader.dart';
+ import '../../widgets/skeleton_loader.dart';
+ import '../auth/change_password_screen.dart';
+ import 'clearance_form_screen.dart';
+ import 'notification_screen.dart';
+ import 'history_screen.dart';
+ import 'language_selection_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   final String initialLanguage;
@@ -35,6 +38,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint('[UserHomeScreen] initState with initialLanguage: ${widget.initialLanguage}');
     _loadCurrentUser();
   }
 
@@ -110,8 +114,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 langCode: widget.initialLanguage,
               ),
               type: CustomButtonType.outlined,
-              borderColor: Colors.red.shade200,
-              foregroundColor: Colors.red,
+              borderColor: AppTheme.errorShade200,
+              foregroundColor: AppTheme.errorColor,
               onPressed: () => Navigator.of(dialogContext).pop(),
             ),
             SizedBox(width: screenWidth * 0.02),
@@ -123,7 +127,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 langCode: widget.initialLanguage,
               ),
               type: CustomButtonType.elevated,
-              backgroundColor: Colors.red.shade400,
+              backgroundColor: AppTheme.errorShade400,
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
                 await AuthService().signOut();
@@ -140,70 +144,73 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoadingUser && currentUser == null) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const BouncingDotsLoader(),
-              const SizedBox(height: 16),
-              Text(
-                AppStrings.tr(
-                  context: context,
-                  screenKey: 'userHome',
-                  stringKey: 'loading_user',
-                  langCode: widget.initialLanguage,
-                ),
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
+    return Consumer<LanguageProvider>(
+      builder: (context, languageProvider, child) {
+        final currentLangCode = languageProvider.locale.languageCode.toUpperCase();
+
+        if (_isLoadingUser && currentUser == null) {
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const BouncingDotsLoader(),
+                  const SizedBox(height: 16),
+                  Text(
+                    AppStrings.tr(
+                      context: context,
+                      screenKey: 'userHome',
+                      stringKey: 'loading_user',
+                      langCode: currentLangCode,
+                    ),
+                    style: TextStyle(fontSize: 16, color: AppTheme.greyColor),
+                  ),
+                ],
               ),
-            ],
+            ),
+          );
+        }
+
+        if (currentUser == null) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        final List<Widget> pages = <Widget>[
+          UserMenuScreen(
+            userAccount: currentUser!,
+            initialLanguage: currentLangCode,
           ),
-        ),
-      );
-    }
+          UserHistoryScreen(
+            userAccount: currentUser!,
+            initialLanguage: currentLangCode,
+          ),
+          UserProfileScreen(
+            userAccount: currentUser!,
+            initialLanguage: currentLangCode,
+            onRefresh: _refresh,
+            onLogout: () => _showLogoutDialog(context),
+          ),
+        ];
 
-    if (currentUser == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    final List<Widget> pages = <Widget>[
-      UserMenuScreen(
-        userAccount: currentUser!,
-        initialLanguage: widget.initialLanguage,
-      ),
-      UserHistoryScreen(
-        userAccount: currentUser!,
-        initialLanguage: widget.initialLanguage,
-      ),
-      UserProfileScreen(
-        userAccount: currentUser!,
-        initialLanguage: widget.initialLanguage,
-        onRefresh: _refresh,
-        onLogout: () => _showLogoutDialog(context),
-      ),
-    ];
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: pages.elementAt(_selectedIndex),
-      bottomNavigationBar: CustomBottomNavbar(
-        items: NavigationItems.userItems,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        backgroundColor: Colors.white,
-        elevation: 8,
-      ),
+        return Scaffold(
+          backgroundColor: AppTheme.whiteColor,
+          body: pages.elementAt(_selectedIndex),
+          bottomNavigationBar: CustomBottomNavbar(
+            items: NavigationItems.userItems,
+            currentIndex: _selectedIndex,
+            onTap: _onItemTapped,
+            selectedItemColor: AppTheme.primaryColor,
+            unselectedItemColor: AppTheme.greyColor,
+            showSelectedLabels: true,
+            showUnselectedLabels: true,
+            backgroundColor: AppTheme.whiteColor,
+            elevation: 8,
+          ),
+        );
+      },
     );
   }
 }
-
-// Import statement for LoginScreen - this needs to be added at the top
-// import '../auth/login_screen.dart';
 
 // User Menu Screen Component
 class UserMenuScreen extends StatelessWidget {
@@ -236,7 +243,7 @@ class UserMenuScreen extends StatelessWidget {
         final unreadCount = snapshot.data ?? 0;
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: AppTheme.whiteColor,
           appBar: CustomAppBar(
             title: LogoTitle(text: 'M-Clearance ISam'),
             actions: [
@@ -268,12 +275,12 @@ class UserMenuScreen extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: screenWidth * 0.06,
-                        backgroundColor: Colors.grey.shade200,
+                        backgroundColor: AppTheme.greyShade200,
                         backgroundImage: userAccount.profileImageUrl != null
                             ? NetworkImage(userAccount.profileImageUrl!)
                             : null,
                         child: userAccount.profileImageUrl == null
-                            ? Icon(Icons.person, size: screenWidth * 0.075, color: Colors.grey)
+                            ? Icon(Icons.person, size: screenWidth * 0.075, color: AppTheme.greyColor)
                             : null,
                       ),
                       SizedBox(width: screenWidth * 0.03),
@@ -281,7 +288,7 @@ class UserMenuScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(screenTr('welcome'), style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.grey)),
+                            Text(screenTr('welcome'), style: TextStyle(fontSize: screenWidth * 0.04, color: AppTheme.greyColor)),
                             Text(userAccount.name, style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
                           ],
                         ),
@@ -296,7 +303,7 @@ class UserMenuScreen extends StatelessWidget {
                     title: screenTr('arrival'),
                     subtitle: screenTr('last_port'),
                     iconData: Icons.anchor,
-                    color: Colors.blue,
+                    color: AppTheme.primaryColor,
                     isPrimary: true,
                     onTap: () {
                       Navigator.push(
@@ -316,7 +323,7 @@ class UserMenuScreen extends StatelessWidget {
                     title: screenTr('departure'),
                     subtitle: screenTr('next_port'),
                     iconData: Icons.directions_boat,
-                    color: Colors.black87,
+                    color: AppTheme.blackColor87,
                     isPrimary: false,
                     onTap: () {
                       Navigator.push(
@@ -376,7 +383,7 @@ class UserMenuScreen extends StatelessWidget {
                     Center(
                       child: Padding(
                         padding: EdgeInsets.symmetric(vertical: verticalSpacing * 2),
-                        child: Text(screenTr('no_transactions'), style: TextStyle(color: Colors.grey, fontSize: screenWidth * 0.04))
+                        child: Text(screenTr('no_transactions'), style: TextStyle(color: AppTheme.greyColor, fontSize: screenWidth * 0.04))
                       )
                     )
                   else
@@ -416,12 +423,12 @@ class UserMenuScreen extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.all(cardPadding),
         decoration: BoxDecoration(
-          color: isPrimary ? color : Colors.white,
+          color: isPrimary ? color : AppTheme.whiteColor,
           borderRadius: BorderRadius.circular(16),
-          border: isPrimary ? null : Border.all(color: Colors.grey.shade300),
+          border: isPrimary ? null : Border.all(color: AppTheme.greyShade300),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: AppTheme.greyColor.withAlpha(25), // 0.1 * 255 ≈ 25
               blurRadius: 10,
               offset: const Offset(0, 5)
             )
@@ -448,7 +455,7 @@ class UserMenuScreen extends StatelessWidget {
                     subtitle,
                     style: TextStyle(
                       fontSize: subtitleFontSize,
-                      color: isPrimary ? Colors.white70 : Colors.grey,
+                      color: isPrimary ? AppTheme.whiteColor70 : AppTheme.greyColor,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -479,12 +486,12 @@ class UserMenuScreen extends StatelessWidget {
       margin: EdgeInsets.only(bottom: verticalPadding),
       padding: EdgeInsets.all(verticalPadding),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.whiteColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppTheme.greyShade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.05),
+            color: AppTheme.greyColor.withAlpha(13), // 0.05 * 255 ≈ 13
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -492,16 +499,16 @@ class UserMenuScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.star, color: Colors.blue, size: iconSize),
+          Icon(Icons.star, color: AppTheme.primaryColor, size: iconSize),
           SizedBox(width: horizontalSpacing),
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: TextStyle(fontSize: fontSize, color: Colors.black87, height: 1.4),
+                style: TextStyle(fontSize: fontSize, color: AppTheme.blackColor87, height: 1.4),
                 children: [
                   TextSpan(text: '$type: ', style: const TextStyle(fontWeight: FontWeight.bold)),
                   TextSpan(text: '$detail '),
-                  TextSpan(text: date, style: const TextStyle(color: Colors.grey)),
+                  TextSpan(text: date, style: TextStyle(color: AppTheme.greyColor)),
                 ],
               ),
               overflow: TextOverflow.ellipsis,
@@ -546,11 +553,11 @@ class UserProfileScreen extends StatelessWidget {
     final verticalSpacing = screenWidth * 0.03;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.whiteColor,
       appBar: CustomAppBar(
         titleText: _tr(context, 'userProfile', 'profile'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppTheme.whiteColor,
+        foregroundColor: AppTheme.blackColor,
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -564,12 +571,12 @@ class UserProfileScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: screenWidth * 0.15,
-                    backgroundColor: Colors.grey.shade200,
+                    backgroundColor: AppTheme.greyShade200,
                     backgroundImage: userAccount.profileImageUrl != null
                         ? NetworkImage(userAccount.profileImageUrl!)
                         : null,
                     child: userAccount.profileImageUrl == null
-                        ? Icon(Icons.person, size: screenWidth * 0.15, color: Colors.grey)
+                        ? Icon(Icons.person, size: screenWidth * 0.15, color: AppTheme.greyColor)
                         : null,
                   ),
                 ],
@@ -586,7 +593,7 @@ class UserProfileScreen extends StatelessWidget {
             SizedBox(height: screenWidth * 0.02),
             Text(
               userAccount.email,
-              style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: screenWidth * 0.04, color: AppTheme.greyShade600),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: verticalSpacing * 2),
@@ -597,6 +604,7 @@ class UserProfileScreen extends StatelessWidget {
               icon: Icons.edit,
               title: _tr(context, 'userProfile', 'edit_profile'),
               onTap: () {
+                debugPrint('[UserHomeScreen] Navigating to editAgentProfile with initialLanguage: $initialLanguage');
                 Navigator.pushNamed(
                   context,
                   AppRoutes.editAgentProfile,
@@ -605,6 +613,7 @@ class UserProfileScreen extends StatelessWidget {
                     'currentName': userAccount.name,
                     'currentEmail': userAccount.email,
                     'currentProfileImageUrl': userAccount.profileImageUrl,
+                    'initialLanguage': initialLanguage, // Add this!
                   },
                 ).then((result) {
                   if (result == true) {
@@ -689,17 +698,17 @@ class UserProfileScreen extends StatelessWidget {
     final verticalPadding = screenWidth * 0.02;
 
     return ListTile(
-      leading: Icon(icon, color: textColor ?? Colors.black, size: iconSize),
+      leading: Icon(icon, color: textColor ?? AppTheme.blackColor, size: iconSize),
       title: Text(
         title,
         style: TextStyle(
-          color: textColor ?? Colors.black,
+          color: textColor ?? AppTheme.blackColor,
           fontSize: fontSize,
         ),
         overflow: TextOverflow.ellipsis,
       ),
       trailing: trailing != null
-          ? Text(trailing, style: TextStyle(color: Colors.grey.shade600, fontSize: fontSize))
+          ? Text(trailing, style: TextStyle(color: AppTheme.greyShade600, fontSize: fontSize))
           : Icon(Icons.arrow_forward_ios, size: iconSize * 0.6),
       onTap: onTap,
       contentPadding: EdgeInsets.symmetric(horizontal: 0, vertical: verticalPadding),

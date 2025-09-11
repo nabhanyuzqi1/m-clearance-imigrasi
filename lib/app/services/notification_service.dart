@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/notification_item.dart';
 import '../models/clearance_application.dart';
+import 'logging_service.dart';
 
 class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -51,7 +52,7 @@ class NotificationService {
 
       return true;
     } catch (e) {
-      print('Error marking notification as read: $e');
+      LoggingService().error('Error marking notification as read', e);
       return false;
     }
   }
@@ -77,7 +78,7 @@ class NotificationService {
       await batch.commit();
       return true;
     } catch (e) {
-      print('Error marking all notifications as read: $e');
+      LoggingService().error('Error marking all notifications as read', e);
       return false;
     }
   }
@@ -96,7 +97,7 @@ class NotificationService {
 
       return docRef.id;
     } catch (e) {
-      print('Error creating notification: $e');
+      LoggingService().error('Error creating notification', e);
       return null;
     }
   }
@@ -116,7 +117,7 @@ class NotificationService {
 
       return true;
     } catch (e) {
-      print('Error deleting notification: $e');
+      LoggingService().error('Error deleting notification', e);
       return false;
     }
   }
@@ -166,7 +167,7 @@ class NotificationService {
 
       return await createNotification(notification);
     } catch (e) {
-      print('Error creating application notification: $e');
+      LoggingService().error('Error creating application notification', e);
       return null;
     }
   }

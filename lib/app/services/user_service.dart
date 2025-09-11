@@ -6,6 +6,7 @@ import '../models/clearance_application.dart';
 import '../models/user_account.dart';
 import 'cache_manager.dart';
 import 'network_utils.dart';
+import 'logging_service.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -36,10 +37,10 @@ class UserService {
       if (cachedData != null && cachedData['uid'] == user.uid) {
         try {
           final userAccount = UserAccount.fromJson(cachedData);
-          print('DEBUG: Cache hit for user account');
+          LoggingService().debug('Cache hit for user account');
           return userAccount;
         } catch (e) {
-          print('DEBUG: Cache data corrupted for user account, fetching from server');
+          LoggingService().warning('Cache data corrupted for user account, fetching from server', e);
           await cacheManager.clearUserDataCache();
         }
       }
@@ -65,18 +66,18 @@ class UserService {
         // Cache the result
         await cacheManager.cacheUserData(userAccount.toJson());
 
-        print('DEBUG: User account fetched from server and cached');
+        LoggingService().debug('User account fetched from server and cached');
         return userAccount;
       } catch (e) {
         if (e is NetworkException) {
-          print('Network error in getCurrentUserAccount: ${e.message}');
+          LoggingService().error('Network error in getCurrentUserAccount: ${e.message}', e);
         } else {
-          print('Error creating UserAccount from Firestore: $e');
+          LoggingService().error('Error creating UserAccount from Firestore', e);
         }
         return null;
       }
     } catch (e) {
-      print('Error getting current user account: $e');
+      LoggingService().error('Error getting current user account', e);
       return null;
     }
   }
@@ -86,7 +87,7 @@ class UserService {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        print('DEBUG: No authenticated user found');
+        LoggingService().error('No authenticated user found');
         return false;
       }
 
@@ -106,16 +107,16 @@ class UserService {
           final imageUrl = await _uploadProfileImage(user.uid, imagePath);
           if (imageUrl != null) {
             updateData['profileImageUrl'] = imageUrl;
-            print('DEBUG: Profile image uploaded successfully: $imageUrl');
+            LoggingService().info('Profile image uploaded successfully: $imageUrl');
           }
         } catch (uploadError) {
-          print('DEBUG: Error uploading profile image: $uploadError');
+          LoggingService().warning('Error uploading profile image', uploadError);
           // Continue with profile update even if image upload fails
         }
       }
 
-      print('DEBUG: Attempting to update user profile with data: $updateData');
-      print('DEBUG: User UID: ${user.uid}');
+      LoggingService().debug('Attempting to update user profile with data: $updateData');
+      LoggingService().debug('User UID: ${user.uid}');
 
       await _firestore.collection('users').doc(user.uid).update(updateData);
 
@@ -127,14 +128,14 @@ class UserService {
       final cacheManager = await _getCacheManager();
       await cacheManager.clearUserDataCache();
 
-      print('DEBUG: User profile updated successfully');
+      LoggingService().info('User profile updated successfully');
       return true;
     } catch (e) {
-      print('DEBUG: Error updating user profile: $e');
-      print('DEBUG: Error type: ${e.runtimeType}');
+      LoggingService().error('Error updating user profile', e);
+      LoggingService().debug('Error type: ${e.runtimeType}');
       if (e is FirebaseException) {
-        print('DEBUG: Firebase error code: ${e.code}');
-        print('DEBUG: Firebase error message: ${e.message}');
+        LoggingService().debug('Firebase error code: ${e.code}');
+        LoggingService().debug('Firebase error message: ${e.message}');
       }
       return false;
     }
@@ -145,28 +146,28 @@ class UserService {
     try {
       final file = File(imagePath);
       if (!await file.exists()) {
-        print('DEBUG: Image file does not exist: $imagePath');
+        LoggingService().error('Image file does not exist: $imagePath');
         return null;
       }
 
       final storageRef = FirebaseStorage.instance.ref();
       final profileImageRef = storageRef.child('users/$userId/profile_image.jpg');
 
-      print('DEBUG: Uploading image to Firebase Storage: users/$userId/profile_image.jpg');
+      LoggingService().debug('Uploading image to Firebase Storage: users/$userId/profile_image.jpg');
 
       final uploadTask = profileImageRef.putFile(file);
       final snapshot = await uploadTask.whenComplete(() => null);
 
       if (snapshot.state == TaskState.success) {
         final downloadUrl = await profileImageRef.getDownloadURL();
-        print('DEBUG: Image uploaded successfully, download URL: $downloadUrl');
+        LoggingService().info('Image uploaded successfully, download URL: $downloadUrl');
         return downloadUrl;
       } else {
-        print('DEBUG: Image upload failed with state: ${snapshot.state}');
+        LoggingService().error('Image upload failed with state: ${snapshot.state}');
         return null;
       }
     } catch (e) {
-      print('DEBUG: Error uploading profile image: $e');
+      LoggingService().error('Error uploading profile image', e);
       return null;
     }
   }
@@ -176,7 +177,7 @@ class UserService {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        print('DEBUG: No authenticated user found for application submission');
+        LoggingService().error('No authenticated user found for application submission');
         return null;
       }
 
@@ -188,22 +189,22 @@ class UserService {
         'updatedAt': Timestamp.now(),
       };
 
-      print('DEBUG: Submitting application with data: $dataToSend');
-      print('DEBUG: User UID: ${user.uid}');
-      print('DEBUG: Application status: ${application.status} (name: ${application.status.name})');
-      print('DEBUG: Application type: ${application.type} (string: ${application.type == ApplicationType.kedatangan ? 'arrival' : 'departure'})');
-      print('DEBUG: Firestore data from toFirestore(): $firestoreData');
+      LoggingService().debug('Submitting application with data: $dataToSend');
+      LoggingService().debug('User UID: ${user.uid}');
+      LoggingService().debug('Application status: ${application.status} (name: ${application.status.name})');
+      LoggingService().debug('Application type: ${application.type} (string: ${application.type == ApplicationType.kedatangan ? 'arrival' : 'departure'})');
+      LoggingService().debug('Firestore data from toFirestore(): $firestoreData');
 
       final docRef = await _firestore.collection('applications').add(dataToSend);
 
-      print('DEBUG: Application submitted successfully with ID: ${docRef.id}');
+      LoggingService().info('Application submitted successfully with ID: ${docRef.id}');
       return docRef.id;
     } catch (e) {
-      print('DEBUG: Error submitting clearance application: $e');
-      print('DEBUG: Error type: ${e.runtimeType}');
+      LoggingService().error('Error submitting clearance application', e);
+      LoggingService().debug('Error type: ${e.runtimeType}');
       if (e is FirebaseException) {
-        print('DEBUG: Firebase error code: ${e.code}');
-        print('DEBUG: Firebase error message: ${e.message}');
+        LoggingService().debug('Firebase error code: ${e.code}');
+        LoggingService().debug('Firebase error message: ${e.message}');
       }
       return null;
     }
@@ -232,7 +233,7 @@ class UserService {
       }
       return null;
     } catch (e) {
-      print('Error getting application: $e');
+      LoggingService().error('Error getting application', e);
       return null;
     }
   }
@@ -246,7 +247,7 @@ class UserService {
       });
       return true;
     } catch (e) {
-      print('Error updating application: $e');
+      LoggingService().error('Error updating application', e);
       return false;
     }
   }
@@ -257,7 +258,7 @@ class UserService {
       await _firestore.collection('applications').doc(applicationId).delete();
       return true;
     } catch (e) {
-      print('Error deleting application: $e');
+      LoggingService().error('Error deleting application', e);
       return false;
     }
   }
@@ -303,7 +304,7 @@ class UserService {
 
       return stats;
     } catch (e) {
-      print('Error getting application stats: $e');
+      LoggingService().error('Error getting application stats', e);
       return {};
     }
   }

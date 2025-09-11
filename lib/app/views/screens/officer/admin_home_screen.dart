@@ -12,6 +12,9 @@ import 'email_config_screen.dart';
 import 'officer_report_screen.dart';
 import 'notification_screen.dart';
 import '../../../services/functions_service.dart';
+import '../../widgets/custom_bottom_navbar.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../widgets/custom_button.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final String adminName;
@@ -28,12 +31,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _selectedIndex = 0;
   late String _selectedLanguage;
 
-  String _tr(String screenKey, String stringKey) => AppStrings.tr(
-        context: context,
-        screenKey: screenKey,
-        stringKey: stringKey,
-        langCode: _selectedLanguage,
-      );
 
   @override
   void initState() {
@@ -60,17 +57,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
       body: pages.elementAt(_selectedIndex),
-      bottomNavigationBar: BottomNavigationBar(
-        items: <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: const Icon(Icons.home_filled), label: _tr('adminHome', 'home')),
-          BottomNavigationBarItem(icon: const Icon(Icons.assessment_outlined), label: _tr('adminHome', 'report')),
-          BottomNavigationBarItem(icon: const Icon(Icons.settings), label: _tr('adminHome', 'settings')),
-        ],
+      bottomNavigationBar: CustomBottomNavbar(
+        items: NavigationItems.officerItems,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: AppTheme.infoColor,
+        selectedItemColor: AppTheme.primaryColor,
         unselectedItemColor: AppTheme.greyColor,
+        showSelectedLabels: true,
         showUnselectedLabels: true,
+        backgroundColor: AppTheme.whiteColor,
+        elevation: 8,
       ),
     );
   }
@@ -94,22 +90,15 @@ class AdminMenuScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
-      appBar: AppBar(
+      appBar: CustomAppBar(
+        title: LogoTitle(text: tr('immigration_office')),
         backgroundColor: AppTheme.whiteColor,
+        foregroundColor: AppTheme.blackColor,
         elevation: 0,
-        title: Row(
-          children: [
-            Image.asset('assets/images/logo.png', height: 32,
-              errorBuilder: (context, error, stackTrace) => const Icon(Icons.directions_boat),
-            ),
-            const SizedBox(width: 8),
-            Text(tr('immigration_office'), style: const TextStyle(color: AppTheme.blackColor, fontSize: AppTheme.fontSizeExtraLarge, fontWeight: FontWeight.bold)),
-          ],
-        ),
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none_outlined, color: AppTheme.blackColor54),
+          NotificationIconWithBadge(
+            badgeCount: 0, // You can implement notification count logic here
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => OfficerNotificationScreen(initialLanguage: initialLanguage)));
             },
@@ -305,15 +294,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             content: Text(tr('logout_confirm_body'), textAlign: TextAlign.center),
             actionsAlignment: MainAxisAlignment.center,
             actions: <Widget>[
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), side: BorderSide(color: AppTheme.errorShade200), padding: EdgeInsets.symmetric(horizontal: AppTheme.paddingLarge, vertical: AppTheme.paddingMedium)),
-                child: Text(tr('cancel'), style: const TextStyle(color: AppTheme.errorColor)),
+              CustomButton(
+                text: tr('cancel'),
+                type: CustomButtonType.outlined,
+                borderColor: AppTheme.errorShade200,
+                foregroundColor: AppTheme.errorColor,
                 onPressed: () => Navigator.of(dialogContext).pop(),
               ),
               const SizedBox(width: 8),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorShade400, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: EdgeInsets.symmetric(horizontal: AppTheme.paddingLarge, vertical: AppTheme.paddingMedium)),
-                child: Text(tr('logout'), style: const TextStyle(color: AppTheme.whiteColor)),
+              CustomButton(
+                text: tr('logout'),
+                type: CustomButtonType.elevated,
+                backgroundColor: AppTheme.errorShade400,
                 onPressed: () async {
                   // Ensure true logout from Firebase
                   try {
@@ -333,8 +325,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
-      appBar: AppBar(
-        title: Text(tr('settings')),
+      appBar: CustomAppBar(
+        titleText: tr('settings'),
         automaticallyImplyLeading: false,
       ),
       body: ListView(
@@ -346,7 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const CircleAvatar(
                   radius: 50,
                   backgroundColor: AppTheme.greyShade50,
-                  child: Icon(Icons.person, size: 60, color: Color(0xFF90CAF9)),
+                  child: Icon(Icons.person, size: 60, color: AppTheme.primaryColor),
                 ),
                 Positioned(
                   bottom: 0,

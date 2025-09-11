@@ -1,5 +1,8 @@
+import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/config/routes.dart';
@@ -55,6 +58,17 @@ void main() async {
   if (opts.storageBucket != null) {
     debugPrint('[Startup] Storage bucket configured: ${opts.storageBucket}');
   }
+
+  // Initialize Firebase Crashlytics
+  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
+  debugPrint('[Startup] Crashlytics collection enabled: ${!kDebugMode}');
+
+  // Set up error reporting to Crashlytics
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
 
   // Preload critical assets for better startup performance
   runApp(

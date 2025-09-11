@@ -7,6 +7,7 @@ import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/logging_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../../providers/language_provider.dart';
@@ -52,6 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _performLogin() async {
     if (_formKey.currentState!.validate()) {
+      LoggingService().info('Login attempt for email: ${_emailController.text}');
       setState(() {
         _isLoading = true;
       });
@@ -61,10 +63,12 @@ class _LoginScreenState extends State<LoginScreen> {
           _passwordController.text,
         );
         if (userModel != null) {
+          LoggingService().info('Login successful for user: ${userModel.email}, status: ${userModel.status}');
           switch (userModel.status) {
             case 'approved':
               if (userModel.role == 'admin' || userModel.role == 'officer') {
                 if (mounted) {
+                  LoggingService().info('Navigating to admin home for officer/admin: ${userModel.email}');
                   Navigator.pushReplacementNamed(context, AppRoutes.adminHome, arguments: {
                     'adminName': userModel.username,
                     'adminUsername': userModel.email,
@@ -72,12 +76,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 }
               } else {
                 if (mounted) {
+                  LoggingService().info('Navigating to user home for user: ${userModel.email}');
                   Navigator.pushReplacementNamed(context, AppRoutes.userHome);
                 }
               }
               break;
             case 'pending_email_verification':
               if (mounted) {
+                LoggingService().info('Navigating to email verification for user: ${userModel.email}');
                 Navigator.pushNamed(context, AppRoutes.confirmation, arguments: {
                   'userData': {'email': userModel.email},
                 });
@@ -85,28 +91,33 @@ class _LoginScreenState extends State<LoginScreen> {
               break;
             case 'pending_documents':
               if (mounted) {
+                LoggingService().info('Navigating to document upload for user: ${userModel.email}');
                 Navigator.pushNamed(context, AppRoutes.uploadDocuments, arguments: {'uid': userModel.uid});
               }
               break;
             case 'pending_approval':
               if (mounted) {
+                LoggingService().info('Navigating to registration pending for user: ${userModel.email}');
                 Navigator.pushNamed(context, AppRoutes.registrationPending);
               }
               break;
             case 'rejected':
-              _showErrorSnackbar(
-                  'Your account has been rejected. Please contact support for more information.');
+              LoggingService().warning('Login attempt for rejected user: ${userModel.email}');
+              _showErrorSnackbar(_tr('account_rejected_full'));
               await _authService.signOut();
               break;
             default:
-              _showErrorSnackbar('Unknown user status.');
+              LoggingService().error('Unknown user status for user: ${userModel.email}, status: ${userModel.status}');
+              _showErrorSnackbar(_tr('unknown_user_status'));
               await _authService.signOut();
           }
         } else {
+          LoggingService().warning('Login failed: Invalid credentials for email: ${_emailController.text}');
           _showErrorSnackbar('Invalid username or password.');
         }
       } on FirebaseAuthException catch (e) {
-        _showErrorSnackbar(e.message ?? 'An unknown error occurred.');
+        LoggingService().error('Login failed with FirebaseAuthException: ${e.message}', e);
+        _showErrorSnackbar(e.message ?? _tr('unknown_error'));
       } finally {
         if (mounted) {
           setState(() {
@@ -194,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           if (_isLoading)
             Container(
-              color: Colors.black.withAlpha(128),
+              color: AppTheme.blackColor.withAlpha(128),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -346,13 +357,13 @@ class _LoginScreenState extends State<LoginScreen> {
         languageProvider.setLocale(Locale(newValue.toLowerCase()));
       },
       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        const PopupMenuItem<String>(
+        PopupMenuItem<String>(
           value: 'EN',
-          child: Text('English'),
+          child: Text(_tr('english')),
         ),
-        const PopupMenuItem<String>(
+        PopupMenuItem<String>(
           value: 'ID',
-          child: Text('Bahasa Indonesia'),
+          child: Text(_tr('indonesian')),
         ),
       ],
       color: AppTheme.whiteColor,

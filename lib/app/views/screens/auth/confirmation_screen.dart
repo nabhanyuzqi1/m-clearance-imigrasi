@@ -124,7 +124,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       setState(() {
         _isVerifying = false;
       });
-      String msg = 'Verification failed';
+      String msg = _tr('verification_failed');
       if (e is FirebaseFunctionsException) {
         msg = e.message ?? msg;
       } else {
@@ -148,7 +148,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         final remain = resp['retryAfterSec'] ?? 0;
         if (!mounted || silent) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Please wait ${remain}s before requesting a new code.'), backgroundColor: Colors.orange),
+          SnackBar(content: Text(_tr('please_wait_cooldown').replaceAll('{seconds}', remain.toString())), backgroundColor: Colors.orange),
         );
         _startCooldown(remain is int && remain > 0 ? remain : _defaultCooldown);
         return;
@@ -166,14 +166,14 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       );
     } catch (e) {
       if (!mounted || silent) return;
-      String msg = 'Internal error';
+      String msg = _tr('internal_error');
       if (e is FirebaseFunctionsException) {
         msg = e.message ?? msg;
       } else {
         msg = e.toString();
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to resend code: $msg'), backgroundColor: Colors.red),
+        SnackBar(content: Text('${_tr('failed_to_resend_code')}: $msg'), backgroundColor: Colors.red),
       );
     }
   }
@@ -251,7 +251,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
             if (_lastSentMasked.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                'Sent to $_lastSentMasked',
+                _tr('sent_to') + _lastSentMasked,
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
@@ -332,7 +332,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
 
   Widget _buildResendButton() {
     final disabled = _cooldownSec > 0;
-    final label = disabled ? 'Resend in ${_cooldownSec}s' : _tr('resend_code');
+    final label = disabled ? '${_tr('resend_in')}${_cooldownSec}s' : _tr('resend_code');
     return TextButton(
       onPressed: disabled ? null : () => _resendCode(),
       child: Text(

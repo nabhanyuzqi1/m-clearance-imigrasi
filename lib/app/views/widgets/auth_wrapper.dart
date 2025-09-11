@@ -32,10 +32,10 @@ class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
 
   @override
   Widget build(BuildContext context) {
-    final AuthService _authService = AuthService();
+    final AuthService authService = AuthService();
 
     return StreamBuilder<User?>(
-      stream: _authService.authStateChanges,
+      stream: authService.authStateChanges,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.active) {
           return const Scaffold(
@@ -56,7 +56,7 @@ class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
 
         // Authenticated - load user data from Firebase
         return FutureBuilder<UserModel?>(
-          future: _authService.getUserData(user.uid),
+          future: authService.getUserData(user.uid),
           builder: (context, userSnapshot) {
             if (userSnapshot.connectionState != ConnectionState.done) {
               return const Scaffold(

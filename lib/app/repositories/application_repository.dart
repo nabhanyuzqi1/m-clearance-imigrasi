@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/clearance_application.dart';
 import 'firestore_provider.dart';
+import '../services/logging_service.dart';
 
 class ApplicationRepository {
   final FirebaseFirestore _db;
@@ -52,24 +53,31 @@ class ApplicationRepository {
     int? wniCrew,
     int? wnaCrew,
   }) async {
-    final doc = await _db.collection('applications').add({
-      'agentUid': agentUid,
-      'agentName': agentName,
-      'type': type,
-      'status': 'waiting',
-      'shipName': shipName,
-      'flag': flag,
-      if (location != null) 'location': location,
-      if (lastPort != null) 'lastPort': lastPort,
-      if (nextPort != null) 'nextPort': nextPort,
-      if (eta != null) 'arrivalDate': eta,
-      if (etd != null) 'departureDate': etd,
-      if (wniCrew != null) 'wniCrew': wniCrew,
-      if (wnaCrew != null) 'wnaCrew': wnaCrew,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    return doc.id;
+    try {
+      LoggingService().info('Creating new application for ship: $shipName, type: $type');
+      final doc = await _db.collection('applications').add({
+        'agentUid': agentUid,
+        'agentName': agentName,
+        'type': type,
+        'status': 'waiting',
+        'shipName': shipName,
+        'flag': flag,
+        if (location != null) 'location': location,
+        if (lastPort != null) 'lastPort': lastPort,
+        if (nextPort != null) 'nextPort': nextPort,
+        if (eta != null) 'arrivalDate': eta,
+        if (etd != null) 'departureDate': etd,
+        if (wniCrew != null) 'wniCrew': wniCrew,
+        if (wnaCrew != null) 'wnaCrew': wnaCrew,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      LoggingService().info('Application created successfully with ID: ${doc.id}');
+      return doc.id;
+    } catch (e) {
+      LoggingService().error('Error creating application for ship: $shipName', e);
+      rethrow;
+    }
   }
 
   /// Agent update for non-final fields while status is waiting/revision.
@@ -83,17 +91,24 @@ class ApplicationRepository {
     String? eta,
     String? etd,
   }) async {
-    final updates = <String, dynamic>{
-      if (shipName != null) 'shipName': shipName,
-      if (flag != null) 'flag': flag,
-      if (location != null) 'location': location,
-      if (lastPort != null) 'lastPort': lastPort,
-      if (nextPort != null) 'nextPort': nextPort,
-      if (eta != null) 'arrivalDate': eta,
-      if (etd != null) 'departureDate': etd,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    await _db.collection('applications').doc(appId).update(updates);
+    try {
+      LoggingService().info('Updating application $appId by agent');
+      final updates = <String, dynamic>{
+        if (shipName != null) 'shipName': shipName,
+        if (flag != null) 'flag': flag,
+        if (location != null) 'location': location,
+        if (lastPort != null) 'lastPort': lastPort,
+        if (nextPort != null) 'nextPort': nextPort,
+        if (eta != null) 'arrivalDate': eta,
+        if (etd != null) 'departureDate': etd,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      await _db.collection('applications').doc(appId).update(updates);
+      LoggingService().info('Application $appId updated successfully');
+    } catch (e) {
+      LoggingService().error('Error updating application $appId', e);
+      rethrow;
+    }
   }
 
   /// Officer/Admin decision on an application.
@@ -103,12 +118,19 @@ class ApplicationRepository {
     String? note,
     String? officerName,
   }) async {
-    final updates = <String, dynamic>{
-      'status': decision,
-      if (note != null) 'notes': note,
-      if (officerName != null) 'officerName': officerName,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    await _db.collection('applications').doc(appId).update(updates);
+    try {
+      LoggingService().info('Officer decision on application $appId: $decision');
+      final updates = <String, dynamic>{
+        'status': decision,
+        if (note != null) 'notes': note,
+        if (officerName != null) 'officerName': officerName,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      await _db.collection('applications').doc(appId).update(updates);
+      LoggingService().info('Application $appId status updated to $decision');
+    } catch (e) {
+      LoggingService().error('Error updating application $appId status', e);
+      rethrow;
+    }
   }
 }

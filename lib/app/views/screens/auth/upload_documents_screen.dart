@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
+import 'package:m_clearance_imigrasi/app/localization/app_strings.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 
@@ -36,48 +37,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   StreamSubscription<User?>? _authSub;
   late String _selectedLanguage;
 
-  final Map<String, Map<String, String>> _translations = {
-    'EN': {
-      'title': 'Submission',
-      'last_step': 'Last Step',
-      'complete_req': 'Complete the Requirements',
-      'nib_title': 'Business Identification Number',
-      'nib_subtitle': 'Only accept .pdf',
-      'ktp_title': 'Identity Card',
-      'ktp_subtitle': 'Only accept .jpg .pdf',
-      'submit': 'Submit',
-      'upload_success': 'uploaded successfully.',
-      'upload_all_docs': 'Please upload both documents.',
-      'change': 'Change',
-      'upload': 'Upload',
-      'select_file_failed': 'Failed to select file.',
-      'no_docs_uploaded': 'No documents were uploaded.',
-      'select_at_least_one': 'Please select at least one document to upload.',
-      'failed_upload': 'Failed to upload documents. Please try again.',
-      'partial_upload_success': 'Some documents failed to upload, but proceeding with uploaded ones.',
-    },
-    'ID': {
-      'title': 'Pengajuan',
-      'last_step': 'Langkah Terakhir',
-      'complete_req': 'Lengkapi Persyaratan',
-      'nib_title': 'Nomor Induk Berusaha',
-      'nib_subtitle': 'Hanya menerima .pdf',
-      'ktp_title': 'Kartu Tanda Penduduk',
-      'ktp_subtitle': 'Hanya menerima .jpg .pdf',
-      'submit': 'Kirim',
-      'upload_success': 'berhasil diunggah.',
-      'upload_all_docs': 'Mohon unggah kedua dokumen.',
-      'change': 'Ganti',
-      'upload': 'Unggah',
-      'select_file_failed': 'Gagal memilih file.',
-      'no_docs_uploaded': 'Tidak ada dokumen yang diunggah.',
-      'select_at_least_one': 'Pilih minimal satu dokumen untuk diunggah.',
-      'failed_upload': 'Gagal mengunggah dokumen. Coba lagi.',
-      'partial_upload_success': 'Beberapa dokumen gagal diunggah, tetapi melanjutkan dengan dokumen yang berhasil.',
-    }
-  };
-
-  String _tr(String key) => _translations[_selectedLanguage]?[key] ?? key;
+  String _tr(String key) => AppStrings.tr(context: context, screenKey: 'uploadDocuments', stringKey: key, langCode: _selectedLanguage);
 
   @override
   void initState() {
@@ -185,7 +145,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
+              SnackBar(content: Text('${_tr('nib')} ${_tr('upload_success')}'), backgroundColor: Colors.green),
             );
           }
         }
@@ -223,7 +183,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
+            SnackBar(content: Text('${_tr('nib')} ${_tr('upload_success')}'), backgroundColor: Colors.green),
           );
         }
       }
@@ -258,7 +218,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
+              SnackBar(content: Text('${_tr('ktp')} ${_tr('upload_success')}'), backgroundColor: Colors.green),
             );
           }
         }
@@ -296,7 +256,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
+            SnackBar(content: Text('${_tr('ktp')} ${_tr('upload_success')}'), backgroundColor: Colors.green),
           );
         }
       }
@@ -320,19 +280,19 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: Text('Permission Required'),
-                content: Text('Camera permission is required to take photos. Please enable it in app settings.'),
+                title: Text(_tr('permission_required')),
+                content: Text(_tr('camera_permission_message')),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: Text('Cancel'),
+                    child: Text(_tr('cancel')),
                   ),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
                       openAppSettings();
                     },
-                    child: Text('Open Settings'),
+                    child: Text(_tr('open_settings')),
                   ),
                 ],
               );
@@ -354,19 +314,19 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: Text('Permission Required'),
-                content: Text('Storage permission is required to access photos. Please enable it in app settings.'),
+                title: Text(_tr('permission_required')),
+                content: Text(_tr('storage_permission_message')),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: Text('Cancel'),
+                    child: Text(_tr('cancel')),
                   ),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
                       openAppSettings();
                     },
-                    child: Text('Open Settings'),
+                    child: Text(_tr('open_settings')),
                   ),
                 ],
               );
@@ -389,7 +349,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
             children: <Widget>[
               ListTile(
                 leading: const Icon(Icons.photo_library),
-                title: Text('Gallery'),
+                title: Text(_tr('gallery')),
                 onTap: () {
                   Navigator.of(context).pop();
                   onSourceSelected('gallery');
@@ -397,7 +357,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.photo_camera),
-                title: Text('Camera'),
+                title: Text(_tr('camera')),
                 onTap: () {
                   Navigator.of(context).pop();
                   onSourceSelected('camera');
@@ -405,7 +365,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.file_present),
-                title: Text('Choose from Files'),
+                title: Text(_tr('choose_from_files')),
                 onTap: () {
                   Navigator.of(context).pop();
                   onSourceSelected('file');

@@ -8,7 +8,6 @@ import '../views/screens/auth/register_screen.dart';
 import '../views/screens/auth/registration_pending_screen.dart';
 import '../views/screens/auth/splash_screen.dart';
 import '../views/screens/auth/upload_documents_screen.dart';
-// import '../views/screens/auth/email_verification_screen.dart';
 import '../views/screens/officer/account_detail_screen.dart';
 import '../views/screens/officer/account_verification_list_screen.dart';
 import '../views/screens/officer/admin_home_screen.dart';
@@ -109,7 +108,7 @@ class AppRoutes {
         return FadeRoute(page: user_notif.NotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case editAgentProfile:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: EditAgentProfileScreen(username: arguments['username'] ?? '', currentName: arguments['currentName'] ?? '', currentEmail: arguments['currentEmail'] ?? '', currentProfileImageUrl: arguments['currentProfileImageUrl'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: EditAgentProfileScreen(username: arguments['username'] ?? '', currentName: arguments['currentName'] ?? '', currentEmail: arguments['currentEmail'] ?? '', currentProfileImageUrl: arguments['currentProfileImageUrl']));
       case clearanceForm:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: ClearanceFormScreen(type: arguments['type'], agentName: arguments['agentName'], existingApplication: arguments['existingApplication'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));

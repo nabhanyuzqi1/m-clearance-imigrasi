@@ -30,6 +30,7 @@ class LanguageSelectionScreen extends StatelessWidget {
             languageCode: 'en',
             currentLanguageCode: langCode,
             onTap: () {
+              debugPrint('[LanguageSelectionScreen] Setting language to English (en)');
               languageProvider.setLocale(const Locale('en'));
               Navigator.pop(context);
             },
@@ -40,6 +41,7 @@ class LanguageSelectionScreen extends StatelessWidget {
             languageCode: 'id',
             currentLanguageCode: langCode,
             onTap: () {
+              debugPrint('[LanguageSelectionScreen] Setting language to Indonesian (id)');
               languageProvider.setLocale(const Locale('id'));
               Navigator.pop(context);
             },
