@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../services/auth_service.dart';
 
@@ -61,7 +62,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
                 content: Text(e.message ?? _tr('error_occurred')),
-                backgroundColor: Colors.red),
+                backgroundColor: AppTheme.errorColor),
           );
         }
       }
@@ -69,7 +70,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(_tr('invalid_email_message')),
-            backgroundColor: Colors.red),
+            backgroundColor: AppTheme.errorColor),
       );
     }
   }
@@ -81,17 +82,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         title: Text(_tr('title')),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(AppTheme.paddingMedium),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.paddingLarge),
             Text(
               _tr('instruction'),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
+              style: TextStyle(fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeH6)),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: AppTheme.paddingLarge),
             TextField(
               controller: _emailController,
               decoration: InputDecoration(
@@ -101,7 +102,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               keyboardType: TextInputType.emailAddress,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: AppTheme.paddingLarge),
             ElevatedButton(
               onPressed: _sendResetLink,
               child: Text(_tr('send_link_button')),

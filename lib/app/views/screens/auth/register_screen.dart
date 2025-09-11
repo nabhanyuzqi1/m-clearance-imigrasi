@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../config/routes.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/user_model.dart';
 import '../../../services/auth_service.dart';
@@ -53,7 +54,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_agreeToTerms) {
       debugPrint('[RegisterScreen] Terms not agreed');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('terms_req')), backgroundColor: Colors.red),
+        SnackBar(content: Text(_tr('terms_req')), backgroundColor: AppTheme.errorColor),
       );
       return;
     }
@@ -92,7 +93,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(_tr('registration_failed')),
-              backgroundColor: Colors.red,
+              backgroundColor: AppTheme.errorColor,
             ),
           );
         }
@@ -114,7 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.errorColor,
           ),
         );
       }
@@ -124,7 +125,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('registration_error')),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.errorColor,
           ),
         );
       }
@@ -138,13 +139,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         title: Text(_tr('sign_up')),
         centerTitle: true,
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.whiteColor,
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(AppTheme.spacing24),
           children: [
-            Text(_tr('create_account_subtitle'), style: const TextStyle(fontSize: 16, color: Colors.black54)),
+            Text(_tr('create_account_subtitle'), style: TextStyle(fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.blackColor54)),
             const SizedBox(height: 10),
             _buildLabel(_tr('corporate_name')),
             TextFormField(
@@ -181,7 +182,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: _buildInputDecoration(
                 hintText: _tr('password_hint'),
                 suffixIcon: IconButton(
-                  icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: Colors.grey),
+                  icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: AppTheme.greyColor),
                   onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
                 ),
               ),
@@ -199,7 +200,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: _buildInputDecoration(
                 hintText: _tr('confirm_password_hint'),
                 suffixIcon: IconButton(
-                  icon: Icon(_isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off, color: Colors.grey),
+                  icon: Icon(_isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off, color: AppTheme.greyColor),
                   onPressed: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
                 ),
               ),
@@ -214,7 +215,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: _goToNextStep,
-              child: Text(_tr('continue'), style: const TextStyle(fontSize: 17)),
+              child: Text(_tr('continue'), style: TextStyle(fontSize: AppTheme.responsiveFontSize(context))),
             ),
             const SizedBox(height: 10),
             _buildLoginRedirect(),
@@ -228,7 +229,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+      child: Text(text, style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.blackColor87)),
     );
   }
 
@@ -239,23 +240,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Checkbox(
           value: _agreeToTerms,
           onChanged: (value) => setState(() => _agreeToTerms = value!),
-          activeColor: Colors.blue,
+          activeColor: AppTheme.primaryColor,
         ),
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(fontSize: 14, color: Colors.black54),
+              style: TextStyle(fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.blackColor54),
               children: [
                 TextSpan(text: _tr('terms_agree')),
                 TextSpan(
                   text: _tr('terms_and_conditions'),
-                  style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
                   recognizer: TapGestureRecognizer()..onTap = () {},
                 ),
                 TextSpan(text: _tr('and')),
                 TextSpan(
                   text: _tr('privacy_policy'),
-                  style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
                   recognizer: TapGestureRecognizer()..onTap = () {},
                 ),
                 const TextSpan(text: '.'),
@@ -271,12 +272,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Center(
       child: RichText(
         text: TextSpan(
-          style: const TextStyle(fontSize: 16, color: Colors.black54),
+          style: TextStyle(fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.blackColor54),
           children: [
             TextSpan(text: _tr('already_have_account')),
             TextSpan(
               text: _tr('login'),
-              style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+              style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
               recognizer: TapGestureRecognizer()..onTap = () => Navigator.pop(context),
             ),
           ],
@@ -290,7 +291,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       hintText: hintText,
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: Colors.grey[100],
+      fillColor: AppTheme.greyShade100,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
     );

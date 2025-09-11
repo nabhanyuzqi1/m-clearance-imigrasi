@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/clearance_application.dart';
 
@@ -21,15 +22,15 @@ class ClearanceResultScreen extends StatelessWidget {
         );
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         title: Text(tr('application_submitted')),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppTheme.surfaceColor,
+        foregroundColor: AppTheme.onSurface,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(AppTheme.spacing16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -38,59 +39,63 @@ class ClearanceResultScreen extends StatelessWidget {
               child: Column(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.all(AppTheme.spacing24),
                     decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.1),
+                      color: AppTheme.successColor.withAlpha(25),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.check_circle,
-                      color: Colors.green,
+                      color: AppTheme.successColor,
                       size: 64,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: AppTheme.spacing16),
                   Text(
                     tr('application_submitted'),
-                    style: const TextStyle(
-                      fontSize: 24,
+                    style: TextStyle(
+                      fontSize: AppTheme.fontSizeH5,
                       fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                      color: AppTheme.successColor,
+                      fontFamily: 'Poppins',
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: AppTheme.spacing8),
                   Text(
                     'Application ID: ${application.id}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
+                    style: TextStyle(
+                      fontSize: AppTheme.fontSizeBody1,
+                      color: AppTheme.subtitleColor,
+                      fontFamily: 'Poppins',
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 32),
+            SizedBox(height: AppTheme.spacing32),
 
             // Application Details Card
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: EdgeInsets.all(AppTheme.spacing16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       tr('application_details'),
-                      style: const TextStyle(
-                        fontSize: 18,
+                      style: TextStyle(
+                        fontSize: AppTheme.fontSizeH6,
                         fontWeight: FontWeight.bold,
+                        fontFamily: 'Poppins',
+                        color: AppTheme.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: AppTheme.spacing16),
 
                     // Ship Information
                     _buildDetailRow(tr('ship_name'), application.shipName),
@@ -140,7 +145,7 @@ class ClearanceResultScreen extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 32),
+            SizedBox(height: AppTheme.spacing32),
 
             // Action Buttons
             Row(
@@ -149,15 +154,15 @@ class ClearanceResultScreen extends StatelessWidget {
                   child: OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                       ),
                     ),
                     child: Text(tr('back_to_home')),
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: AppTheme.spacing16),
                 if (application.status == ApplicationStatus.approved)
                   Expanded(
                     child: ElevatedButton(
@@ -168,9 +173,9 @@ class ClearanceResultScreen extends StatelessWidget {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                         ),
                       ),
                       child: Text(tr('view_reports')),
@@ -185,9 +190,9 @@ class ClearanceResultScreen extends StatelessWidget {
                         Navigator.of(context).pop(); // This should pop the form screen
                       },
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                         ),
                       ),
                       child: Text(tr('edit_application')),
@@ -196,7 +201,7 @@ class ClearanceResultScreen extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 24),
+            SizedBox(height: AppTheme.spacing24),
           ],
         ),
       ),
@@ -205,7 +210,7 @@ class ClearanceResultScreen extends StatelessWidget {
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+      padding: EdgeInsets.only(bottom: AppTheme.spacing12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -213,17 +218,20 @@ class ClearanceResultScreen extends StatelessWidget {
             width: 120,
             child: Text(
               '$label:',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w500,
-                color: Colors.grey,
+                color: AppTheme.subtitleColor,
+                fontFamily: 'Poppins',
               ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w500,
+                color: AppTheme.onSurface,
+                fontFamily: 'Poppins',
               ),
             ),
           ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import '../../../config/theme.dart';
 import '../../../services/user_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../config/routes.dart';
@@ -407,17 +408,17 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
     String? Function(String?)? validator,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
+      padding: EdgeInsets.only(bottom: AppTheme.spacing16),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
         decoration: InputDecoration(
           labelText: label,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
           ),
           filled: true,
-          fillColor: Colors.grey.shade50,
+          fillColor: AppTheme.greyShade50,
         ),
         validator: validator,
       ),

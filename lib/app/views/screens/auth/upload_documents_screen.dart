@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:m_clearance_imigrasi/app/config/routes.dart';
+import 'package:m_clearance_imigrasi/app/config/theme.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import 'package:m_clearance_imigrasi/app/localization/app_strings.dart';
@@ -145,7 +146,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${_tr('nib')} ${_tr('upload_success')}'), backgroundColor: Colors.green),
+              SnackBar(content: Text('${_tr('nib')} ${_tr('upload_success')}'), backgroundColor: AppTheme.successColor),
             );
           }
         }
@@ -160,7 +161,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         if (result == null || result.files.isEmpty) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: AppTheme.errorColor),
             );
           }
           return;
@@ -170,7 +171,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         if (picked.bytes == null) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: AppTheme.errorColor),
             );
           }
           return;
@@ -183,14 +184,14 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${_tr('nib')} ${_tr('upload_success')}'), backgroundColor: Colors.green),
+            SnackBar(content: Text('${_tr('nib')} ${_tr('upload_success')}'), backgroundColor: AppTheme.successColor),
           );
         }
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: AppTheme.errorColor),
         );
       }
     }
@@ -218,7 +219,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${_tr('ktp')} ${_tr('upload_success')}'), backgroundColor: Colors.green),
+              SnackBar(content: Text('${_tr('ktp')} ${_tr('upload_success')}'), backgroundColor: AppTheme.successColor),
             );
           }
         }
@@ -233,7 +234,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         if (result == null || result.files.isEmpty) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: AppTheme.errorColor),
             );
           }
           return;
@@ -243,7 +244,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         if (picked.bytes == null) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: AppTheme.errorColor),
             );
           }
           return;
@@ -256,14 +257,14 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${_tr('ktp')} ${_tr('upload_success')}'), backgroundColor: Colors.green),
+            SnackBar(content: Text('${_tr('ktp')} ${_tr('upload_success')}'), backgroundColor: AppTheme.successColor),
           );
         }
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: AppTheme.errorColor),
         );
       }
     }
@@ -381,7 +382,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   Future<void> _finishRegistration() async {
     if (_nibFile == null || _ktpFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('upload_all_docs')), backgroundColor: Colors.red),
+        SnackBar(content: Text(_tr('upload_all_docs')), backgroundColor: AppTheme.errorColor),
       );
       return;
     }
@@ -432,7 +433,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         if (uploadedPaths.length < 2) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(_tr('partial_upload_success')), backgroundColor: Colors.orange),
+              SnackBar(content: Text(_tr('partial_upload_success')), backgroundColor: AppTheme.warningColor),
             );
           }
         }
@@ -490,31 +491,31 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_tr('title')),
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.surfaceColor,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: IconThemeData(color: AppTheme.onSurface),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(AppTheme.spacing24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_tr('last_step'),
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
+                style: TextStyle(fontSize: AppTheme.fontSizeH4, fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface)),
+            SizedBox(height: AppTheme.spacing8),
             Text(
               _tr('complete_req'),
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              style: TextStyle(fontSize: AppTheme.fontSizeBody1, color: AppTheme.subtitleColor, fontFamily: 'Poppins'),
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: AppTheme.spacing32),
             _buildUploadCard(
               title: _tr('nib_title'),
               subtitle: _tr('nib_subtitle'),
               fileName: _nibFileName,
               onTap: busy ? null : _pickNibFile,
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spacing20),
             _buildUploadCard(
               title: _tr('ktp_title'),
               subtitle: _tr('ktp_subtitle'),
@@ -527,15 +528,15 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
               child: ElevatedButton(
                 onPressed: busy ? null : _finishRegistration,
                 child: busy
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 22,
                         width: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.onPrimary),
                       )
                     : Text(_tr('submit')),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spacing20),
           ],
         ),
       ),
@@ -550,11 +551,11 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   }) {
     final isUploaded = fileName != null;
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(AppTheme.spacing16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        color: AppTheme.greyShade50,
+        borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+        border: Border.all(color: AppTheme.greyShade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,31 +564,31 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
             height: 100,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(12),
+              color: AppTheme.greyShade200,
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
             ),
             child: isUploaded
-                ? const Icon(Icons.check_circle, color: Colors.green, size: 40)
-                : const Icon(Icons.image_outlined, color: Colors.grey, size: 40),
+                ? Icon(Icons.check_circle, color: AppTheme.successColor, size: 40)
+                : Icon(Icons.image_outlined, color: AppTheme.greyShade600, size: 40),
           ),
-          const SizedBox(height: 16),
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
-          const SizedBox(height: 16),
+          SizedBox(height: AppTheme.spacing16),
+          Text(title, style: TextStyle(fontSize: AppTheme.fontSizeH6, fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface)),
+          SizedBox(height: AppTheme.spacing4),
+          Text(subtitle, style: TextStyle(fontSize: AppTheme.fontSizeBody2, color: AppTheme.subtitleColor, fontFamily: 'Poppins')),
+          SizedBox(height: AppTheme.spacing16),
           if (isUploaded)
             Row(
               children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 18),
-                const SizedBox(width: 8),
+                Icon(Icons.check_circle, color: AppTheme.successColor, size: 18),
+                SizedBox(width: AppTheme.spacing8),
                 Expanded(
                   child: Text(
                     fileName,
-                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: AppTheme.successColor, fontWeight: FontWeight.bold, fontFamily: 'Poppins'),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: AppTheme.spacing8),
                 SizedBox(
                   height: 36,
                   child: OutlinedButton(onPressed: onTap, child: Text(_tr('change'))),
@@ -600,8 +601,8 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
               child: OutlinedButton(
                 onPressed: onTap,
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: EdgeInsets.symmetric(vertical: AppTheme.spacing12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMedium)),
                 ),
                 child: Text(_tr('upload')),
               ),

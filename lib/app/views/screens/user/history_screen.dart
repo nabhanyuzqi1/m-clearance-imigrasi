@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'arrival_detail_screen.dart';
 import 'departure_detail_screen.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/clearance_application.dart';
 import '../../../models/user_account.dart';
@@ -67,13 +68,13 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
       child: GestureDetector(
         onTap: () { setState(() { _currentFilter = filter; }); },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: EdgeInsets.symmetric(vertical: AppTheme.spacing12),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withValues(alpha:0.1), blurRadius: 5, spreadRadius: 1)] : [],
+            color: isSelected ? AppTheme.whiteColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+            boxShadow: isSelected ? [BoxShadow(color: AppTheme.blackColor.withAlpha(25), blurRadius: 5, spreadRadius: 1)] : [],
           ),
-          child: Center(child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: Colors.black))),
+          child: Center(child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: AppTheme.onSurface, fontFamily: 'Poppins'))),
         ),
       ),
     );
@@ -119,26 +120,26 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   Color _getStatusColor(ApplicationStatus status) {
     switch (status) {
       case ApplicationStatus.waiting:
-        return Colors.blue;
+        return AppTheme.primaryColor;
       case ApplicationStatus.revision:
-        return Colors.orange;
+        return AppTheme.warningColor;
       case ApplicationStatus.approved:
-        return Colors.green;
+        return AppTheme.successColor;
       case ApplicationStatus.declined:
-        return Colors.red;
+        return AppTheme.errorColor;
     }
   }
 
   Widget _buildStatusChip(ApplicationStatus status) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: _getStatusColor(status).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+      padding: EdgeInsets.symmetric(horizontal: AppTheme.spacing12, vertical: AppTheme.spacing8),
+      decoration: BoxDecoration(color: _getStatusColor(status).withAlpha(25), borderRadius: BorderRadius.circular(AppTheme.radiusLarge)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.circle, color: _getStatusColor(status), size: 10),
-          const SizedBox(width: 8),
-          Text(_getStatusText(status), style: TextStyle(color: _getStatusColor(status), fontWeight: FontWeight.bold)),
+          SizedBox(width: AppTheme.spacing8),
+          Text(_getStatusText(status), style: TextStyle(color: _getStatusColor(status), fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
         ],
       ),
     );
@@ -170,35 +171,35 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
   Widget _buildDialogTitle(ClearanceApplication app) {
     final title = app.type == ApplicationType.kedatangan ? _tr('arrival_detail') : _tr('departure_detail');
-    return Center(child: Column(children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold)), Text(app.shipName, style: const TextStyle(fontSize: 14, color: Colors.grey)), const Divider()]));
+    return Center(child: Column(children: [Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface)), Text(app.shipName, style: TextStyle(fontSize: AppTheme.fontSizeBody2, color: AppTheme.subtitleColor, fontFamily: 'Poppins')), const Divider()]));
   }
 
   Widget _buildAboutSection(ClearanceApplication app) {
     final isArrival = app.type == ApplicationType.kedatangan;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_tr('about'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 8), Text("${isArrival ? _tr('last_port') : _tr('next_port')}: ${app.port ?? 'N/A'}, ${app.flag}"), Text("${_tr('crewlist')}: ${app.wniCrew ?? '0'} WNI - ${app.wnaCrew ?? '0'} WNA")]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_tr('about'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTheme.fontSizeBody1, fontFamily: 'Poppins', color: AppTheme.onSurface)), SizedBox(height: AppTheme.spacing8), Text("${isArrival ? _tr('last_port') : _tr('next_port')}: ${app.port ?? 'N/A'}, ${app.flag}", style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)), Text("${_tr('crewlist')}: ${app.wniCrew ?? '0'} WNI - ${app.wnaCrew ?? '0'} WNA", style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface))]);
   }
 
   Widget _buildAgentSection(ClearanceApplication app) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_tr('agent'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 8), Row(children: [const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 14)), const SizedBox(width: 8), Text(app.agentName)])]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_tr('agent'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTheme.fontSizeBody1, fontFamily: 'Poppins', color: AppTheme.onSurface)), SizedBox(height: AppTheme.spacing8), Row(children: [const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 14)), SizedBox(width: AppTheme.spacing8), Text(app.agentName, style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface))])]);
   }
 
   Widget _buildNoteSection(ClearanceApplication app) {
     if (app.status == ApplicationStatus.waiting || app.status == ApplicationStatus.approved) {
       return const SizedBox.shrink();
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_tr('note_by_officer'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 8), Text(app.status == ApplicationStatus.revision ? "${_tr('need_fix')} - ${app.notes ?? _tr('no_notes')}" : app.status == ApplicationStatus.declined ? "${_tr('declined')} - ${app.notes ?? _tr('no_notes')}" : "", style: const TextStyle(color: Colors.red))]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_tr('note_by_officer'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTheme.fontSizeBody1, fontFamily: 'Poppins', color: AppTheme.onSurface)), SizedBox(height: AppTheme.spacing8), Text(app.status == ApplicationStatus.revision ? "${_tr('need_fix')} - ${app.notes ?? _tr('no_notes')}" : app.status == ApplicationStatus.declined ? "${_tr('declined')} - ${app.notes ?? _tr('no_notes')}" : "", style: TextStyle(color: AppTheme.errorColor, fontFamily: 'Poppins'))]);
   }
 
   Widget _buildDialogActions(ClearanceApplication app) {
     switch (app.status) {
       case ApplicationStatus.revision:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceFormScreen(type: app.type, agentName: widget.userAccount.name, existingApplication: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('fix_button')));
+        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.warningColor), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceFormScreen(type: app.type, agentName: widget.userAccount.name, existingApplication: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('fix_button')));
       case ApplicationStatus.declined:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(context), child: Text(_tr('done_button')));
+        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor), onPressed: () => Navigator.pop(context), child: Text(_tr('done_button')));
       case ApplicationStatus.approved:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceResultScreen(application: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('reports_button')));
+        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceResultScreen(application: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('reports_button')));
       case ApplicationStatus.waiting:
-      return TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"));
+      return TextButton(onPressed: () => Navigator.pop(context), child: Text("OK", style: TextStyle(fontFamily: 'Poppins', color: AppTheme.primaryColor)));
     }
   }
 
@@ -212,32 +213,32 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_tr('history'), style: TextStyle(fontSize: screenWidth * 0.045)),
+        title: Text(_tr('history'), style: TextStyle(fontSize: AppTheme.responsiveFontSize(context, mobile: 18, tablet: 20, desktop: 22), fontFamily: 'Poppins')),
         automaticallyImplyLeading: false,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: EdgeInsets.all(AppTheme.spacing16),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search by ship name or port...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Colors.grey.shade100,
+                fillColor: AppTheme.greyShade100,
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+            padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8, horizontal: AppTheme.spacing16),
             child: Container(
-              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(24)),
+              decoration: BoxDecoration(color: AppTheme.greyShade100, borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge)),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -258,7 +259,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
                 if (snapshot.hasError) {
                   return Center(
-                    child: Text('Error: ${snapshot.error}', style: TextStyle(fontSize: screenWidth * 0.04)),
+                    child: Text('Error: ${snapshot.error}', style: TextStyle(fontSize: AppTheme.responsiveFontSize(context, mobile: 14, tablet: 16, desktop: 18), fontFamily: 'Poppins', color: AppTheme.onSurface)),
                   );
                 }
 
@@ -271,49 +272,49 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.05), shape: BoxShape.circle),
-                          child: Icon(Icons.image_outlined, size: 60, color: Colors.blue.shade200),
+                          padding: EdgeInsets.all(AppTheme.spacing24),
+                          decoration: BoxDecoration(color: AppTheme.primaryColor.withAlpha(12), shape: BoxShape.circle),
+                          child: Icon(Icons.image_outlined, size: 60, color: AppTheme.primaryColor.withAlpha(51)),
                         ),
-                        const SizedBox(height: 24),
-                        Text(_tr('empty_title'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Text(_tr('empty_subtitle'), textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+                        SizedBox(height: AppTheme.spacing24),
+                        Text(_tr('empty_title'), style: TextStyle(fontSize: AppTheme.fontSizeH5, fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface)),
+                        SizedBox(height: AppTheme.spacing8),
+                        Text(_tr('empty_subtitle'), textAlign: TextAlign.center, style: TextStyle(color: AppTheme.subtitleColor, fontSize: AppTheme.fontSizeBody1, fontFamily: 'Poppins')),
                       ],
                     ),
                   );
                 }
 
                 return ListView.builder(
-                  padding: EdgeInsets.all(horizontalPadding * 0.5),
+                  padding: EdgeInsets.all(AppTheme.spacing8),
                   itemCount: filteredApplications.length,
                   itemBuilder: (context, index) {
                     final app = filteredApplications[index];
                     return GestureDetector(
                       onTap: () => _showApplicationDetail(app),
                       child: Card(
-                        elevation: 2, margin: const EdgeInsets.only(bottom: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2, margin: EdgeInsets.only(bottom: AppTheme.spacing12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMedium)),
                         child: Padding(
-                          padding: const EdgeInsets.all(16.0),
+                          padding: EdgeInsets.all(AppTheme.spacing16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
-                                  Icon(app.type == ApplicationType.kedatangan ? Icons.anchor : Icons.directions_boat, color: Colors.grey.shade600),
-                                  const SizedBox(width: 8),
+                                  Icon(app.type == ApplicationType.kedatangan ? Icons.anchor : Icons.directions_boat, color: AppTheme.greyShade600),
+                                  SizedBox(width: AppTheme.spacing8),
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(app.type == ApplicationType.kedatangan ? _tr('arrival') : _tr('departure'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                                      Text("${app.shipName} - ${app.port ?? 'N/A'}", style: const TextStyle(color: Colors.grey)),
+                                      Text(app.type == ApplicationType.kedatangan ? _tr('arrival') : _tr('departure'), style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface)),
+                                      Text("${app.shipName} - ${app.port ?? 'N/A'}", style: TextStyle(color: AppTheme.subtitleColor, fontFamily: 'Poppins')),
                                     ],
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              Text(app.date ?? 'No Date', style: const TextStyle(color: Colors.grey)),
-                              const SizedBox(height: 12),
+                              SizedBox(height: AppTheme.spacing8),
+                              Text(app.date ?? 'No Date', style: TextStyle(color: AppTheme.subtitleColor, fontFamily: 'Poppins')),
+                              SizedBox(height: AppTheme.spacing12),
                               _buildStatusChip(app.status),
                             ],
                           ),

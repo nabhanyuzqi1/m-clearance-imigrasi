@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/theme.dart';
 import '../../../models/clearance_application.dart';
 import '../../../localization/app_strings.dart';
 import '../../widgets/custom_app_bar.dart';
@@ -27,7 +28,7 @@ class DepartureDetailScreen extends StatelessWidget {
         titleText: _tr(context, 'departure_detail'),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(AppTheme.spacing16),
         children: [
           _buildDetailItem(context, 'Ship Name', application.shipName),
           _buildDetailItem(context, 'Flag', application.flag),
@@ -46,7 +47,7 @@ class DepartureDetailScreen extends StatelessWidget {
 
   Widget _buildDetailItem(BuildContext context, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -54,12 +55,12 @@ class DepartureDetailScreen extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: AppTheme.spacing16),
           Expanded(
-            child: Text(value),
+            child: Text(value, style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
           ),
         ],
       ),

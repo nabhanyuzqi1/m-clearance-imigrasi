@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 
 class SubmissionSentScreen extends StatelessWidget {
@@ -19,10 +20,10 @@ class SubmissionSentScreen extends StatelessWidget {
     );
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(AppTheme.spacing24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -31,71 +32,75 @@ class SubmissionSentScreen extends StatelessWidget {
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
+                  color: AppTheme.successColor.withAlpha(25),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.check_circle,
-                  color: Colors.green,
+                  color: AppTheme.successColor,
                   size: 80,
                 ),
               ),
 
-              const SizedBox(height: 32),
+              SizedBox(height: AppTheme.spacing32),
 
               // Title
               Text(
                 tr('title'),
-                style: const TextStyle(
-                  fontSize: 28,
+                style: TextStyle(
+                  fontSize: AppTheme.fontSizeH4,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: AppTheme.onSurface,
+                  fontFamily: 'Poppins',
                 ),
                 textAlign: TextAlign.center,
               ),
 
-              const SizedBox(height: 16),
+              SizedBox(height: AppTheme.spacing16),
 
               // Subtitle
               Text(
                 tr('thank_you'),
-                style: const TextStyle(
-                  fontSize: 18,
-                  color: Colors.grey,
+                style: TextStyle(
+                  fontSize: AppTheme.fontSizeH6,
+                  color: AppTheme.subtitleColor,
+                  fontFamily: 'Poppins',
                 ),
                 textAlign: TextAlign.center,
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: AppTheme.spacing24),
 
               // Description
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(AppTheme.spacing20),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppTheme.primaryColor.withAlpha(12),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                   border: Border.all(
-                    color: Colors.blue.withValues(alpha: 0.2),
+                    color: AppTheme.primaryColor.withAlpha(51),
                   ),
                 ),
                 child: Column(
                   children: [
                     Text(
                       tr('submission_received'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.black87,
+                      style: TextStyle(
+                        fontSize: AppTheme.fontSizeBody1,
+                        color: AppTheme.onSurface,
                         height: 1.5,
+                        fontFamily: 'Poppins',
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: AppTheme.spacing12),
                     Text(
                       tr('tracking_info'),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
+                      style: TextStyle(
+                        fontSize: AppTheme.fontSizeBody2,
+                        color: AppTheme.subtitleColor,
                         height: 1.5,
+                        fontFamily: 'Poppins',
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -103,7 +108,7 @@ class SubmissionSentScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 48),
+              SizedBox(height: AppTheme.spacing48),
 
               // Action Buttons
               Row(
@@ -112,22 +117,23 @@ class SubmissionSentScreen extends StatelessWidget {
                     child: OutlinedButton(
                       onPressed: () => Navigator.of(context).pop(),
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                         ),
-                        side: const BorderSide(color: Colors.blue),
+                        side: BorderSide(color: AppTheme.primaryColor),
                       ),
                       child: Text(
                         tr('back_to_home'),
-                        style: const TextStyle(
-                          color: Colors.blue,
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
                           fontWeight: FontWeight.w600,
+                          fontFamily: 'Poppins',
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  SizedBox(width: AppTheme.spacing16),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
@@ -136,25 +142,26 @@ class SubmissionSentScreen extends StatelessWidget {
                         // TODO: Navigate to history tab
                       },
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                         ),
                       ),
-                      child: Text(tr('view_history')),
+                      child: Text(tr('view_history'), style: TextStyle(fontFamily: 'Poppins')),
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: AppTheme.spacing24),
 
               // Additional Info
               Text(
                 'Need help? Contact our support team.',
                 style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
+                  fontSize: AppTheme.fontSizeBody2,
+                  color: AppTheme.subtitleColor,
+                  fontFamily: 'Poppins',
                 ),
                 textAlign: TextAlign.center,
               ),

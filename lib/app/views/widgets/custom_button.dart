@@ -76,8 +76,9 @@ class CustomButton extends StatelessWidget {
           child: Text(
             isLoading ? 'Loading...' : text,
             style: textStyle ?? TextStyle(
-              fontSize: screenWidth * 0.04,
+              fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody2, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeH6),
               fontWeight: FontWeight.w500,
+              color: foregroundColor ?? (type == CustomButtonType.elevated ? AppTheme.whiteColor : Theme.of(context).primaryColor),
             ),
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,

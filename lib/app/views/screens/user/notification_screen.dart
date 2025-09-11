@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/notification_item.dart';
 import '../../../services/notification_service.dart';
@@ -47,11 +48,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Color _getNotificationTypeColor(NotificationType type) {
     switch (type) {
       case NotificationType.update:
-        return Colors.blue;
+        return AppTheme.primaryColor;
       case NotificationType.approved:
-        return Colors.green;
+        return AppTheme.successColor;
       case NotificationType.revision:
-        return Colors.orange;
+        return AppTheme.warningColor;
     }
   }
 
@@ -92,16 +93,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: Text(_tr('notifications')),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        title: Text(_tr('notifications'), style: TextStyle(fontFamily: 'Poppins')),
+        backgroundColor: AppTheme.surfaceColor,
+        foregroundColor: AppTheme.onSurface,
         elevation: 0,
         actions: [
           IconButton(
             onPressed: _markAllAsRead,
-            icon: const Icon(Icons.done_all, color: Colors.blue),
+            icon: Icon(Icons.done_all, color: AppTheme.primaryColor),
             tooltip: _tr('mark_all_read'),
           ),
         ],
@@ -118,10 +119,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(_tr('load_error')),
-                  Text(snapshot.error.toString()),
+                  Icon(Icons.error, size: 64, color: AppTheme.errorColor),
+                  SizedBox(height: AppTheme.spacing16),
+                  Text(_tr('load_error'), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
+                  Text(snapshot.error.toString(), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
                 ],
               ),
             );
@@ -135,32 +136,35 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.all(AppTheme.spacing24),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.1),
+                      color: AppTheme.primaryColor.withAlpha(25),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       Icons.notifications_none,
                       size: 64,
-                      color: Colors.blue.shade200,
+                      color: AppTheme.primaryColor.withAlpha(51),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: AppTheme.spacing24),
                   Text(
                     _tr('no_notifications'),
-                    style: const TextStyle(
-                      fontSize: 20,
+                    style: TextStyle(
+                      fontSize: AppTheme.fontSizeH5,
                       fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: AppTheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: AppTheme.spacing8),
                   Text(
                     _tr('no_notifications_desc'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 16,
+                      color: AppTheme.subtitleColor,
+                      fontSize: AppTheme.fontSizeBody1,
+                      fontFamily: 'Poppins',
                     ),
                   ),
                 ],
@@ -169,7 +173,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16.0),
+            padding: EdgeInsets.all(AppTheme.spacing16),
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               final notification = notifications[index];
@@ -178,11 +182,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 direction: DismissDirection.endToStart,
                 background: Container(
                   alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  color: Colors.red,
-                  child: const Icon(
+                  padding: EdgeInsets.only(right: AppTheme.spacing20),
+                  color: AppTheme.errorColor,
+                  child: Icon(
                     Icons.delete,
-                    color: Colors.white,
+                    color: AppTheme.whiteColor,
                   ),
                 ),
                 onDismissed: (direction) async {
@@ -195,9 +199,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 },
                 child: Card(
                   elevation: notification.isRead ? 1 : 3,
-                  margin: const EdgeInsets.only(bottom: 12),
+                  margin: EdgeInsets.only(bottom: AppTheme.spacing12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                   ),
                   child: InkWell(
                     onTap: () {
@@ -205,18 +209,18 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         _markAsRead(notification.id);
                       }
                     },
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: EdgeInsets.all(AppTheme.spacing16),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Notification Type Icon
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: EdgeInsets.all(AppTheme.spacing8),
                             decoration: BoxDecoration(
-                              color: _getNotificationTypeColor(notification.type).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
+                              color: _getNotificationTypeColor(notification.type).withAlpha(25),
+                              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                             ),
                             child: Icon(
                               _getNotificationIcon(notification.type),
@@ -224,7 +228,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                               size: 24,
                             ),
                           ),
-                          const SizedBox(width: 16),
+                          SizedBox(width: AppTheme.spacing16),
 
                           // Notification Content
                           Expanded(
@@ -241,42 +245,46 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                           fontWeight: notification.isRead
                                               ? FontWeight.normal
                                               : FontWeight.bold,
-                                          fontSize: 16,
+                                          fontSize: AppTheme.fontSizeBody1,
+                                          fontFamily: 'Poppins',
+                                          color: AppTheme.onSurface,
                                         ),
                                       ),
                                     ),
                                     if (!notification.isRead)
                                       Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: AppTheme.spacing8,
+                                          vertical: AppTheme.spacing4,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.blue,
-                                          borderRadius: BorderRadius.circular(12),
+                                          color: AppTheme.primaryColor,
+                                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                                         ),
                                         child: Text(
                                           _tr('unread'),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 10,
+                                          style: TextStyle(
+                                            color: AppTheme.whiteColor,
+                                            fontSize: AppTheme.fontSizeCaption,
                                             fontWeight: FontWeight.bold,
+                                            fontFamily: 'Poppins',
                                           ),
                                         ),
                                       ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
+                                SizedBox(height: AppTheme.spacing4),
 
                                 // Body
                                 Text(
                                   notification.body,
                                   style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 14,
+                                    color: AppTheme.subtitleColor,
+                                    fontSize: AppTheme.fontSizeBody2,
+                                    fontFamily: 'Poppins',
                                   ),
                                 ),
-                                const SizedBox(height: 8),
+                                SizedBox(height: AppTheme.spacing8),
 
                                 // Date and Type
                                 Row(
@@ -284,26 +292,28 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                     Text(
                                       _formatDate(notification.date),
                                       style: TextStyle(
-                                        color: Colors.grey.shade500,
-                                        fontSize: 12,
+                                        color: AppTheme.greyShade500,
+                                        fontSize: AppTheme.fontSizeCaption,
+                                        fontFamily: 'Poppins',
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
+                                    SizedBox(width: AppTheme.spacing12),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: AppTheme.spacing8,
+                                        vertical: AppTheme.spacing4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: _getNotificationTypeColor(notification.type).withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(8),
+                                        color: _getNotificationTypeColor(notification.type).withAlpha(25),
+                                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                                       ),
                                       child: Text(
                                         _getNotificationTypeText(notification.type),
                                         style: TextStyle(
                                           color: _getNotificationTypeColor(notification.type),
-                                          fontSize: 10,
+                                          fontSize: AppTheme.fontSizeCaption,
                                           fontWeight: FontWeight.bold,
+                                          fontFamily: 'Poppins',
                                         ),
                                       ),
                                     ),

@@ -59,16 +59,20 @@ void main() async {
     debugPrint('[Startup] Storage bucket configured: ${opts.storageBucket}');
   }
 
-  // Initialize Firebase Crashlytics
-  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
-  debugPrint('[Startup] Crashlytics collection enabled: ${!kDebugMode}');
+  // Initialize Firebase Crashlytics (only on mobile platforms)
+  if (!kIsWeb) {
+    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
+    debugPrint('[Startup] Crashlytics collection enabled: ${!kDebugMode}');
 
-  // Set up error reporting to Crashlytics
-  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+    // Set up error reporting to Crashlytics
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  } else {
+    debugPrint('[Startup] Crashlytics skipped on web platform');
+  }
 
   // Preload critical assets for better startup performance
   runApp(

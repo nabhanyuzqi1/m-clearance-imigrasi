@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 
 /// ChangePasswordScreen
@@ -46,7 +47,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_tr('password_updated')),
-          backgroundColor: Colors.green,
+          backgroundColor: AppTheme.successColor,
         ),
       );
       Navigator.pop(context);
@@ -62,11 +63,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(AppTheme.spacing16),
           children: [
-            const SizedBox(height: 16),
-            Text(_tr("instruction")),
-            const SizedBox(height: 24),
+            SizedBox(height: AppTheme.spacing16),
+            Text(_tr("instruction"), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
+            SizedBox(height: AppTheme.spacing24),
             // Input untuk password saat ini
             TextFormField(
               controller: _currentPasswordController,
@@ -81,7 +82,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               ),
               validator: (value) => value == null || value.isEmpty ? _tr('current_password_empty') : null,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: AppTheme.spacing16),
             // Input untuk password baru
             TextFormField(
               controller: _newPasswordController,
@@ -100,7 +101,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: AppTheme.spacing16),
             // Input untuk konfirmasi password baru
             TextFormField(
               controller: _confirmPasswordController,
@@ -119,7 +120,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: AppTheme.spacing32),
             ElevatedButton(
               onPressed: _submitChangePassword,
               child: Text(_tr('save_new_password')),

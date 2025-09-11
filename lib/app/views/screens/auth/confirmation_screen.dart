@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../config/routes.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/user_model.dart';
 import '../../../services/functions_service.dart';
@@ -73,7 +74,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     final code = _codeController.text.trim();
     if (code.length != 4) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('code_invalid')), backgroundColor: Colors.red),
+        SnackBar(content: Text(_tr('code_invalid')), backgroundColor: AppTheme.errorColor),
       );
       return;
     }
@@ -130,7 +131,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       } else {
         msg = e.toString();
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppTheme.errorColor));
     });
   }
 
@@ -148,7 +149,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         final remain = resp['retryAfterSec'] ?? 0;
         if (!mounted || silent) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('please_wait_cooldown').replaceAll('{seconds}', remain.toString())), backgroundColor: Colors.orange),
+          SnackBar(content: Text(_tr('please_wait_cooldown').replaceAll('{seconds}', remain.toString())), backgroundColor: AppTheme.warningColor),
         );
         _startCooldown(remain is int && remain > 0 ? remain : _defaultCooldown);
         return;
@@ -162,7 +163,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         _lastSentMasked = _maskEmail(email);
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('resend_success')), backgroundColor: Colors.blue),
+        SnackBar(content: Text(_tr('resend_success')), backgroundColor: AppTheme.infoColor),
       );
     } catch (e) {
       if (!mounted || silent) return;
@@ -173,7 +174,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         msg = e.toString();
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_tr('failed_to_resend_code')}: $msg'), backgroundColor: Colors.red),
+        SnackBar(content: Text('${_tr('failed_to_resend_code')}: $msg'), backgroundColor: AppTheme.errorColor),
       );
     }
   }
@@ -230,34 +231,47 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
           },
         ),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        padding: EdgeInsets.symmetric(horizontal: AppTheme.spacing24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const SizedBox(height: 24),
+            SizedBox(height: AppTheme.spacing24),
             Text(
               _tr('header'),
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: AppTheme.fontSizeH5,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Poppins',
+                color: AppTheme.onSurface,
+              ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: AppTheme.spacing12),
             Text(
               "${_tr('subtitle')}$userEmail",
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
+              style: TextStyle(
+                fontSize: AppTheme.fontSizeBody1,
+                color: AppTheme.subtitleColor,
+                fontFamily: 'Poppins',
+              ),
             ),
             if (_lastSentMasked.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: AppTheme.spacing8),
               Text(
                 _tr('sent_to') + _lastSentMasked,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: AppTheme.fontSizeCaption,
+                  color: AppTheme.subtitleColor,
+                  fontFamily: 'Poppins',
+                ),
               ),
             ],
-            const SizedBox(height: 40),
+            SizedBox(height: AppTheme.spacing40),
             _buildPinInput(),
-            const SizedBox(height: 24),
+            SizedBox(height: AppTheme.spacing24),
             _buildResendButton(),
             const Spacer(),
             SizedBox(
@@ -265,11 +279,11 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
               child: ElevatedButton(
                 onPressed: _isVerifying || _completed ? null : _verifyCode,
                 child: _isVerifying
-                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.onPrimary))
                     : Text(_tr('continue')),
               ),
             ),
-            const SizedBox(height: 40),
+            SizedBox(height: AppTheme.spacing40),
           ],
         ),
       ),
@@ -311,15 +325,15 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
               return Container(
                 width: 50,
                 height: 60,
-                margin: const EdgeInsets.symmetric(horizontal: 8),
+                margin: EdgeInsets.symmetric(horizontal: AppTheme.spacing8),
                 decoration: BoxDecoration(
-                  color: hasChar ? Colors.blue.withAlpha(12) : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isFocused ? Colors.blue : Colors.grey.shade300, width: 2),
+                  color: hasChar ? AppTheme.primaryColor.withAlpha(12) : AppTheme.whiteColor,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  border: Border.all(color: isFocused ? AppTheme.primaryColor : AppTheme.greyShade300, width: 2),
                 ),
                 child: Center(
                   child: hasChar
-                      ? Text(text[index], style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))
+                      ? Text(text[index], style: TextStyle(fontSize: AppTheme.fontSizeH5, fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface))
                       : null,
                 ),
               );
@@ -337,7 +351,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       onPressed: disabled ? null : () => _resendCode(),
       child: Text(
         label,
-        style: TextStyle(color: disabled ? Colors.grey : Colors.blue),
+        style: TextStyle(color: disabled ? AppTheme.greyShade600 : AppTheme.primaryColor, fontFamily: 'Poppins'),
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:m_clearance_imigrasi/app/views/widgets/bouncing_dots_loader.dart';
 import '../../../config/routes.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../providers/language_provider.dart';
 
@@ -46,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -58,18 +59,19 @@ class _SplashScreenState extends State<SplashScreen> {
               height: 150,
               // Fallback jika gambar gagal dimuat
               errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.directions_boat, size: 150, color: Colors.blue),
+                  Icon(Icons.directions_boat, size: 150, color: AppTheme.primaryColor),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: AppTheme.spacing24),
             Text(
               _tr('app_name'),
               style: TextStyle(
-                color: Colors.black87,
-                fontSize: 28,
+                color: AppTheme.onSurface,
+                fontSize: AppTheme.responsiveFontSize(context, mobile: 28, tablet: 32, desktop: 36),
                 fontWeight: FontWeight.bold,
+                fontFamily: 'Poppins',
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: AppTheme.spacing24),
             const BouncingDotsLoader(),
           ],
         ),

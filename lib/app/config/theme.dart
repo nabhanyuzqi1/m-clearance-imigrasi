@@ -149,6 +149,168 @@ class AppTheme {
   static const double fontSizeXXXXLarge = fontSizeH3;
   static const double fontSizeXXXXXLarge = fontSizeH2;
 
+  // --- RESPONSIVE TEXT STYLES ---
+  // Heading styles with responsive font sizes
+  static TextStyle headingLarge(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeH4,
+        tablet: fontSizeH3,
+        desktop: fontSizeH2,
+      ),
+      fontWeight: FontWeight.bold,
+      color: headingColor,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  static TextStyle headingMedium(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeH5,
+        tablet: fontSizeH4,
+        desktop: fontSizeH3,
+      ),
+      fontWeight: FontWeight.bold,
+      color: headingColor,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  static TextStyle headingSmall(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeH6,
+        tablet: fontSizeH5,
+        desktop: fontSizeH4,
+      ),
+      fontWeight: FontWeight.bold,
+      color: headingColor,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  // Body text styles
+  static TextStyle bodyLarge(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeBody1,
+        tablet: fontSizeBody1,
+        desktop: fontSizeH6,
+      ),
+      fontWeight: FontWeight.w400,
+      color: onSurface,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  static TextStyle bodyMedium(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeBody2,
+        tablet: fontSizeBody1,
+        desktop: fontSizeBody1,
+      ),
+      fontWeight: FontWeight.w400,
+      color: onSurface,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  static TextStyle bodySmall(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeCaption,
+        tablet: fontSizeBody2,
+        desktop: fontSizeBody2,
+      ),
+      fontWeight: FontWeight.w400,
+      color: onSurface,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  // Link styles
+  static TextStyle linkPrimary(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeLarge,
+        tablet: fontSizeExtraLarge,
+        desktop: fontSizeH6,
+      ),
+      fontWeight: FontWeight.w500,
+      color: primaryColor,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  static TextStyle linkSecondary(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeBody2,
+        tablet: fontSizeBody1,
+        desktop: fontSizeBody1,
+      ),
+      fontWeight: FontWeight.w400,
+      color: subtitleColor,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  // Button text styles
+  static TextStyle buttonText(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeButton,
+        tablet: fontSizeBody1,
+        desktop: fontSizeBody1,
+      ),
+      fontWeight: FontWeight.w500,
+      color: onPrimary,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  // Label text styles
+  static TextStyle labelLarge(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeBody1,
+        tablet: fontSizeH6,
+        desktop: fontSizeH6,
+      ),
+      fontWeight: FontWeight.w500,
+      color: onSurface,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  static TextStyle labelMedium(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeBody2,
+        tablet: fontSizeBody1,
+        desktop: fontSizeBody1,
+      ),
+      fontWeight: FontWeight.w500,
+      color: onSurface,
+      fontFamily: 'Poppins',
+    );
+  }
+
+  static TextStyle labelSmall(BuildContext context) {
+    return TextStyle(
+      fontSize: responsiveFontSize(context,
+        mobile: fontSizeCaption,
+        tablet: fontSizeBody2,
+        desktop: fontSizeBody2,
+      ),
+      fontWeight: FontWeight.w500,
+      color: onSurface,
+      fontFamily: 'Poppins',
+    );
+  }
+
   // --- MATERIAL DESIGN THEME CONFIGURATION ---
   static ThemeData get themeData {
     return ThemeData(

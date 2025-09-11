@@ -25,7 +25,7 @@ class LoggingService {
         lineLength: 120,
         colors: !isProduction, // Colors in development
         printEmojis: true,
-        printTime: true, // Include timestamps
+        dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart, // Include timestamps
       ),
       output: ConsoleOutput(), // Console output
     );
@@ -46,8 +46,8 @@ class LoggingService {
   void error(String message, [dynamic error, StackTrace? stackTrace]) {
     _logger.e(message, error: error, stackTrace: stackTrace);
 
-    // Report to Crashlytics in production
-    if (!kDebugMode && error != null) {
+    // Report to Crashlytics in production (only on mobile platforms)
+    if (!kDebugMode && error != null && !kIsWeb) {
       FirebaseCrashlytics.instance.recordError(error, stackTrace, reason: message);
     }
   }
@@ -57,8 +57,8 @@ class LoggingService {
     final message = 'Custom error in $operation: $error';
     _logger.e(message, error: error, stackTrace: stackTrace);
 
-    // Report to Crashlytics in production
-    if (!kDebugMode) {
+    // Report to Crashlytics in production (only on mobile platforms)
+    if (!kDebugMode && !kIsWeb) {
       FirebaseCrashlytics.instance.recordError(error, stackTrace, reason: message);
     }
   }

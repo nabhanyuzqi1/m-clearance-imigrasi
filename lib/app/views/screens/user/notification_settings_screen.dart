@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../widgets/custom_app_bar.dart';
 
@@ -33,7 +34,7 @@ class _NotificationSettingsScreenState
       body: ListView(
         children: [
           SwitchListTile(
-            title: Text(_tr('notificationSettings', 'mute_notifications')),
+            title: Text(_tr('notificationSettings', 'mute_notifications'), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
             value: _muteNotifications,
             onChanged: (bool value) {
               setState(() {
@@ -42,7 +43,7 @@ class _NotificationSettingsScreenState
             },
           ),
           SwitchListTile(
-            title: Text(_tr('notificationSettings', 'toggle_sound')),
+            title: Text(_tr('notificationSettings', 'toggle_sound'), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
             value: _toggleSound,
             onChanged: (bool value) {
               setState(() {
@@ -51,7 +52,7 @@ class _NotificationSettingsScreenState
             },
           ),
           ListTile(
-            title: Text(_tr('notificationSettings', 'view_notifications')),
+            title: Text(_tr('notificationSettings', 'view_notifications'), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
             trailing: const Icon(Icons.arrow_forward_ios),
             onTap: () {
               // Navigate to notification screen

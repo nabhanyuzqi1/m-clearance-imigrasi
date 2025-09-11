@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/theme.dart';
 import '../../../models/clearance_application.dart';
 import '../../../localization/app_strings.dart';
 
@@ -24,7 +25,7 @@ class VerificationLoadingScreen extends StatelessWidget {
         )),
       ),
       body: Center(
-        child: Text('Verification loading for ${application.shipName}'),
+        child: Text('Verification loading for ${application.shipName}', style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
       ),
     );
   }

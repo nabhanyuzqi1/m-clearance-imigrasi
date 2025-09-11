@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../config/theme.dart';
 
 class CustomTextField extends StatelessWidget {
   final String? label;
@@ -24,7 +25,7 @@ class CustomTextField extends StatelessWidget {
   final Color? fillColor;
   final Color? borderColor;
   final Color? focusedBorderColor;
-  final double borderRadius;
+  final double? borderRadius;
   final TextStyle? labelStyle;
   final TextStyle? hintStyle;
   final TextStyle? textStyle;
@@ -56,7 +57,7 @@ class CustomTextField extends StatelessWidget {
     this.fillColor,
     this.borderColor,
     this.focusedBorderColor,
-    this.borderRadius = 12.0,
+    this.borderRadius,
     this.labelStyle,
     this.hintStyle,
     this.textStyle,
@@ -67,26 +68,22 @@ class CustomTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
     final defaultContentPadding = EdgeInsets.symmetric(
-      horizontal: screenWidth * 0.04,
-      vertical: screenWidth * 0.03,
+      horizontal: AppTheme.responsivePadding(context),
+      vertical: AppTheme.spacing12,
     );
 
-    final defaultLabelStyle = TextStyle(
+    final defaultLabelStyle = AppTheme.labelMedium(context).copyWith(
       fontWeight: FontWeight.bold,
-      fontSize: screenWidth * 0.04,
-      color: Colors.black87,
+      color: AppTheme.onSurface,
     );
 
-    final defaultHintStyle = TextStyle(
-      fontSize: screenWidth * 0.035,
-      color: Colors.grey.shade600,
+    final defaultHintStyle = AppTheme.bodyMedium(context).copyWith(
+      color: AppTheme.subtitleColor,
     );
 
-    final defaultTextStyle = TextStyle(
-      fontSize: screenWidth * 0.04,
-      color: Colors.black87,
+    final defaultTextStyle = AppTheme.bodyMedium(context).copyWith(
+      color: AppTheme.onSurface,
     );
 
     return Column(
@@ -97,7 +94,7 @@ class CustomTextField extends StatelessWidget {
             label!,
             style: labelStyle ?? defaultLabelStyle,
           ),
-          SizedBox(height: screenWidth * 0.02),
+          SizedBox(height: AppTheme.spacing8),
         ],
         TextFormField(
           controller: controller,
@@ -116,44 +113,44 @@ class CustomTextField extends StatelessWidget {
             hintText: hint,
             hintStyle: hintStyle ?? defaultHintStyle,
             prefixIcon: prefixIcon != null
-                ? Icon(prefixIcon, color: Colors.grey.shade600)
+                ? Icon(prefixIcon, color: AppTheme.subtitleColor)
                 : null,
             suffixIcon: suffixIcon,
             contentPadding: contentPadding ?? defaultContentPadding,
             filled: true,
-            fillColor: fillColor ?? (readOnly ? Colors.grey.shade200 : Colors.grey.shade50),
+            fillColor: fillColor ?? (readOnly ? AppTheme.greyShade200 : AppTheme.greyShade50),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
+              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
               borderSide: BorderSide(
-                color: borderColor ?? Colors.grey.shade300,
+                color: borderColor ?? AppTheme.greyShade300,
                 width: 1,
               ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
+              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
               borderSide: BorderSide(
-                color: borderColor ?? Colors.grey.shade300,
+                color: borderColor ?? AppTheme.greyShade300,
                 width: 1,
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
+              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
               borderSide: BorderSide(
-                color: focusedBorderColor ?? Theme.of(context).primaryColor,
+                color: focusedBorderColor ?? AppTheme.primaryColor,
                 width: 2,
               ),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
-              borderSide: const BorderSide(
-                color: Colors.red,
+              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
+              borderSide: BorderSide(
+                color: AppTheme.errorColor,
                 width: 1,
               ),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
-              borderSide: const BorderSide(
-                color: Colors.red,
+              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
+              borderSide: BorderSide(
+                color: AppTheme.errorColor,
                 width: 2,
               ),
             ),

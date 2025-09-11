@@ -214,9 +214,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: AppTheme.paddingLarge),
                     Text(
                       _tr('logging_in'),
-                      style: const TextStyle(
+                      style: AppTheme.labelLarge(context).copyWith(
                         color: AppTheme.whiteColor,
-                        fontSize: AppTheme.fontSizeLarge,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -252,15 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: AppTheme.paddingLarge),
               Text(
                 _tr('welcome'),
-                style: TextStyle(
-                  fontSize: AppTheme.responsiveFontSize(context,
-                      mobile: AppTheme.fontSizeLarge,
-                      tablet: AppTheme.fontSizeExtraLarge,
-                      desktop: AppTheme.fontSizeXXLarge),
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.headingColor,
-                  fontFamily: 'Poppins',
-                ),
+                style: AppTheme.headingSmall(context),
               ),
               const SizedBox(height: AppTheme.paddingLarge),
               CustomTextField(
@@ -298,14 +289,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(),
               Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(top: AppTheme.paddingMedium,bottom: AppTheme.paddingSmall),
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: CustomButton(
-                    text: _tr('forgot_password'),
-                    type: CustomButtonType.text,
-                    onPressed: () =>
-                        Navigator.pushNamed(context, AppRoutes.forgotPassword),
+                  child: GestureDetector(
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.forgotPassword),
+                    child: Text(
+                      _tr('forgot_password'),
+                      style: AppTheme.linkPrimary(context),
+                    ),
                   ),
                 ),
               ),
@@ -320,19 +312,15 @@ class _LoginScreenState extends State<LoginScreen> {
               Center(
                 child: RichText(
                   text: TextSpan(
-                    style: TextStyle(
-                      fontSize: AppTheme.fontSizeLarge,
+                    style: AppTheme.linkSecondary(context).copyWith(
                       color: AppTheme.blackColor54,
-                      fontFamily: 'Poppins',
                     ),
                     children: [
                       TextSpan(text: _tr('not_a_member')),
                       TextSpan(
                         text: _tr('register_now'),
-                        style: TextStyle(
-                          color: AppTheme.primaryColor,
+                        style: AppTheme.linkPrimary(context).copyWith(
                           fontWeight: FontWeight.bold,
-                          fontFamily: 'Poppins',
                         ),
                         recognizer: TapGestureRecognizer()
                           ..onTap =
@@ -373,3 +361,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
