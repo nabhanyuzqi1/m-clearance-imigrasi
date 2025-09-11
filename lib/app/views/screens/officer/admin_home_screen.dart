@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../localization/app_strings.dart';
+import '../../../config/routes.dart';
+import '../../../config/theme.dart';
 import '../auth/change_password_screen.dart';
-import '../auth/login_screen.dart';
 import '../../../services/auth_service.dart';
 import 'account_verification_list_screen.dart';
 import 'arrival_verification_screen.dart';
@@ -57,7 +58,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     ];
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.whiteColor,
       body: pages.elementAt(_selectedIndex),
       bottomNavigationBar: BottomNavigationBar(
         items: <BottomNavigationBarItem>[
@@ -67,8 +68,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: AppTheme.infoColor,
+        unselectedItemColor: AppTheme.greyColor,
         showUnselectedLabels: true,
       ),
     );
@@ -92,9 +93,9 @@ class AdminMenuScreen extends StatelessWidget {
     final functions = FunctionsService();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.whiteColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.whiteColor,
         elevation: 0,
         title: Row(
           children: [
@@ -102,13 +103,13 @@ class AdminMenuScreen extends StatelessWidget {
               errorBuilder: (context, error, stackTrace) => const Icon(Icons.directions_boat),
             ),
             const SizedBox(width: 8),
-            Text(tr('immigration_office'), style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(tr('immigration_office'), style: const TextStyle(color: AppTheme.blackColor, fontSize: AppTheme.fontSizeExtraLarge, fontWeight: FontWeight.bold)),
           ],
         ),
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none_outlined, color: Colors.black54),
+            icon: const Icon(Icons.notifications_none_outlined, color: AppTheme.blackColor54),
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => OfficerNotificationScreen(initialLanguage: initialLanguage)));
             },
@@ -117,21 +118,21 @@ class AdminMenuScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(AppTheme.responsivePadding(context)),
         children: [
           Row(
             children: [
               const CircleAvatar(
                 radius: 24,
-                backgroundColor: Colors.black12,
-                child: Icon(Icons.person, size: 30, color: Colors.grey),
+                backgroundColor: AppTheme.blackColor12,
+                child: Icon(Icons.person, size: 30, color: AppTheme.greyColor),
               ),
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tr('welcome'), style: const TextStyle(fontSize: 16, color: Colors.grey)),
-                  Text("$adminName - ${tr('officer')}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(tr('welcome'), style: const TextStyle(fontSize: AppTheme.fontSizeLarge, color: AppTheme.greyColor)),
+                  Text("$adminName - ${tr('officer')}", style: const TextStyle(fontSize: AppTheme.fontSizeXXLarge, fontWeight: FontWeight.bold)),
                 ],
               ),
             ],
@@ -149,7 +150,7 @@ class AdminMenuScreen extends StatelessWidget {
             title: tr('arrival_verification'),
             subtitle: subtitle,
             iconData: Icons.anchor,
-            color: Colors.blue,
+            color: AppTheme.infoColor,
             isPrimary: true,
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => ArrivalVerificationScreen(adminName: adminName, initialLanguage: initialLanguage)));
@@ -170,7 +171,7 @@ class AdminMenuScreen extends StatelessWidget {
             title: tr('departure_verification'),
             subtitle: subtitle,
             iconData: Icons.directions_boat,
-            color: Colors.black87,
+            color: AppTheme.blackColor87,
             isPrimary: false,
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => DepartureVerificationScreen(adminName: adminName, initialLanguage: initialLanguage)));
@@ -191,7 +192,7 @@ class AdminMenuScreen extends StatelessWidget {
             title: tr('account_verification'),
             subtitle: subtitle,
             iconData: Icons.person_search,
-            color: Colors.black87,
+            color: AppTheme.blackColor87,
             isPrimary: false,
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => AccountVerificationListScreen(initialLanguage: initialLanguage)));
@@ -204,7 +205,7 @@ class AdminMenuScreen extends StatelessWidget {
             title: tr('email_configuration'),
             subtitle: tr('manage_email_settings'),
             iconData: Icons.email_outlined,
-            color: Colors.green,
+            color: AppTheme.successColor,
             isPrimary: false,
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => EmailConfigScreen(initialLanguage: initialLanguage)));
@@ -228,13 +229,13 @@ class AdminMenuScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(AppTheme.responsivePadding(context, mobile: AppTheme.paddingLarge, tablet: AppTheme.paddingLarge)),
         decoration: BoxDecoration(
-          color: isPrimary ? color : Colors.white,
+          color: isPrimary ? color : AppTheme.whiteColor,
           borderRadius: BorderRadius.circular(16),
-          border: isPrimary ? null : Border.all(color: Colors.grey.shade300),
+          border: isPrimary ? null : Border.all(color: AppTheme.greyShade300),
           boxShadow: [
-            BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
+            BoxShadow(color: AppTheme.greyColor.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
           ],
         ),
         child: Row(
@@ -244,13 +245,13 @@ class AdminMenuScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isPrimary ? Colors.white : color)),
+                  Text(title, style: TextStyle(fontSize: AppTheme.fontSizeXXLarge, fontWeight: FontWeight.bold, color: isPrimary ? AppTheme.whiteColor : color)),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(fontSize: 16, color: isPrimary ? Colors.white70 : Colors.grey)),
+                  Text(subtitle, style: TextStyle(fontSize: AppTheme.fontSizeLarge, color: isPrimary ? AppTheme.whiteColor70 : AppTheme.greyColor)),
                 ],
               ),
             ),
-            Icon(iconData, size: 32, color: isPrimary ? Colors.white : color),
+            Icon(iconData, size: 32, color: isPrimary ? AppTheme.whiteColor : color),
           ],
         ),
       ),
@@ -305,14 +306,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             actionsAlignment: MainAxisAlignment.center,
             actions: <Widget>[
               OutlinedButton(
-                style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), side: BorderSide(color: Colors.red.shade200), padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12)),
-                child: Text(tr('cancel'), style: const TextStyle(color: Colors.red)),
+                style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), side: BorderSide(color: AppTheme.errorShade200), padding: EdgeInsets.symmetric(horizontal: AppTheme.paddingLarge, vertical: AppTheme.paddingMedium)),
+                child: Text(tr('cancel'), style: const TextStyle(color: AppTheme.errorColor)),
                 onPressed: () => Navigator.of(dialogContext).pop(),
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12)),
-                child: Text(tr('logout'), style: const TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorShade400, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: EdgeInsets.symmetric(horizontal: AppTheme.paddingLarge, vertical: AppTheme.paddingMedium)),
+                child: Text(tr('logout'), style: const TextStyle(color: AppTheme.whiteColor)),
                 onPressed: () async {
                   // Ensure true logout from Firebase
                   try {
@@ -320,11 +321,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   } catch (_) {}
                   if (context.mounted) {
                     Navigator.of(dialogContext).pop();
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                      (Route<dynamic> route) => false,
-                    );
+                    Navigator.pushReplacementNamed(context, AppRoutes.login);
                   }
                 },
               )
@@ -335,7 +332,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.whiteColor,
       appBar: AppBar(
         title: Text(tr('settings')),
         automaticallyImplyLeading: false,
@@ -348,7 +345,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 const CircleAvatar(
                   radius: 50,
-                  backgroundColor: Color(0xFFE3F2FD),
+                  backgroundColor: AppTheme.greyShade50,
                   child: Icon(Icons.person, size: 60, color: Color(0xFF90CAF9)),
                 ),
                 Positioned(
@@ -369,13 +366,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       }
                     },
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: EdgeInsets.all(AppTheme.paddingSmall),
                       decoration: BoxDecoration(
-                        color: Colors.blue,
+                        color: AppTheme.infoColor,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(color: AppTheme.whiteColor, width: 2),
                       ),
-                      child: const Icon(Icons.edit, color: Colors.white, size: 18),
+                      child: const Icon(Icons.edit, color: AppTheme.whiteColor, size: 18),
                     ),
                   ),
                 ),
@@ -384,10 +381,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
           Center(
-            child: Text(widget.adminName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black)),
+            child: Text(widget.adminName, style: const TextStyle(fontSize: AppTheme.fontSizeXXXXLarge, fontWeight: FontWeight.bold, color: AppTheme.blackColor)),
           ),
           Center(
-            child: Text('@${widget.adminUsername}', style: const TextStyle(fontSize: 15, color: Colors.grey)),
+            child: Text('@${widget.adminUsername}', style: const TextStyle(fontSize: AppTheme.fontSizeSmall, color: AppTheme.greyColor)),
           ),
           const SizedBox(height: 30),
           _buildSettingsMenuItem(context, title: tr('notifications'), icon: Icons.notifications_none_outlined, onTap: () {
@@ -418,47 +415,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildLanguageSection(String title, String Function(String) tr) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: EdgeInsets.symmetric(
+        horizontal: AppTheme.responsivePadding(context, mobile: AppTheme.paddingLarge, tablet: AppTheme.paddingLarge),
+        vertical: AppTheme.paddingSmall,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildLanguageButton('EN', tr('english'))),
-              const SizedBox(width: 12),
-              Expanded(child: _buildLanguageButton('ID', tr('indonesian'))),
-            ],
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: AppTheme.fontSizeLarge,
+            ),
+          ),
+          DropdownButton<String>(
+            value: _selectedLanguage,
+            icon: const Icon(Icons.arrow_drop_down),
+            items: ['EN', 'ID'].map((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(tr(value == 'EN' ? 'english' : 'indonesian')),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              if (newValue != null) {
+                setState(() => _selectedLanguage = newValue);
+                widget.onLanguageChange(newValue);
+              }
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLanguageButton(String code, String name) {
-    final isSelected = _selectedLanguage == code;
-    return OutlinedButton(
-      onPressed: () {
-        setState(() => _selectedLanguage = code);
-        widget.onLanguageChange(code);
-      },
-      style: OutlinedButton.styleFrom(
-        backgroundColor: isSelected ? Colors.blue.withOpacity(0.1) : Colors.transparent,
-        side: BorderSide(color: isSelected ? Colors.blue : Colors.grey.shade300, width: 1.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      child: Text(name, style: TextStyle(color: isSelected ? Colors.blue.shade800 : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-    );
-  }
-
   Widget _buildSettingsMenuItem(BuildContext context, {required String title, required IconData icon, VoidCallback? onTap}) {
     return ListTile(
-      leading: Icon(icon, color: Colors.black87),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+      leading: Icon(icon, color: AppTheme.blackColor87),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: AppTheme.fontSizeLarge)),
+      trailing: const Icon(Icons.chevron_right, color: AppTheme.greyColor),
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      contentPadding: EdgeInsets.symmetric(horizontal: AppTheme.responsivePadding(context, mobile: AppTheme.paddingLarge, tablet: AppTheme.paddingLarge)),
     );
   }
 
@@ -468,14 +466,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         width: 24,
         height: 24,
         decoration: BoxDecoration(
-          color: Colors.red.shade100,
+          color: AppTheme.errorShade100,
           shape: BoxShape.circle,
         ),
-        child: const Icon(Icons.logout, color: Colors.red, size: 16),
+        child: const Icon(Icons.logout, color: AppTheme.errorColor, size: 16),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16, color: Colors.red)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: AppTheme.fontSizeLarge, color: AppTheme.errorColor)),
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      contentPadding: EdgeInsets.symmetric(horizontal: AppTheme.responsivePadding(context, mobile: AppTheme.paddingLarge, tablet: AppTheme.paddingLarge)),
     );
   }
 }

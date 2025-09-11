@@ -44,6 +44,7 @@ class DepartureVerificationScreen extends StatelessWidget {
             )));
           }
           return ListView.separated(
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: apps.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {

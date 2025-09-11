@@ -131,10 +131,15 @@ service cloud.firestore {
     // - status: 'waiting' | 'revision' | 'approved' | 'declined'
     // - notes, officerName, createdAt, updatedAt
     match /applications/{appId} {
+      // Allow read for owners and officers/admins
       allow read: if isSignedIn() && (
-        (resource != null && resource.data.agentUid == request.auth.uid) ||
+        (request.auth.uid == resource.data.agentUid) ||
         isOfficerOrAdmin()
       );
+
+      // Allow list/query operations for authenticated users
+      // This is needed for queries like where('agentUid', '==', user.uid)
+      allow list: if isSignedIn();
 
       // Owner create: must set agentUid to own uid; initial status 'waiting' or 0
       allow create: if isSignedIn() && request.resource.data.agentUid == request.auth.uid

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'app/config/routes.dart';
 import 'app/config/theme.dart';
@@ -53,11 +54,71 @@ void main() async {
     debugPrint('[Startup] Storage bucket configured: ${opts.storageBucket}');
   }
 
+  // Preload critical assets for better startup performance
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _preloadAssets();
+  }
+
+  Future<void> _preloadAssets() async {
+    // Ensure that the context is available before precaching
+    if (mounted) {
+      try {
+        await Future.wait([
+          precacheImage(const AssetImage('assets/images/logo.png'), context),
+          precacheImage(const AssetImage('assets/images/dermaga.png'), context),
+          precacheImage(const AssetImage('assets/images/shipping.png'), context),
+        ]);
+        debugPrint('[Startup] Critical assets preloaded successfully');
+      } catch (e) {
+        debugPrint('[Startup] Asset preloading failed: $e');
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        debugPrint('[Lifecycle] App resumed');
+        // Handle app resume - refresh authentication state if needed
+        break;
+      case AppLifecycleState.inactive:
+        debugPrint('[Lifecycle] App inactive');
+        break;
+      case AppLifecycleState.paused:
+        debugPrint('[Lifecycle] App paused');
+        break;
+      case AppLifecycleState.detached:
+        debugPrint('[Lifecycle] App detached');
+        break;
+      case AppLifecycleState.hidden:
+        debugPrint('[Lifecycle] App hidden');
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -66,6 +127,7 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.themeData,
       home: const AuthWrapper(),
       onGenerateRoute: AppRoutes.onGenerateRoute,
+      restorationScopeId: 'app', // Enable state restoration
     );
   }
 }

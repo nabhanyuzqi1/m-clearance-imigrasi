@@ -11,8 +11,24 @@ class AuthWrapper extends StatefulWidget {
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper> {
+class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
+  @override
+  String? get restorationId => 'auth_wrapper';
 
+  final RestorableString _selectedLanguage = RestorableString('EN');
+
+  String get selectedLanguage => _selectedLanguage.value;
+
+  @override
+  void restoreState(RestorationBucket? oldBucket, bool initialRestore) {
+    registerForRestoration(_selectedLanguage, 'selected_language');
+  }
+
+  @override
+  void dispose() {
+    _selectedLanguage.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +83,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
     );
   }
 
-
   Widget _buildNavigationUI(UserModel userModel) {
     String routeName;
     Map<String, dynamic>? args;
@@ -77,7 +92,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         routeName = AppRoutes.confirmation;
         args = {
           'userData': {'email': userModel.email},
-          'initialLanguage': 'EN',
+          'initialLanguage': selectedLanguage,
         };
         break;
       case 'pending_documents':

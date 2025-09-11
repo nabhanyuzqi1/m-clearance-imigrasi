@@ -49,6 +49,24 @@ class ClearanceApplication {
 
   factory ClearanceApplication.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    String statusStr = data['status'] ?? 'waiting';
+    ApplicationStatus status;
+    switch (statusStr) {
+      case 'waiting':
+        status = ApplicationStatus.waiting;
+        break;
+      case 'revision':
+        status = ApplicationStatus.revision;
+        break;
+      case 'approved':
+        status = ApplicationStatus.approved;
+        break;
+      case 'declined':
+        status = ApplicationStatus.declined;
+        break;
+      default:
+        status = ApplicationStatus.waiting;
+    }
     return ClearanceApplication(
       id: doc.id,
       shipName: data['shipName'] ?? '',
@@ -56,7 +74,7 @@ class ClearanceApplication {
       agentName: data['agentName'] ?? '',
       agentUid: data['agentUid'] ?? '',
       type: data['type'] == 'arrival' ? ApplicationType.kedatangan : ApplicationType.keberangkatan,
-      status: ApplicationStatus.values[data['status'] ?? 0],
+      status: status,
       notes: data['notes'],
       port: data['port'],
       date: data['date'],
@@ -78,7 +96,7 @@ class ClearanceApplication {
       'flag': flag,
       'agentName': agentName,
       'type': type == ApplicationType.kedatangan ? 'arrival' : 'departure',
-      'status': status.index,
+      'status': status.name,
       'notes': notes,
       'port': port,
       'date': date,
@@ -93,7 +111,7 @@ class ClearanceApplication {
 
     print('DEBUG: ClearanceApplication.toFirestore() data: $data');
     print('DEBUG: Type enum value: $type (string: ${type == ApplicationType.kedatangan ? 'arrival' : 'departure'})');
-    print('DEBUG: Status enum value: $status (index: ${status.index})');
+    print('DEBUG: Status enum value: $status (name: ${status.name})');
 
     return data;
   }

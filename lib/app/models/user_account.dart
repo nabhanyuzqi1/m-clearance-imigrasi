@@ -10,6 +10,7 @@ class UserAccount {
   final String password;
   final String nibFileName;
   final String ktpFileName;
+  final String? profileImageUrl;
   final AccountStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -22,6 +23,7 @@ class UserAccount {
     required this.password,
     required this.nibFileName,
     required this.ktpFileName,
+    this.profileImageUrl,
     this.status = AccountStatus.pending,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -60,6 +62,7 @@ class UserAccount {
       password: data['password'] ?? '',
       nibFileName: data['nibFileName'] ?? '',
       ktpFileName: data['ktpFileName'] ?? '',
+      profileImageUrl: data['profileImageUrl'] as String?,
       status: status,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -67,7 +70,7 @@ class UserAccount {
   }
 
   Map<String, dynamic> toFirestore() {
-    final data = {
+    final data = <String, dynamic>{
       'name': name,
       'username': username,
       'email': email,
@@ -79,15 +82,52 @@ class UserAccount {
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
 
+    if (profileImageUrl != null) {
+      data['profileImageUrl'] = profileImageUrl;
+    }
+
     print('DEBUG: UserAccount.toFirestore() data: $data');
     print('DEBUG: Status enum value: $status (index: ${status.index})');
 
     return data;
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'uid': uid,
+      'name': name,
+      'username': username,
+      'email': email,
+      'password': password,
+      'nibFileName': nibFileName,
+      'ktpFileName': ktpFileName,
+      'profileImageUrl': profileImageUrl,
+      'status': status.index,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  factory UserAccount.fromJson(Map<String, dynamic> json) {
+    return UserAccount(
+      uid: json['uid'],
+      name: json['name'],
+      username: json['username'],
+      email: json['email'],
+      password: json['password'],
+      nibFileName: json['nibFileName'],
+      ktpFileName: json['ktpFileName'],
+      profileImageUrl: json['profileImageUrl'],
+      status: AccountStatus.values[json['status']],
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt: DateTime.parse(json['updatedAt']),
+    );
+  }
+
   UserAccount copyWith({
     String? name,
     String? email,
+    String? profileImageUrl,
     AccountStatus? status,
     DateTime? updatedAt,
   }) {
@@ -99,6 +139,7 @@ class UserAccount {
       password: password,
       nibFileName: nibFileName,
       ktpFileName: ktpFileName,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       status: status ?? this.status,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),

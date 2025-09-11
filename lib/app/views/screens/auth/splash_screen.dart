@@ -1,6 +1,6 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:m_clearance_imigrasi/app/views/widgets/bouncing_dots_loader.dart';
 import '../../../config/routes.dart';
 
 /// SplashScreen
@@ -27,9 +27,8 @@ class _SplashScreenState extends State<SplashScreen> {
       ),
     );
 
-    // Atur timer untuk navigasi otomatis setelah 3 detik
-    Timer(const Duration(seconds: 3), () {
-      // Pastikan widget masih ada di tree sebelum navigasi
+    // Navigasi setelah penundaan singkat
+    Future.delayed(const Duration(seconds: 1), () {
       if (mounted) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
       }
@@ -53,6 +52,17 @@ class _SplashScreenState extends State<SplashScreen> {
               errorBuilder: (context, error, stackTrace) =>
                   const Icon(Icons.directions_boat, size: 150, color: Colors.blue),
             ),
+            const SizedBox(height: 24),
+            const Text(
+              'M-Clearance ISam',
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const BouncingDotsLoader(),
           ],
         ),
       ),

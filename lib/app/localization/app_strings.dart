@@ -227,6 +227,11 @@ class AppStrings {
         'send': 'Send',
         'gallery': 'Choose from Gallery',
         'camera': 'Take a Picture',
+        'file_picker': 'Choose from Files',
+        'permission_required': 'Permission Required',
+        'camera_permission_message': 'Camera permission is required to take photos. Please enable it in app settings.',
+        'storage_permission_message': 'Storage permission is required to access photos. Please enable it in app settings.',
+        'open_settings': 'Open Settings',
         'arrival_form': 'Arrival Clearance Form',
         'departure_form': 'Departure Clearance Form',
         'saving': 'Submitting...',
@@ -236,6 +241,7 @@ class AppStrings {
         'error_message': 'Failed to submit application. Please try again.',
         'ok': 'OK',
         'invalid_number': 'Please enter a valid number',
+        'select_file_failed': 'Failed to select file.',
       },
       'submissionSent': {
         'title': 'Verifying Documents',
@@ -285,6 +291,12 @@ class AppStrings {
         'empty_title': 'Nothing here. For now.',
         'empty_subtitle': "This is where you'll find what is\ngoing on",
       },
+      'notificationSettings': {
+        'title': 'Notification Settings',
+        'mute_notifications': 'Mute Notifications',
+        'toggle_sound': 'Notification Sound',
+        'view_notifications': 'View Notifications',
+      },
       //endregion
 
       //region Officer Screens
@@ -300,6 +312,8 @@ class AppStrings {
         'account_verification': 'Account Verification',
         'agent_submissions': 'Agent Submissions Check',
         'agent_registrations': 'Agent Registrations Check',
+        'email_configuration': 'Email Configuration',
+        'manage_email_settings': 'Manage email settings',
       },
       'adminProfile': {
         'settings': 'Settings',
@@ -657,6 +671,11 @@ class AppStrings {
         'send': 'Kirim',
         'gallery': 'Pilih dari Galeri',
         'camera': 'Ambil Gambar via Kamera',
+        'file_picker': 'Pilih dari File',
+        'permission_required': 'Izin Diperlukan',
+        'camera_permission_message': 'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
+        'storage_permission_message': 'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
+        'open_settings': 'Buka Pengaturan',
         'arrival_form': 'Form Clearance Kedatangan',
         'departure_form': 'Form Clearance Keberangkatan',
         'saving': 'Mengirim...',
@@ -666,6 +685,7 @@ class AppStrings {
         'error_message': 'Gagal mengirim permohonan. Silakan coba lagi.',
         'ok': 'OK',
         'invalid_number': 'Masukkan angka yang valid',
+        'select_file_failed': 'Gagal memilih file.',
       },
       'submissionSent': {
         'title': 'Verifikasi Berkas',
@@ -715,6 +735,12 @@ class AppStrings {
         'empty_title': 'Tidak ada apa-apa. Untuk saat ini.',
         'empty_subtitle': 'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
       },
+      'notificationSettings': {
+        'title': 'Pengaturan Notifikasi',
+        'mute_notifications': 'Bisukan Notifikasi',
+        'toggle_sound': 'Suara Notifikasi',
+        'view_notifications': 'Lihat Notifikasi',
+      },
       //endregion
       
       //region Officer Screens
@@ -730,6 +756,8 @@ class AppStrings {
         'account_verification': 'Verifikasi Akun',
         'agent_submissions': 'Pemeriksaan Pengajuan Agen',
         'agent_registrations': 'Pemeriksaan Registrasi Agen',
+        'email_configuration': 'Konfigurasi Email',
+        'manage_email_settings': 'Kelola pengaturan email',
       },
       'adminProfile': {
         'settings': 'Pengaturan',
@@ -893,6 +921,9 @@ class AppStrings {
     final id = _localizedStrings['ID']?[screenKey]?[stringKey];
     if (id != null) return id;
     // Not found
-    return '$screenKey.$stringKey not found';
+    // TODO: Add missing localization keys
+    // For now, return a detailed error message to help with debugging.
+    debugPrint('Localization key not found: $screenKey.$stringKey for language $code');
+    return '[$screenKey.$stringKey]';
   }
 }

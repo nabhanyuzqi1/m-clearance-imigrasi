@@ -3,10 +3,13 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
+import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 
 class UploadDocumentsScreen extends StatefulWidget {
   final String initialLanguage;
@@ -18,6 +21,7 @@ class UploadDocumentsScreen extends StatefulWidget {
 
 class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   final AuthService _authService = AuthService();
+  final ImagePicker _picker = ImagePicker();
 
   // Selected files
   Uint8List? _nibFile;
@@ -160,36 +164,61 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   }
 
   Future<void> _pickNibFile() async {
+    _showSourceActionSheet('NIB', (sourceType) => _handleNibFile(sourceType));
+  }
+
+  Future<void> _handleNibFile(String sourceType) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
-        type: FileType.custom,
-        allowedExtensions: const ['pdf'],
-        withData: true,
-      );
-      if (result == null || result.files.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-        );
-        return;
-      }
+      if (sourceType == 'camera' || sourceType == 'gallery') {
+        final source = sourceType == 'camera' ? ImageSource.camera : ImageSource.gallery;
+        final hasPermission = await _requestPermissions(source);
+        if (!hasPermission) return;
 
-      final picked = result.files.single;
-      if (picked.bytes == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+        final XFile? pickedFile = await _picker.pickImage(source: source);
+        if (pickedFile != null) {
+          final minifiedFile = await minifyImage(File(pickedFile.path));
+          final bytes = await minifiedFile.readAsBytes();
+          final name = pickedFile.name.isNotEmpty ? pickedFile.name : 'nib.jpg';
+          setState(() {
+            _nibFile = bytes;
+            _nibFileName = name;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        // File picker
+        final result = await FilePicker.platform.pickFiles(
+          allowMultiple: false,
+          type: FileType.custom,
+          allowedExtensions: const ['pdf'],
+          withData: true,
         );
-        return;
-      }
+        if (result == null || result.files.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          );
+          return;
+        }
 
-      final name = picked.name.isNotEmpty ? picked.name : 'nib.pdf';
-      setState(() {
-        _nibFile = picked.bytes;
-        _nibFileName = name;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
-      );
+        final picked = result.files.single;
+        if (picked.bytes == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          );
+          return;
+        }
+
+        final name = picked.name.isNotEmpty ? picked.name : 'nib.pdf';
+        setState(() {
+          _nibFile = picked.bytes;
+          _nibFileName = name;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
+        );
+      }
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
@@ -198,41 +227,175 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   }
 
   Future<void> _pickKtpFile() async {
+    _showSourceActionSheet('KTP', (sourceType) => _handleKtpFile(sourceType));
+  }
+
+  Future<void> _handleKtpFile(String sourceType) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
-        type: FileType.custom,
-        allowedExtensions: const ['jpg', 'jpeg', 'pdf'],
-        withData: true,
-      );
-      if (result == null || result.files.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-        );
-        return;
-      }
+      if (sourceType == 'camera' || sourceType == 'gallery') {
+        final source = sourceType == 'camera' ? ImageSource.camera : ImageSource.gallery;
+        final hasPermission = await _requestPermissions(source);
+        if (!hasPermission) return;
 
-      final picked = result.files.single;
-      if (picked.bytes == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+        final XFile? pickedFile = await _picker.pickImage(source: source);
+        if (pickedFile != null) {
+          final minifiedFile = await minifyImage(File(pickedFile.path));
+          final bytes = await minifiedFile.readAsBytes();
+          final name = pickedFile.name.isNotEmpty ? pickedFile.name : 'ktp.jpg';
+          setState(() {
+            _ktpFile = bytes;
+            _ktpFileName = name;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        // File picker
+        final result = await FilePicker.platform.pickFiles(
+          allowMultiple: false,
+          type: FileType.custom,
+          allowedExtensions: const ['jpg', 'jpeg', 'pdf'],
+          withData: true,
         );
-        return;
-      }
+        if (result == null || result.files.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          );
+          return;
+        }
 
-      var name = picked.name.isNotEmpty ? picked.name : 'ktp.jpg';
-      setState(() {
-        _ktpFile = picked.bytes;
-        _ktpFileName = name;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
-      );
+        final picked = result.files.single;
+        if (picked.bytes == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+          );
+          return;
+        }
+
+        var name = picked.name.isNotEmpty ? picked.name : 'ktp.jpg';
+        setState(() {
+          _ktpFile = picked.bytes;
+          _ktpFileName = name;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
+        );
+      }
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
       );
     }
+  }
+
+  Future<bool> _requestPermissions(ImageSource source) async {
+    if (source == ImageSource.camera) {
+      final cameraStatus = await Permission.camera.request();
+      if (cameraStatus.isGranted) {
+        return true;
+      } else if (cameraStatus.isPermanentlyDenied) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text('Permission Required'),
+                content: Text('Camera permission is required to take photos. Please enable it in app settings.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      openAppSettings();
+                    },
+                    child: Text('Open Settings'),
+                  ),
+                ],
+              );
+            },
+          );
+        }
+        return false;
+      } else {
+        return false;
+      }
+    } else {
+      // For gallery, request storage permissions
+      final storageStatus = await Permission.photos.request();
+      if (storageStatus.isGranted) {
+        return true;
+      } else if (storageStatus.isPermanentlyDenied) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text('Permission Required'),
+                content: Text('Storage permission is required to access photos. Please enable it in app settings.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      openAppSettings();
+                    },
+                    child: Text('Open Settings'),
+                  ),
+                ],
+              );
+            },
+          );
+        }
+        return false;
+      } else {
+        return false;
+      }
+    }
+  }
+
+  void _showSourceActionSheet(String docType, Function(String) onSourceSelected) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext bc) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: Text('Gallery'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onSourceSelected('gallery');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: Text('Camera'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onSourceSelected('camera');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_present),
+                title: Text('Choose from Files'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onSourceSelected('file');
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _finishRegistration() async {

@@ -10,12 +10,16 @@ class NotificationService {
   /// Daftar notifikasi statis (simulasi database)
   static final List<NotificationItem> notifications = [
     NotificationItem(
+      id: '1',
+      userId: 'user1',
       title: "Perbaikan Dokumen Diperlukan",
       body: "Dokumen Crew List Anda untuk kapal MV. Ocean Queen perlu diperbaiki. Catatan: Data kru tidak lengkap.",
       date: DateTime.now().subtract(const Duration(hours: 2)),
       type: NotificationType.revision,
     ),
     NotificationItem(
+      id: '2',
+      userId: 'user1',
       title: "Pengajuan Disetujui!",
       body: "Pengajuan keberangkatan untuk kapal KM. Bahari telah disetujui.",
       date: DateTime.now().subtract(const Duration(days: 1)),
@@ -23,6 +27,8 @@ class NotificationService {
       isRead: true,
     ),
     NotificationItem(
+      id: '3',
+      userId: 'user1',
       title: "Update Aplikasi",
       body: "Versi baru aplikasi (v1.1.0) telah tersedia dengan perbaikan bug dan peningkatan performa.",
       date: DateTime.now().subtract(const Duration(days: 3)),

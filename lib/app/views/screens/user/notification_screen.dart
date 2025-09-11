@@ -136,12 +136,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
         foregroundColor: Colors.black,
         elevation: 0,
         actions: [
-          TextButton(
+          IconButton(
             onPressed: _markAllAsRead,
-            child: Text(
-              _tr('mark_all_read'),
-              style: const TextStyle(color: Colors.blue),
-            ),
+            icon: const Icon(Icons.done_all, color: Colors.blue),
+            tooltip: _tr('mark_all_read'),
           ),
         ],
       ),

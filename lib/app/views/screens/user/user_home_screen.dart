@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/clearance_application.dart';
 import '../../../models/user_account.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/user_service.dart';
 import '../../../config/routes.dart';
+import '../../../services/auth_service.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../widgets/custom_bottom_navbar.dart';
+import '../../widgets/custom_button.dart';
+import '../../widgets/skeleton_loader.dart';
+import '../auth/change_password_screen.dart';
 import 'clearance_form_screen.dart';
 import 'notification_screen.dart';
 import 'history_screen.dart';
+import 'notification_settings_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
   final String initialLanguage;
@@ -26,6 +32,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   int _selectedIndex = 0;
   UserAccount? currentUser;
   String _selectedLanguage = 'EN';
+  bool _isLoadingUser = true;
   final UserService _userService = UserService();
   final NotificationService _notificationService = NotificationService();
 
@@ -44,65 +51,70 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   }
 
   Future<void> _loadCurrentUser() async {
+    if (!mounted) return;
+
+    setState(() => _isLoadingUser = true);
     try {
       currentUser = await _userService.getCurrentUserAccount();
-      if (mounted) {
-        setState(() {});
+      if (currentUser == null) {
+        // User not authenticated or account not found
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, AppRoutes.login);
+        }
+        return;
       }
     } catch (e) {
       print('Error loading current user: $e');
-      // If user not found, redirect to login
       if (mounted) {
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       }
+      return;
+    }
+
+    if (mounted) {
+      setState(() => _isLoadingUser = false);
     }
   }
 
   void _refresh() {
-    setState(() {
-      _loadCurrentUser();
-    });
+    _loadCurrentUser();
   }
 
   void _changeLanguage(String langCode) => setState(() => _selectedLanguage = langCode);
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
   void _showLogoutDialog(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth * 0.08;
+    final verticalPadding = screenWidth * 0.03;
+    final fontSize = screenWidth * 0.04;
+
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Center(child: Text(_tr('userProfile', 'logout_confirm_title'), style: const TextStyle(fontWeight: FontWeight.bold))),
-          content: Text(_tr('userProfile', 'logout_confirm_body'), textAlign: TextAlign.center),
+          title: Center(child: Text(_tr('userProfile', 'logout_confirm_title'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045))),
+          content: Text(_tr('userProfile', 'logout_confirm_body'), textAlign: TextAlign.center, style: TextStyle(fontSize: fontSize)),
           actionsAlignment: MainAxisAlignment.center,
           actions: <Widget>[
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                side: BorderSide(color: Colors.red.shade200),
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12)
-              ),
-              child: Text(_tr('userProfile', 'cancel'), style: TextStyle(color: Colors.red)),
+            CustomButton(
+              text: _tr('userProfile', 'cancel'),
+              type: CustomButtonType.outlined,
+              borderColor: Colors.red.shade200,
+              foregroundColor: Colors.red,
               onPressed: () => Navigator.of(dialogContext).pop(),
             ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade400,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12)
-              ),
-              child: Text(_tr('userProfile', 'logout'), style: const TextStyle(color: Colors.white)),
+            SizedBox(width: screenWidth * 0.02),
+            CustomButton(
+              text: _tr('userProfile', 'logout'),
+              type: CustomButtonType.elevated,
+              backgroundColor: Colors.red.shade400,
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
-                await FirebaseAuth.instance.signOut();
+                await AuthService().signOut();
                 if (mounted) {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    (Route<dynamic> route) => false,
-                  );
+                  Navigator.pushReplacementNamed(context, AppRoutes.login);
                 }
               },
             )
@@ -114,6 +126,24 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingUser && currentUser == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                _tr('userHome', 'loading_user'),
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (currentUser == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -140,17 +170,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: pages.elementAt(_selectedIndex),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: const Icon(Icons.home_filled), label: _tr('userHome', 'home')),
-          BottomNavigationBarItem(icon: const Icon(Icons.history), label: _tr('userHome', 'history')),
-          BottomNavigationBarItem(icon: const Icon(Icons.settings), label: _tr('userHome', 'settings')),
-        ],
+      bottomNavigationBar: CustomBottomNavbar(
+        items: NavigationItems.userItems,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
+        showSelectedLabels: true,
         showUnselectedLabels: true,
         backgroundColor: Colors.white,
         elevation: 8,
@@ -177,6 +203,11 @@ class UserMenuScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final horizontalPadding = screenWidth * 0.04;
+    final verticalSpacing = screenWidth * 0.03;
+
     String screenTr(String key) => AppStrings.tr(
       context: context,
       screenKey: 'userHome',
@@ -191,36 +222,16 @@ class UserMenuScreen extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: Colors.white,
-          appBar: AppBar(
-            title: Row(
-              children: [
-                Image.asset('assets/images/logo.png', height: 32, errorBuilder: (context, error, stackTrace) => const Icon(Icons.directions_boat)),
-                const SizedBox(width: 8),
-                const Text('M-Clearance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              ],
-            ),
+          appBar: CustomAppBar(
+            title: LogoTitle(text: 'M-Clearance ISam'),
             actions: [
-              Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_none_outlined),
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationScreen(initialLanguage: initialLanguage)));
-                    },
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 8, top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                        child: Text('$unreadCount', style: const TextStyle(color: Colors.white, fontSize: 10), textAlign: TextAlign.center),
-                      ),
-                    ),
-                ],
+              NotificationIconWithBadge(
+                badgeCount: unreadCount,
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationScreen(initialLanguage: initialLanguage)));
+                },
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: screenWidth * 0.02),
             ],
           ),
           body: StreamBuilder<List<ClearanceApplication>>(
@@ -230,28 +241,34 @@ class UserMenuScreen extends StatelessWidget {
               final lastTwoTransactions = applications.take(2).toList();
 
               return ListView(
-                padding: const EdgeInsets.all(16.0),
+                padding: EdgeInsets.all(horizontalPadding),
                 children: [
                   // User Profile Section
                   Row(
                     children: [
                       CircleAvatar(
-                        radius: 24,
+                        radius: screenWidth * 0.06,
                         backgroundColor: Colors.grey.shade200,
-                        backgroundImage: null, // Web doesn't support local file images
-                        child: const Icon(Icons.person, size: 30, color: Colors.grey),
+                        backgroundImage: userAccount.profileImageUrl != null
+                            ? NetworkImage(userAccount.profileImageUrl!)
+                            : null,
+                        child: userAccount.profileImageUrl == null
+                            ? Icon(Icons.person, size: screenWidth * 0.075, color: Colors.grey)
+                            : null,
                       ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(screenTr('welcome'), style: const TextStyle(fontSize: 16, color: Colors.grey)),
-                          Text(userAccount.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        ],
+                      SizedBox(width: screenWidth * 0.03),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(screenTr('welcome'), style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.grey)),
+                            Text(userAccount.name, style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: verticalSpacing * 2),
 
                   // Service Cards
                   _buildServiceCard(
@@ -274,7 +291,7 @@ class UserMenuScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: verticalSpacing),
                   _buildServiceCard(
                     context,
                     title: screenTr('departure'),
@@ -295,21 +312,59 @@ class UserMenuScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: verticalSpacing * 3),
 
                   // Last Transactions
-                  Text(screenTr('last_transactions'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  if (lastTwoTransactions.isEmpty)
+                  Text(screenTr('last_transactions'), style: TextStyle(fontSize: screenWidth * 0.045, fontWeight: FontWeight.bold)),
+                  SizedBox(height: verticalSpacing),
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: verticalSpacing),
+                      child: Column(
+                        children: List.generate(2, (index) => Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              SkeletonLoader(
+                                width: screenWidth * 0.08,
+                                height: screenWidth * 0.08,
+                                borderRadius: BorderRadius.circular(screenWidth * 0.04),
+                              ),
+                              SizedBox(width: screenWidth * 0.03),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SkeletonLoader(
+                                      width: double.infinity,
+                                      height: screenWidth * 0.04,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    SkeletonLoader(
+                                      width: screenWidth * 0.5,
+                                      height: screenWidth * 0.035,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                      ),
+                    )
+                  else if (lastTwoTransactions.isEmpty)
                     Center(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24.0),
-                        child: Text(screenTr('no_transactions'), style: const TextStyle(color: Colors.grey))
+                        padding: EdgeInsets.symmetric(vertical: verticalSpacing * 2),
+                        child: Text(screenTr('no_transactions'), style: TextStyle(color: Colors.grey, fontSize: screenWidth * 0.04))
                       )
                     )
                   else
                     ...lastTwoTransactions.map((app) => _buildTransactionItem(
                       context,
+                      key: ValueKey(app.id),
                       type: app.type == ApplicationType.kedatangan ? screenTr('arrival') : screenTr('departure'),
                       detail: "${app.shipName} - ${app.port ?? 'N/A'}",
                       date: "(${app.date ?? 'No Date'})",
@@ -331,11 +386,17 @@ class UserMenuScreen extends StatelessWidget {
     required bool isPrimary,
     required VoidCallback onTap,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardPadding = screenWidth * 0.05;
+    final iconSize = screenWidth * 0.08;
+    final titleFontSize = screenWidth * 0.05;
+    final subtitleFontSize = screenWidth * 0.04;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(cardPadding),
         decoration: BoxDecoration(
           color: isPrimary ? color : Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -351,28 +412,33 @@ class UserMenuScreen extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isPrimary ? Colors.white : color,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.bold,
+                      color: isPrimary ? Colors.white : color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: isPrimary ? Colors.white70 : Colors.grey,
+                  SizedBox(height: screenWidth * 0.01),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: subtitleFontSize,
+                      color: isPrimary ? Colors.white70 : Colors.grey,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            Icon(iconData, size: 32, color: isPrimary ? Colors.white : color),
+            SizedBox(width: screenWidth * 0.02),
+            Icon(iconData, size: iconSize, color: isPrimary ? Colors.white : color),
           ],
         ),
       ),
@@ -380,26 +446,48 @@ class UserMenuScreen extends StatelessWidget {
   }
 
   Widget _buildTransactionItem(BuildContext context, {
+    Key? key,
     required String type,
     required String detail,
     required String date,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final verticalPadding = screenWidth * 0.03;
+    final horizontalSpacing = screenWidth * 0.03;
+    final iconSize = screenWidth * 0.05;
+    final fontSize = screenWidth * 0.04;
+
+    return Container(
+      margin: EdgeInsets.only(bottom: verticalPadding),
+      padding: EdgeInsets.all(verticalPadding),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          const Icon(Icons.star, color: Colors.blue, size: 20),
-          const SizedBox(width: 12),
+          Icon(Icons.star, color: Colors.blue, size: iconSize),
+          SizedBox(width: horizontalSpacing),
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(fontSize: 16, color: Colors.black),
+                style: TextStyle(fontSize: fontSize, color: Colors.black87, height: 1.4),
                 children: [
                   TextSpan(text: '$type: ', style: const TextStyle(fontWeight: FontWeight.bold)),
                   TextSpan(text: '$detail '),
                   TextSpan(text: date, style: const TextStyle(color: Colors.grey)),
                 ],
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
           ),
         ],
@@ -435,16 +523,20 @@ class UserProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth * 0.04;
+    final verticalSpacing = screenWidth * 0.03;
+
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(_tr(context, 'userProfile', 'profile')),
+      appBar: CustomAppBar(
+        titleText: _tr(context, 'userProfile', 'profile'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(horizontalPadding),
         child: Column(
           children: [
             // Profile Picture Section
@@ -453,27 +545,33 @@ class UserProfileScreen extends StatelessWidget {
                 alignment: Alignment.bottomRight,
                 children: [
                   CircleAvatar(
-                    radius: 60,
+                    radius: screenWidth * 0.15,
                     backgroundColor: Colors.grey.shade200,
-                    backgroundImage: null, // Web doesn't support local file images
-                    child: const Icon(Icons.person, size: 60, color: Colors.grey),
+                    backgroundImage: userAccount.profileImageUrl != null
+                        ? NetworkImage(userAccount.profileImageUrl!)
+                        : null,
+                    child: userAccount.profileImageUrl == null
+                        ? Icon(Icons.person, size: screenWidth * 0.15, color: Colors.grey)
+                        : null,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: verticalSpacing),
 
             // User Info
             Text(
               userAccount.name,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: screenWidth * 0.06, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: screenWidth * 0.02),
             Text(
               userAccount.email,
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: verticalSpacing * 2),
 
             // Menu Items
             _buildMenuItem(
@@ -488,6 +586,7 @@ class UserProfileScreen extends StatelessWidget {
                     'username': userAccount.username,
                     'currentName': userAccount.name,
                     'currentEmail': userAccount.email,
+                    'currentProfileImageUrl': userAccount.profileImageUrl,
                     'initialLanguage': selectedLanguage,
                   },
                 ).then((result) {
@@ -500,15 +599,47 @@ class UserProfileScreen extends StatelessWidget {
 
             _buildMenuItem(
               context,
-              icon: Icons.language,
-              title: _tr(context, 'userProfile', 'language'),
-              trailing: selectedLanguage == 'EN' ? 'English' : 'Bahasa Indonesia',
+              icon: Icons.notifications_none_outlined,
+              title: _tr(context, 'userProfile', 'notifications'),
               onTap: () {
-                _showLanguageDialog(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => NotificationSettingsScreen(
+                      initialLanguage: selectedLanguage,
+                    ),
+                  ),
+                );
               },
             ),
 
-            const Divider(height: 32),
+            const Divider(indent: 16, endIndent: 16),
+
+            _buildLanguageSection(context),
+
+            const Divider(indent: 16, endIndent: 16),
+
+            _buildMenuItem(
+              context,
+              icon: Icons.lock_outline,
+              title: _tr(context, 'userProfile', 'privacy_security'),
+              onTap: () {
+                // TODO: Navigate to privacy & security screen
+              },
+            ),
+
+            const Divider(indent: 16, endIndent: 16),
+
+            _buildMenuItem(
+              context,
+              icon: Icons.password_outlined,
+              title: _tr(context, 'userProfile', 'change_password'),
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => ChangePasswordScreen(initialLanguage: selectedLanguage)));
+              },
+            ),
+
+            Divider(height: verticalSpacing * 2),
 
             _buildMenuItem(
               context,
@@ -531,81 +662,61 @@ class UserProfileScreen extends StatelessWidget {
     Color? textColor,
     required VoidCallback onTap,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final iconSize = screenWidth * 0.06;
+    final fontSize = screenWidth * 0.04;
+    final verticalPadding = screenWidth * 0.02;
+
     return ListTile(
-      leading: Icon(icon, color: textColor ?? Colors.black),
+      leading: Icon(icon, color: textColor ?? Colors.black, size: iconSize),
       title: Text(
         title,
         style: TextStyle(
           color: textColor ?? Colors.black,
-          fontSize: 16,
+          fontSize: fontSize,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
       trailing: trailing != null
-          ? Text(trailing, style: TextStyle(color: Colors.grey.shade600))
-          : const Icon(Icons.arrow_forward_ios, size: 16),
+          ? Text(trailing, style: TextStyle(color: Colors.grey.shade600, fontSize: fontSize))
+          : Icon(Icons.arrow_forward_ios, size: iconSize * 0.6),
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+      contentPadding: EdgeInsets.symmetric(horizontal: 0, vertical: verticalPadding),
     );
   }
 
-  void _showLanguageDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(_tr(context, 'userProfile', 'select_language')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('English'),
-                leading: Radio<String>(
-                  value: 'EN',
-                  groupValue: selectedLanguage,
-                  onChanged: (value) {
-                    if (value != null) {
-                      onLanguageChange(value);
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-                onTap: () {
-                  onLanguageChange('EN');
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-              ListTile(
-                title: const Text('Bahasa Indonesia'),
-                leading: Radio<String>(
-                  value: 'ID',
-                  groupValue: selectedLanguage,
-                  onChanged: (value) {
-                    if (value != null) {
-                      onLanguageChange(value);
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                ),
-                onTap: () {
-                  onLanguageChange('ID');
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-            ],
+  Widget _buildLanguageSection(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            _tr(context, 'userProfile', 'language'),
+            style: const TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w500,
+              fontSize: 16,
+            ),
           ),
-        );
-      },
+          DropdownButton<String>(
+            value: selectedLanguage,
+            icon: const Icon(Icons.arrow_drop_down),
+            items: ['EN', 'ID'].map((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value == 'EN' ? 'English' : 'Indonesia'),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              if (newValue != null) {
+                onLanguageChange(newValue);
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 }
 
-// For now, I'll create a placeholder LoginScreen class
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Login Screen')));
-  }
-}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:m_clearance_imigrasi/app/config/fade_route.dart';
 import '../models/clearance_application.dart';
 import '../views/screens/auth/change_password_screen.dart';
 import '../views/screens/auth/confirmation_screen.dart';
@@ -73,96 +74,96 @@ class AppRoutes {
 
     switch (settings.name) {
       case splash:
-        return MaterialPageRoute(builder: (_) => const SplashScreen());
+        return FadeRoute(page: const SplashScreen());
       case login:
-        return MaterialPageRoute(builder: (_) => const auth.LoginScreen());
+        return FadeRoute(page: const auth.LoginScreen());
       case register:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => RegisterScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: RegisterScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case forgotPassword:
          final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => ForgotPasswordScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: ForgotPasswordScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case changePassword:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => ChangePasswordScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: ChangePasswordScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case confirmation:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => ConfirmationScreen(userData: arguments['userData'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: ConfirmationScreen(userData: arguments['userData'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case uploadDocuments:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => UploadDocumentsScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: UploadDocumentsScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case registrationPending:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => RegistrationPendingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: RegistrationPendingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case emailVerification:
         // Backwards compatibility: route to code confirmation flow instead of link method.
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => ConfirmationScreen(userData: (arguments['userData'] as Map<String, String>?) ?? const {}, initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: ConfirmationScreen(userData: (arguments['userData'] as Map<String, String>?) ?? const {}, initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       
       case userHome:
-        return MaterialPageRoute(builder: (_) => const UserHomeScreen());
+        return FadeRoute(page: const UserHomeScreen());
       case userNotification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => user_notif.NotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: user_notif.NotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case editAgentProfile:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => EditAgentProfileScreen(username: arguments['username'] ?? '', currentName: arguments['currentName'] ?? '', currentEmail: arguments['currentEmail'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: EditAgentProfileScreen(username: arguments['username'] ?? '', currentName: arguments['currentName'] ?? '', currentEmail: arguments['currentEmail'] ?? '', currentProfileImageUrl: arguments['currentProfileImageUrl'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case clearanceForm:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => ClearanceFormScreen(type: arguments['type'], agentName: arguments['agentName'], existingApplication: arguments['existingApplication'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: ClearanceFormScreen(type: arguments['type'], agentName: arguments['agentName'], existingApplication: arguments['existingApplication'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case verificationLoading:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => VerificationLoadingScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: VerificationLoadingScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case clearanceResult:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => ClearanceResultScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: ClearanceResultScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case submissionSent:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => SubmissionSentScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: SubmissionSentScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case submissionWaiting:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => SubmissionWaitingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: SubmissionWaitingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
 
       case adminHome:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => AdminHomeScreen(adminName: arguments['adminName'] ?? '', adminUsername: arguments['adminUsername'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: AdminHomeScreen(adminName: arguments['adminName'] ?? '', adminUsername: arguments['adminUsername'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case adminNotification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => OfficerNotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: OfficerNotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case editOfficerProfile:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => EditProfileScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: EditProfileScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case officerReport:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => OfficerReportScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: OfficerReportScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case accountVerificationList:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => AccountVerificationListScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: AccountVerificationListScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case accountDetail:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(
-          builder: (_) => AccountDetailScreen(
+        return FadeRoute(
+          page: AccountDetailScreen(
             uid: arguments['uid'] ?? '',
             initialLanguage: arguments['initialLanguage'] ?? 'EN',
           ),
         );
       case arrivalVerification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => ArrivalVerificationScreen(adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: ArrivalVerificationScreen(adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case departureVerification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => DepartureVerificationScreen(adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: DepartureVerificationScreen(adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case submissionDetail:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => SubmissionDetailScreen(application: arguments['application'], adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: SubmissionDetailScreen(application: arguments['application'], adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case emailConfig:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return MaterialPageRoute(builder: (_) => EmailConfigScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: EmailConfigScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
 
       default:
         // Halaman default jika rute tidak ditemukan
-        return MaterialPageRoute(
-          builder: (_) => Scaffold(
+        return FadeRoute(
+          page: Scaffold(
             body: Center(
               child: Text('Rute tidak ditemukan: ${settings.name}'),
             ),

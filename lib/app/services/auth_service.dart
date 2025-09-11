@@ -7,11 +7,14 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
 import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
+import 'package:m_clearance_imigrasi/app/services/cache_manager.dart';
+import 'package:m_clearance_imigrasi/app/services/network_utils.dart';
 
 class AuthService {
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  late final CacheManager _cacheManager;
 
   AuthService({
     FirebaseAuth? firebaseAuth,
@@ -19,7 +22,13 @@ class AuthService {
     FirebaseStorage? storage,
   })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+        _storage = storage ?? FirebaseStorage.instance {
+    _initializeCacheManager();
+  }
+
+  Future<void> _initializeCacheManager() async {
+    _cacheManager = await CacheManager.getInstance();
+  }
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
@@ -99,25 +108,54 @@ class AuthService {
 
   Future<UserModel?> getUserData(String uid) async {
     final startTime = DateTime.now();
-    try {
-      final serverStart = DateTime.now();
-      final DocumentSnapshot doc = await _firestore
-          .collection('users')
-          .doc(uid)
-          .get();
-      final serverTime = DateTime.now().difference(serverStart);
-      print('DEBUG: Server fetch took ${serverTime.inMilliseconds}ms');
 
-      if (!doc.exists || doc.data() == null) {
-        return null;
+    // Try to get from cache first
+    final cachedData = _cacheManager.getCachedUserData();
+    if (cachedData != null && cachedData['uid'] == uid) {
+      try {
+        final userModel = UserModel.fromJson(cachedData);
+        final cacheTime = DateTime.now().difference(startTime);
+        print('DEBUG: Cache hit - getUserData took ${cacheTime.inMilliseconds}ms');
+        return userModel;
+      } catch (e) {
+        print('DEBUG: Cache data corrupted, fetching from server');
+        await _cacheManager.clearUserDataCache();
       }
+    }
 
-      final userModel = UserModel.fromFirestore(doc);
+    // Fetch from server with retry logic
+    try {
+      final userModel = await NetworkUtils.executeWithRetry(
+        () async {
+          final serverStart = DateTime.now();
+          final DocumentSnapshot doc = await NetworkUtils.withTimeout(
+            _firestore.collection('users').doc(uid).get(),
+            const Duration(seconds: 10),
+          );
+          final serverTime = DateTime.now().difference(serverStart);
+          print('DEBUG: Server fetch took ${serverTime.inMilliseconds}ms');
+
+          if (!doc.exists || doc.data() == null) {
+            throw NetworkException('User document not found', isRetryable: false);
+          }
+
+          return UserModel.fromFirestore(doc);
+        },
+        shouldRetry: NetworkUtils.isRetryableError,
+      );
+
+      // Cache the result
+      await _cacheManager.cacheUserData(userModel.toJson());
+
       final totalTime = DateTime.now().difference(startTime);
-      print('DEBUG: getUserData took ${totalTime.inMilliseconds}ms');
+      print('DEBUG: getUserData took ${totalTime.inMilliseconds}ms (with caching)');
       return userModel;
     } catch (e) {
-      print('An unexpected error occurred: $e');
+      if (e is NetworkException) {
+        print('Network error in getUserData: ${e.message}');
+      } else {
+        print('An unexpected error occurred in getUserData: $e');
+      }
       return null;
     }
   }
@@ -141,16 +179,23 @@ class AuthService {
   /// Uploads a document to Firebase Storage.
   ///
   /// Uses file bytes for upload, handled uniformly across platforms by file_picker.
+  /// Generates unique filename using timestamp and UUID to prevent overwrites.
   Future<String?> uploadDocument(String uid, Uint8List fileBytes, String docName) async {
     try {
-      final ref = _storage.ref().child('users/$uid/documents/$docName');
+      // Generate unique filename to prevent overwrites
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileExtension = docName.split('.').last;
+      final baseName = docName.split('.').first;
+      final uniqueFileName = '${baseName}_${timestamp}_${uid.substring(0, 8)}.$fileExtension';
+
+      final ref = _storage.ref().child('users/$uid/documents/$uniqueFileName');
       await ref.putData(fileBytes);
 
       final String downloadUrl = await ref.getDownloadURL();
       await _firestore.collection('users').doc(uid).update({
         'documents': FieldValue.arrayUnion([
           {
-            'documentName': docName,
+            'documentName': docName, // Keep original name for display
             'storagePath': downloadUrl,
             'uploadedAt': Timestamp.now(),
           }
@@ -359,8 +404,22 @@ class AuthService {
       rethrow;
     }
   }
+
+ Future<void> updateUserEmail(String newEmail) async {
+   final user = _firebaseAuth.currentUser;
+   if (user != null && user.email != newEmail) {
+     await user.verifyBeforeUpdateEmail(newEmail);
+   }
+ }
  
   Future<void> signOut() async {
     await _firebaseAuth.signOut();
+    // Clear cache on sign out
+    await _cacheManager.clearUserDataCache();
+  }
+
+  /// Clear user data cache (useful when user data is updated)
+  Future<void> clearUserDataCache() async {
+    await _cacheManager.clearUserDataCache();
   }
 }
