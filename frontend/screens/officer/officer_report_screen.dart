@@ -162,7 +162,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
             type: _tr(report["typeKey"]!),
             date: report["date"]!,
             createdBy: report["createdBy"]!,
-          )).toList(),
+          )),
         ],
       ),
     );

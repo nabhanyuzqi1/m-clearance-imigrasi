@@ -243,7 +243,7 @@ void main() {
         };
 
         // Second call (already pending_approval), no additional docs or status change
-        final afterSecond = Map<String, dynamic>.from(afterFirst);
+        final _ = Map<String, dynamic>.from(afterFirst);
 
         // Sequence across two calls (each call does get() before and after update)
         // Return initial once, then always "afterFirst" for subsequent calls

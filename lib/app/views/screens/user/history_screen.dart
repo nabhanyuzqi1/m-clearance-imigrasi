@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element, unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'arrival_detail_screen.dart';
 import 'departure_detail_screen.dart';
@@ -13,10 +15,12 @@ enum HistoryFilter { all, arrival, departure }
 
 class UserHistoryScreen extends StatefulWidget {
   final UserAccount userAccount;
+  final String initialLanguage;
 
   const UserHistoryScreen({
     super.key,
     required this.userAccount,
+    required this.initialLanguage,
   });
 
   @override
@@ -32,6 +36,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         context: context,
         screenKey: 'userHistory',
         stringKey: key,
+        langCode: widget.initialLanguage,
       );
 
   @override
@@ -66,7 +71,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5, spreadRadius: 1)] : [],
+            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withValues(alpha:0.1), blurRadius: 5, spreadRadius: 1)] : [],
           ),
           child: Center(child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: Colors.black))),
         ),
@@ -84,8 +89,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         filteredList = applications.where((app) => app.type == ApplicationType.keberangkatan).toList();
         break;
       case HistoryFilter.all:
-      default:
-        filteredList = applications;
+      filteredList = applications;
     }
 
     if (_searchQuery.isNotEmpty) {
@@ -128,7 +132,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   Widget _buildStatusChip(ApplicationStatus status) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: _getStatusColor(status).withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: _getStatusColor(status).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -147,6 +151,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         MaterialPageRoute(
           builder: (context) => ArrivalDetailScreen(
             application: app,
+            initialLanguage: widget.initialLanguage,
           ),
         ),
       );
@@ -156,6 +161,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         MaterialPageRoute(
           builder: (context) => DepartureDetailScreen(
             application: app,
+            initialLanguage: widget.initialLanguage,
           ),
         ),
       );
@@ -186,14 +192,13 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   Widget _buildDialogActions(ClearanceApplication app) {
     switch (app.status) {
       case ApplicationStatus.revision:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceFormScreen(type: app.type, agentName: widget.userAccount.name, existingApplication: app))); }, child: Text(_tr('fix_button')));
+        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceFormScreen(type: app.type, agentName: widget.userAccount.name, existingApplication: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('fix_button')));
       case ApplicationStatus.declined:
         return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(context), child: Text(_tr('done_button')));
       case ApplicationStatus.approved:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceResultScreen(application: app))); }, child: Text(_tr('reports_button')));
+        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceResultScreen(application: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('reports_button')));
       case ApplicationStatus.waiting:
-      default:
-        return TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"));
+      return TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"));
     }
   }
 
@@ -267,7 +272,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                       children: [
                         Container(
                           padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(color: Colors.blue.withOpacity(0.05), shape: BoxShape.circle),
+                          decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.05), shape: BoxShape.circle),
                           child: Icon(Icons.image_outlined, size: 60, color: Colors.blue.shade200),
                         ),
                         const SizedBox(height: 24),

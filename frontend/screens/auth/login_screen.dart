@@ -295,9 +295,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildLanguageSwitcher() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withAlpha(230),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [ BoxShadow( color: Colors.black.withOpacity(0.1), blurRadius: 5) ],
+        boxShadow: [ BoxShadow( color: Colors.black.withAlpha(25), blurRadius: 5) ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

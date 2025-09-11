@@ -7,7 +7,6 @@ import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../services/auth_service.dart';
-import '../../../models/user_model.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../../providers/language_provider.dart';
@@ -65,24 +64,34 @@ class _LoginScreenState extends State<LoginScreen> {
           switch (userModel.status) {
             case 'approved':
               if (userModel.role == 'admin' || userModel.role == 'officer') {
-                Navigator.pushReplacementNamed(context, AppRoutes.adminHome, arguments: {
-                  'adminName': userModel.username,
-                  'adminUsername': userModel.email,
-                });
+                if (mounted) {
+                  Navigator.pushReplacementNamed(context, AppRoutes.adminHome, arguments: {
+                    'adminName': userModel.username,
+                    'adminUsername': userModel.email,
+                  });
+                }
               } else {
-                Navigator.pushReplacementNamed(context, AppRoutes.userHome);
+                if (mounted) {
+                  Navigator.pushReplacementNamed(context, AppRoutes.userHome);
+                }
               }
               break;
             case 'pending_email_verification':
-              Navigator.pushNamed(context, AppRoutes.confirmation, arguments: {
-                'userData': {'email': userModel.email},
-              });
+              if (mounted) {
+                Navigator.pushNamed(context, AppRoutes.confirmation, arguments: {
+                  'userData': {'email': userModel.email},
+                });
+              }
               break;
             case 'pending_documents':
-              Navigator.pushNamed(context, AppRoutes.uploadDocuments, arguments: {'uid': userModel.uid});
+              if (mounted) {
+                Navigator.pushNamed(context, AppRoutes.uploadDocuments, arguments: {'uid': userModel.uid});
+              }
               break;
             case 'pending_approval':
-              Navigator.pushNamed(context, AppRoutes.registrationPending);
+              if (mounted) {
+                Navigator.pushNamed(context, AppRoutes.registrationPending);
+              }
               break;
             case 'rejected':
               _showErrorSnackbar(
@@ -116,7 +125,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
     final responsivePadding = AppTheme.responsivePadding(context);
 
@@ -186,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           if (_isLoading)
             Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withAlpha(128),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

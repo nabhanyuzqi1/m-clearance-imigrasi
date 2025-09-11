@@ -3,7 +3,6 @@ import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:m_clearance_imigrasi/firebase_options.dart';
 import 'package:m_clearance_imigrasi/app/models/email_config.dart';
 import 'package:m_clearance_imigrasi/app/services/email_config_service.dart';
 

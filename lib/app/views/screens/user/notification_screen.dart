@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../../localization/app_strings.dart';
 import '../../../models/notification_item.dart';
 import '../../../services/notification_service.dart';
 
 class NotificationScreen extends StatefulWidget {
-  const NotificationScreen({super.key});
+  final String initialLanguage;
+  const NotificationScreen({super.key, required this.initialLanguage});
 
   @override
   State<NotificationScreen> createState() => _NotificationScreenState();
@@ -15,6 +17,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         context: context,
         screenKey: 'notifications',
         stringKey: key,
+        langCode: widget.initialLanguage,
       );
 
   String _formatDate(DateTime date) {
@@ -57,13 +60,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
       final success = await _notificationService.markAllAsRead();
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('All notifications marked as read')),
+          SnackBar(content: Text(_tr('mark_all_read_success'))),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to mark notifications as read')),
+          SnackBar(content: Text(_tr('mark_read_failed'))),
         );
       }
     }
@@ -74,13 +77,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
       final success = await _notificationService.markAsRead(notificationId);
       if (!success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to mark notification as read')),
+          SnackBar(content: Text(_tr('mark_single_read_failed'))),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to mark notification as read')),
+          SnackBar(content: Text(_tr('mark_single_read_failed'))),
         );
       }
     }
@@ -117,7 +120,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 children: [
                   const Icon(Icons.error, size: 64, color: Colors.red),
                   const SizedBox(height: 16),
-                  Text('Error loading notifications'),
+                  Text(_tr('load_error')),
                   Text(snapshot.error.toString()),
                 ],
               ),
@@ -134,7 +137,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: Colors.blue.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -186,7 +189,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   await _notificationService.deleteNotification(notification.id);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Notification deleted')),
+                      SnackBar(content: Text(_tr('delete_success'))),
                     );
                   }
                 },
@@ -212,7 +215,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: _getNotificationTypeColor(notification.type).withOpacity(0.1),
+                              color: _getNotificationTypeColor(notification.type).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
@@ -292,7 +295,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: _getNotificationTypeColor(notification.type).withOpacity(0.1),
+                                        color: _getNotificationTypeColor(notification.type).withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(

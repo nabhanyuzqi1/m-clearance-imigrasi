@@ -231,7 +231,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         if (documentType == 'Crew List') _crewListFile = fileName;
         if (documentType == 'Surat Pemberitahuan') _notificationLetterFile = fileName;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$documentType ${_tr('file_uploaded')}: ${pickedFile.name}'), backgroundColor: Colors.green));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$documentType ${_tr('file_uploaded')}: ${pickedFile.name}'), backgroundColor: Colors.green));
+      }
     }
   }
 
@@ -376,7 +378,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 Text(_tr('flag'), style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _selectedFlag,
+                  initialValue: _selectedFlag,
                   decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                   items: _countryFlags.map((String country) { return DropdownMenuItem<String>(value: country, child: Text(country)); }).toList(),
                   onChanged: (newValue) { setState(() { _selectedFlag = newValue; }); },
@@ -393,7 +395,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 Text(_tr('location'), style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _selectedLocation,
+                  initialValue: _selectedLocation,
                   decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                   items: _locations.map((String location) { return DropdownMenuItem<String>(value: location, child: Text(location)); }).toList(),
                   onChanged: (newValue) { setState(() { _selectedLocation = newValue; }); },
@@ -552,7 +554,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
             Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             const SizedBox(height: 16),
             isUploaded
-                ? Row(children: [const Icon(Icons.check_circle, color: Colors.green), const SizedBox(width: 8), Expanded(child: Text(fileName!, style: const TextStyle(color: Colors.green), overflow: TextOverflow.ellipsis)), IconButton(onPressed: onTap, icon: const Icon(Icons.edit, color: Colors.blueGrey))])
+                ? Row(children: [const Icon(Icons.check_circle, color: Colors.green), const SizedBox(width: 8), Expanded(child: Text(fileName, style: const TextStyle(color: Colors.green), overflow: TextOverflow.ellipsis)), IconButton(onPressed: onTap, icon: const Icon(Icons.edit, color: Colors.blueGrey))])
                 : OutlinedButton.icon(
                     onPressed: onTap, 
                     icon: const Icon(Icons.upload_file), 

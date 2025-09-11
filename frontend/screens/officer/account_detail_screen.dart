@@ -96,8 +96,8 @@ class AccountDetailScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                ElevatedButton.icon(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${tr('rejected_message')}"))); Navigator.pop(context, VerificationAction.rejected); }, icon: const Icon(Icons.close), label: Text(tr('reject')), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white)),
-                ElevatedButton.icon(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${tr('verified_message')}"))); Navigator.pop(context, VerificationAction.verified); }, icon: const Icon(Icons.check), label: Text(tr('verify_account')), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
+                ElevatedButton.icon(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('rejected_message')))); Navigator.pop(context, VerificationAction.rejected); }, icon: const Icon(Icons.close), label: Text(tr('reject')), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white)),
+                ElevatedButton.icon(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('verified_message')))); Navigator.pop(context, VerificationAction.verified); }, icon: const Icon(Icons.check), label: Text(tr('verify_account')), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
               ],
             ),
             const SizedBox(height: 20),

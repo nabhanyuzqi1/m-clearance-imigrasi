@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../localization/app_strings.dart';
 import '../../../services/auth_service.dart';
@@ -17,7 +16,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   late String _selectedLanguage;
   String _tr(String key) {
     return AppStrings.tr(
-        context: context,
+        context: context, // showDialog is async
         screenKey: 'forgotPassword',
         stringKey: key,
         langCode: _selectedLanguage);
@@ -41,7 +40,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       try {
         await _authService.sendPasswordResetEmail(_emailController.text);
         showDialog(
-          context: context,
+          context: context, // showDialog is async
           builder: (context) => AlertDialog(
             title: Text(_tr('success_dialog_title')),
             content:
@@ -58,11 +57,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
         );
       } on FirebaseAuthException catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(e.message ?? 'An error occurred'),
-              backgroundColor: Colors.red),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(e.message ?? _tr('error_occurred')),
+                backgroundColor: Colors.red),
+          );
+        }
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

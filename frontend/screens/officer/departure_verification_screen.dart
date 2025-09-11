@@ -3,7 +3,7 @@ import '../../models/clearance_application.dart';
 import '../../services/user_service.dart';
 import 'submission_detail_screen.dart';
 
-enum VerificationFilter { Reviewed, Waiting, All }
+enum VerificationFilter { reviewed, waiting, all }
 
 class DepartureVerificationScreen extends StatefulWidget {
   final String adminName;
@@ -19,7 +19,7 @@ class DepartureVerificationScreen extends StatefulWidget {
 }
 
 class _DepartureVerificationScreenState extends State<DepartureVerificationScreen> {
-  VerificationFilter _currentFilter = VerificationFilter.All;
+  VerificationFilter _currentFilter = VerificationFilter.all;
   late String _selectedLanguage;
 
   final Map<String, Map<String, String>> _translations = {
@@ -61,12 +61,11 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
     final departureList = UserService.agentHistory.where((app) => app.type == ApplicationType.keberangkatan).toList();
 
     switch (_currentFilter) {
-      case VerificationFilter.Waiting:
+      case VerificationFilter.waiting:
         return departureList.where((app) => app.status == ApplicationStatus.waiting).toList();
-      case VerificationFilter.Reviewed:
+      case VerificationFilter.reviewed:
         return departureList.where((app) => app.status != ApplicationStatus.waiting).toList();
-      case VerificationFilter.All:
-      default:
+      case VerificationFilter.all:
         return departureList;
     }
   }
@@ -99,9 +98,9 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildFilterButton(_tr('reviewed'), VerificationFilter.Reviewed),
-                  _buildFilterButton(_tr('waiting'), VerificationFilter.Waiting),
-                  _buildFilterButton(_tr('all'), VerificationFilter.All),
+                  _buildFilterButton(_tr('reviewed'), VerificationFilter.reviewed),
+                  _buildFilterButton(_tr('waiting'), VerificationFilter.waiting),
+                  _buildFilterButton(_tr('all'), VerificationFilter.all),
                 ],
               ),
             ),
@@ -136,7 +135,7 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5, spreadRadius: 1)] : [],
+            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 5, spreadRadius: 1)] : [],
           ),
           child: Center(
             child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: Colors.black)),
@@ -202,7 +201,6 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
         color = Colors.orange;
         break;
       case ApplicationStatus.waiting:
-      default:
         text = _tr('review_submission');
         color = Colors.blue;
         isWaiting = true;
@@ -217,7 +215,7 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
           setState(() {});
         },
         style: ElevatedButton.styleFrom(
-          backgroundColor: isWaiting ? color : color.withOpacity(0.1),
+          backgroundColor: isWaiting ? color : color.withAlpha(25),
           foregroundColor: isWaiting ? Colors.white : color,
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

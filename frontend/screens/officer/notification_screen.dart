@@ -143,7 +143,7 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: notification.color.withOpacity(0.1),
+          backgroundColor: notification.color.withAlpha(25),
           child: Icon(notification.icon, color: notification.color),
         ),
         title: Text(
@@ -168,7 +168,7 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.grey.shade200.withOpacity(0.5),
+              color: Colors.grey.shade200.withAlpha(128),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.notifications_off_outlined, size: 60, color: Colors.grey.shade400),

@@ -17,7 +17,7 @@ class AdminHomeScreen extends StatefulWidget {
   final String adminName;
   final String adminUsername;
   
-  AdminHomeScreen({super.key, required this.adminName, required this.adminUsername});
+  const AdminHomeScreen({super.key, required this.adminName, required this.adminUsername});
   
   @override
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
@@ -145,7 +145,7 @@ class AdminMenuScreen extends StatelessWidget {
     );
   }
   
-  Widget _buildServiceCard(BuildContext context, {required String title, required String subtitle, required IconData iconData, required Color color, required bool isPrimary, required VoidCallback onTap}) { return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: isPrimary ? color : Colors.white, borderRadius: BorderRadius.circular(16), border: isPrimary ? null : Border.all(color: Colors.grey.shade300), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isPrimary ? Colors.white : color)), const SizedBox(height: 4), Text(subtitle, style: TextStyle(fontSize: 16, color: isPrimary ? Colors.white70 : Colors.grey))]), Icon(iconData, size: 32, color: isPrimary ? Colors.white : color)]))); }
+  Widget _buildServiceCard(BuildContext context, {required String title, required String subtitle, required IconData iconData, required Color color, required bool isPrimary, required VoidCallback onTap}) { return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: isPrimary ? color : Colors.white, borderRadius: BorderRadius.circular(16), border: isPrimary ? null : Border.all(color: Colors.grey.shade300), boxShadow: [BoxShadow(color: Colors.grey.withAlpha(25), blurRadius: 10, offset: const Offset(0, 5))]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isPrimary ? Colors.white : color)), const SizedBox(height: 4), Text(subtitle, style: TextStyle(fontSize: 16, color: isPrimary ? Colors.white70 : Colors.grey))]), Icon(iconData, size: 32, color: isPrimary ? Colors.white : color)]))); }
 }
 
 class ProfileScreen extends StatefulWidget {
@@ -154,8 +154,8 @@ class ProfileScreen extends StatefulWidget {
   final String selectedLanguage;
   final Function(String) onLanguageChange;
 
-  ProfileScreen({
-    super.key, 
+  const ProfileScreen({
+    super.key,
     required this.adminName,
     required this.adminUsername,
     required this.selectedLanguage,
@@ -316,7 +316,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return OutlinedButton(
       onPressed: () => widget.onLanguageChange(code),
       style: OutlinedButton.styleFrom(
-        backgroundColor: isSelected ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+        backgroundColor: isSelected ? Colors.blue.withAlpha(25) : Colors.transparent,
         side: BorderSide(color: isSelected ? Colors.blue : Colors.grey.shade300, width: 1.5),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),

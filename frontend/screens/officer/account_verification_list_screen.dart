@@ -3,7 +3,7 @@ import '../../models/user_account.dart';
 import '../../services/user_service.dart';
 import 'account_detail_screen.dart';
 
-enum AccountFilter { Reviewed, Waiting, All }
+enum AccountFilter { reviewed, waiting, all }
 
 class AccountVerificationListScreen extends StatefulWidget {
   final String initialLanguage;
@@ -13,7 +13,7 @@ class AccountVerificationListScreen extends StatefulWidget {
 }
 
 class _AccountVerificationListScreenState extends State<AccountVerificationListScreen> {
-  AccountFilter _currentFilter = AccountFilter.All;
+  AccountFilter _currentFilter = AccountFilter.all;
   late String _selectedLanguage;
 
   final Map<String, Map<String, String>> _translations = {
@@ -51,12 +51,11 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
 
   List<UserAccount> _getFilteredList() {
     switch (_currentFilter) {
-      case AccountFilter.Waiting:
+      case AccountFilter.waiting:
         return UserService.agentAccounts.where((user) => user.status == AccountStatus.pending).toList();
-      case AccountFilter.Reviewed:
+      case AccountFilter.reviewed:
         return UserService.agentAccounts.where((user) => user.status != AccountStatus.pending).toList();
-      case AccountFilter.All:
-      default:
+      case AccountFilter.all:
         return UserService.agentAccounts;
     }
   }
@@ -101,9 +100,9 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildFilterButton(_tr('reviewed'), AccountFilter.Reviewed),
-                  _buildFilterButton(_tr('waiting'), AccountFilter.Waiting),
-                  _buildFilterButton(_tr('all'), AccountFilter.All),
+                  _buildFilterButton(_tr('reviewed'), AccountFilter.reviewed),
+                  _buildFilterButton(_tr('waiting'), AccountFilter.waiting),
+                  _buildFilterButton(_tr('all'), AccountFilter.all),
                 ],
               ),
             ),
@@ -138,7 +137,7 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5, spreadRadius: 1)] : [],
+            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 5, spreadRadius: 1)] : [],
           ),
           child: Center(
             child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: Colors.black)),
@@ -200,7 +199,6 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
         color = Colors.red;
         break;
       case AccountStatus.pending:
-      default:
         text = _tr('review_submission');
         color = Colors.blue;
         isWaiting = true;
@@ -212,9 +210,9 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
       child: ElevatedButton.icon(
         onPressed: user.status == AccountStatus.pending ? () => _navigateToDetail(user) : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: isWaiting ? color : color.withOpacity(0.1),
+          backgroundColor: isWaiting ? color : color.withAlpha(25),
           foregroundColor: isWaiting ? Colors.white : color,
-          disabledBackgroundColor: color.withOpacity(0.1),
+          disabledBackgroundColor: color.withAlpha(25),
           disabledForegroundColor: color,
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

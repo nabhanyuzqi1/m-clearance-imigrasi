@@ -183,9 +183,11 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
             _nibFile = bytes;
             _nibFileName = name;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
+            );
+          }
         }
       } else {
         // File picker
@@ -196,17 +198,21 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           withData: true,
         );
         if (result == null || result.files.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+            );
+          }
           return;
         }
 
         final picked = result.files.single;
         if (picked.bytes == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+            );
+          }
           return;
         }
 
@@ -215,14 +221,18 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           _nibFile = picked.bytes;
           _nibFileName = name;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
+          );
+        }
       }
     } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -246,9 +256,11 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
             _ktpFile = bytes;
             _ktpFileName = name;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
+            );
+          }
         }
       } else {
         // File picker
@@ -259,17 +271,21 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           withData: true,
         );
         if (result == null || result.files.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+            );
+          }
           return;
         }
 
         final picked = result.files.single;
         if (picked.bytes == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+            );
+          }
           return;
         }
 
@@ -278,14 +294,18 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           _ktpFile = picked.bytes;
           _ktpFileName = name;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
+          );
+        }
       }
     } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -416,7 +436,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+      }
       setState(() {
         _isUploading = false;
       });
@@ -448,9 +470,11 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
 
       if (uploadedPaths.isNotEmpty) {
         if (uploadedPaths.length < 2) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('partial_upload_success')), backgroundColor: Colors.orange),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(_tr('partial_upload_success')), backgroundColor: Colors.orange),
+            );
+          }
         }
         setState(() {
           _isMarking = true;
@@ -460,32 +484,43 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           storagePathsOrRefs: uploadedPaths,
         );
 
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
           Navigator.pushReplacementNamed(context, AppRoutes.registrationPending,
               arguments: {'initialLanguage': _selectedLanguage});
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('no_docs_uploaded'))),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('no_docs_uploaded'))),
+          );
+        }
       }
     } on StateError catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
       _routeForErrorMessage(e.message);
     } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('failed_upload'))),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('failed_upload'))),
+        );
+      }
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isUploading = false;
-        _isMarking = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _isMarking = false;
+        });
+      }
     }
   }
 
@@ -587,7 +622,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    fileName!,
+                    fileName,
                     style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),

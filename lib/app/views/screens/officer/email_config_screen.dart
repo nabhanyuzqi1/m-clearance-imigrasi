@@ -71,9 +71,11 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
       print('[EmailConfigScreen] Successfully loaded config: ${_emailConfig?.smtpHost}');
     } catch (e) {
       print('[EmailConfigScreen] Error loading config: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading config: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading config: $e')),
+        );
+      }
     } finally {
       setState(() => _isLoading = false);
     }
@@ -134,17 +136,21 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
       if (success) {
         setState(() => _emailConfig = updatedConfig);
         print('[EmailConfigScreen] Successfully saved config');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('emailConfig', 'config_saved'))),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_tr('emailConfig', 'config_saved'))),
+          );
+        }
       } else {
         throw Exception('Failed to save configuration');
       }
     } catch (e) {
       print('[EmailConfigScreen] Error saving config: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving config: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving config: $e')),
+        );
+      }
     } finally {
       setState(() => _isSaving = false);
     }
@@ -262,7 +268,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: Colors.blue,
+            activeTrackColor: Colors.blue,
           ),
         ],
       ),

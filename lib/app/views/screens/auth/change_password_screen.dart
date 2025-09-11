@@ -6,7 +6,8 @@ import '../../../localization/app_strings.dart';
 /// Layar yang memungkinkan pengguna yang sudah login untuk mengubah password mereka.
 /// Memerlukan input password saat ini dan password baru beserta konfirmasinya.
 class ChangePasswordScreen extends StatefulWidget {
-  const ChangePasswordScreen({super.key});
+  final String initialLanguage;
+  const ChangePasswordScreen({super.key, required this.initialLanguage});
 
   @override
   State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
@@ -24,7 +25,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   // Helper untuk mendapatkan string terjemahan
   String _tr(String key) => AppStrings.tr(
-      context: context, screenKey: 'changePassword', stringKey: key);
+        context: context,
+        screenKey: 'changePassword',
+        stringKey: key,
+        langCode: widget.initialLanguage,
+      );
 
   @override
   void dispose() {

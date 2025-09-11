@@ -235,7 +235,7 @@ class AdminMenuScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: isPrimary ? null : Border.all(color: AppTheme.greyShade300),
           boxShadow: [
-            BoxShadow(color: AppTheme.greyColor.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
+            BoxShadow(color: AppTheme.greyColor.withAlpha(25), blurRadius: 10, offset: const Offset(0, 5)),
           ],
         ),
         child: Row(

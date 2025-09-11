@@ -39,7 +39,7 @@ class AccountVerificationListScreen extends StatelessWidget {
           }
           return ListView.separated(
             itemCount: users.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, index) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final u = users[index];
               return ListTile(

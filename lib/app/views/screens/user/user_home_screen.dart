@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+ import 'package:flutter/material.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/clearance_application.dart';
 import '../../../models/user_account.dart';
@@ -15,11 +15,12 @@ import '../auth/change_password_screen.dart';
 import 'clearance_form_screen.dart';
 import 'notification_screen.dart';
 import 'history_screen.dart';
-import 'notification_settings_screen.dart';
 import 'language_selection_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
-  const UserHomeScreen({super.key});
+  final String initialLanguage;
+
+  const UserHomeScreen({super.key, required this.initialLanguage});
 
   @override
   State<UserHomeScreen> createState() => _UserHomeScreenState();
@@ -71,8 +72,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   void _showLogoutDialog(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final horizontalPadding = screenWidth * 0.08;
-    final verticalPadding = screenWidth * 0.03;
     final fontSize = screenWidth * 0.04;
 
     showDialog(
@@ -86,6 +85,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               context: context,
               screenKey: 'userProfile',
               stringKey: 'logout_confirm_title',
+              langCode: widget.initialLanguage,
             ),
             style: TextStyle(
                 fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045),
@@ -95,6 +95,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               context: context,
               screenKey: 'userProfile',
               stringKey: 'logout_confirm_body',
+              langCode: widget.initialLanguage,
             ),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: fontSize),
@@ -106,6 +107,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 context: context,
                 screenKey: 'userProfile',
                 stringKey: 'cancel',
+                langCode: widget.initialLanguage,
               ),
               type: CustomButtonType.outlined,
               borderColor: Colors.red.shade200,
@@ -118,6 +120,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 context: context,
                 screenKey: 'userProfile',
                 stringKey: 'logout',
+                langCode: widget.initialLanguage,
               ),
               type: CustomButtonType.elevated,
               backgroundColor: Colors.red.shade400,
@@ -150,6 +153,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   context: context,
                   screenKey: 'userHome',
                   stringKey: 'loading_user',
+                  langCode: widget.initialLanguage,
                 ),
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
@@ -166,12 +170,15 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     final List<Widget> pages = <Widget>[
       UserMenuScreen(
         userAccount: currentUser!,
+        initialLanguage: widget.initialLanguage,
       ),
       UserHistoryScreen(
         userAccount: currentUser!,
+        initialLanguage: widget.initialLanguage,
       ),
       UserProfileScreen(
         userAccount: currentUser!,
+        initialLanguage: widget.initialLanguage,
         onRefresh: _refresh,
         onLogout: () => _showLogoutDialog(context),
       ),
@@ -202,15 +209,17 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 class UserMenuScreen extends StatelessWidget {
   final UserAccount userAccount;
 
+  final String initialLanguage;
+
   const UserMenuScreen({
     super.key,
     required this.userAccount,
+    required this.initialLanguage,
   });
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final horizontalPadding = screenWidth * 0.04;
     final verticalSpacing = screenWidth * 0.03;
 
@@ -218,6 +227,7 @@ class UserMenuScreen extends StatelessWidget {
           context: context,
           screenKey: 'userHome',
           stringKey: key,
+          langCode: initialLanguage,
         );
 
     return StreamBuilder<int>(
@@ -236,7 +246,9 @@ class UserMenuScreen extends StatelessWidget {
                   Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const NotificationScreen()));
+                          builder: (context) => NotificationScreen(
+                                initialLanguage: initialLanguage,
+                              )));
                 },
               ),
               SizedBox(width: screenWidth * 0.02),
@@ -291,8 +303,9 @@ class UserMenuScreen extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) => ClearanceFormScreen(
-                            type: ApplicationType.kedatangan,
-                            agentName: userAccount.name),
+                              type: ApplicationType.kedatangan,
+                              agentName: userAccount.name,
+                              initialLanguage: initialLanguage),
                         ),
                       );
                     },
@@ -310,8 +323,9 @@ class UserMenuScreen extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) => ClearanceFormScreen(
-                            type: ApplicationType.keberangkatan,
-                            agentName: userAccount.name),
+                              type: ApplicationType.keberangkatan,
+                              agentName: userAccount.name,
+                              initialLanguage: initialLanguage),
                         ),
                       );
                     },
@@ -407,7 +421,7 @@ class UserMenuScreen extends StatelessWidget {
           border: isPrimary ? null : Border.all(color: Colors.grey.shade300),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 5)
             )
@@ -470,7 +484,7 @@ class UserMenuScreen extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.05),
+            color: Colors.grey.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -507,11 +521,14 @@ class UserProfileScreen extends StatelessWidget {
   final VoidCallback onRefresh;
   final VoidCallback onLogout;
 
+  final String initialLanguage;
+
   const UserProfileScreen({
     super.key,
     required this.userAccount,
     required this.onRefresh,
     required this.onLogout,
+    required this.initialLanguage,
   });
 
   String _tr(BuildContext context, String screenKey, String stringKey) =>
@@ -519,6 +536,7 @@ class UserProfileScreen extends StatelessWidget {
         context: context,
         screenKey: screenKey,
         stringKey: stringKey,
+        langCode: initialLanguage,
       );
 
   @override
@@ -636,7 +654,9 @@ class UserProfileScreen extends StatelessWidget {
                 Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => const ChangePasswordScreen()));
+                        builder: (context) => ChangePasswordScreen(
+                              initialLanguage: initialLanguage,
+                            )));
               },
             ),
 

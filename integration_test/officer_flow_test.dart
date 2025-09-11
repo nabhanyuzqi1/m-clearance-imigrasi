@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -7,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:m_clearance_imigrasi/firebase_options.dart';
-import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/views/screens/auth/login_screen.dart';
 import 'package:m_clearance_imigrasi/app/views/screens/officer/admin_home_screen.dart';
 import 'package:m_clearance_imigrasi/main.dart' as app;

@@ -158,7 +158,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                 height: 60,
                 margin: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
-                  color: hasChar ? Colors.blue.withOpacity(0.05) : Colors.white,
+                  color: hasChar ? Colors.blue.withAlpha(12) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: isFocused ? Colors.blue : Colors.grey.shade300, width: 2),
                 ),

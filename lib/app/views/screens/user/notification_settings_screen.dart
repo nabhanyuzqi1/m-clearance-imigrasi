@@ -3,7 +3,9 @@ import '../../../localization/app_strings.dart';
 import '../../widgets/custom_app_bar.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
-  const NotificationSettingsScreen({super.key});
+  final String initialLanguage;
+
+  const NotificationSettingsScreen({super.key, required this.initialLanguage});
 
   @override
   State<NotificationSettingsScreen> createState() =>
@@ -19,6 +21,7 @@ class _NotificationSettingsScreenState
         context: context,
         screenKey: screenKey,
         stringKey: stringKey,
+        langCode: widget.initialLanguage,
       );
 
   @override

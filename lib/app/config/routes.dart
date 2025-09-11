@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:m_clearance_imigrasi/app/config/fade_route.dart';
-import '../models/clearance_application.dart';
 import '../views/screens/auth/change_password_screen.dart';
 import '../views/screens/auth/confirmation_screen.dart';
 import '../views/screens/auth/forgot_password_screen.dart';
@@ -103,7 +102,8 @@ class AppRoutes {
         return FadeRoute(page: ConfirmationScreen(userData: (arguments['userData'] as Map<String, String>?) ?? const {}, initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       
       case userHome:
-        return FadeRoute(page: const UserHomeScreen());
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return FadeRoute(page: UserHomeScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case userNotification:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: user_notif.NotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));

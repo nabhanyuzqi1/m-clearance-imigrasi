@@ -2,8 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../../localization/app_strings.dart';
-import '../../../models/user_account.dart';
 import '../../../services/user_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../config/routes.dart';

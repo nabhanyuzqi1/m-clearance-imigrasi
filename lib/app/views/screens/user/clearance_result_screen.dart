@@ -4,9 +4,11 @@ import '../../../models/clearance_application.dart';
 
 class ClearanceResultScreen extends StatelessWidget {
   final ClearanceApplication application;
+  final String initialLanguage;
   const ClearanceResultScreen({
     super.key,
     required this.application,
+    required this.initialLanguage,
   });
 
   @override
@@ -15,6 +17,7 @@ class ClearanceResultScreen extends StatelessWidget {
           context: context,
           screenKey: 'clearanceResult',
           stringKey: key,
+          langCode: initialLanguage,
         );
 
     return Scaffold(
@@ -37,7 +40,7 @@ class ClearanceResultScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: Colors.green.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -178,7 +181,8 @@ class ClearanceResultScreen extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: () {
                         // Navigate back to form for editing
-                        Navigator.of(context).pop();
+                        Navigator.of(context).pop(); // This should pop the result screen
+                        Navigator.of(context).pop(); // This should pop the form screen
                       },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),

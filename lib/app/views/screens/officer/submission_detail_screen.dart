@@ -41,9 +41,7 @@ class SubmissionDetailScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: appId == null
-                        ? null
-                        : () async {
+                    onPressed: () async {
                             await repo.officerDecide(appId: appId, decision: 'declined', note: 'Rejected by $adminName', officerName: adminName);
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Declined')));
@@ -60,9 +58,7 @@ class SubmissionDetailScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: appId == null
-                        ? null
-                        : () async {
+                    onPressed: () async {
                             await repo.officerDecide(appId: appId, decision: 'revision', note: 'Needs fixing', officerName: adminName);
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Revision requested')));
@@ -79,9 +75,7 @@ class SubmissionDetailScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: appId == null
-                        ? null
-                        : () async {
+                    onPressed: () async {
                             await repo.officerDecide(appId: appId, decision: 'approved', officerName: adminName);
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Approved')));

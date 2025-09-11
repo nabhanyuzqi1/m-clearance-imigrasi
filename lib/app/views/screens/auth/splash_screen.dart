@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:m_clearance_imigrasi/app/views/widgets/bouncing_dots_loader.dart';
 import '../../../config/routes.dart';
+import '../../../localization/app_strings.dart';
+import '../../../providers/language_provider.dart';
 
 /// SplashScreen
 ///
@@ -16,6 +19,11 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  String _tr(String key) {
+    final langCode = Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
+    return AppStrings.tr(context: context, screenKey: 'splash', stringKey: key, langCode: langCode.toUpperCase());
+  }
+
   @override
   void initState() {
     super.initState();
@@ -53,8 +61,8 @@ class _SplashScreenState extends State<SplashScreen> {
                   const Icon(Icons.directions_boat, size: 150, color: Colors.blue),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'M-Clearance ISam',
+            Text(
+              _tr('app_name'),
               style: TextStyle(
                 color: Colors.black87,
                 fontSize: 28,

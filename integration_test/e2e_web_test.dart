@@ -22,7 +22,7 @@ import 'package:m_clearance_imigrasi/main.dart' as app;
 import 'auth_flow_test.dart' as authflow;
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   // Web tends to need more time for network/service worker/auth restoration.
   // Keep frame policy default; we only increase settle durations.
 

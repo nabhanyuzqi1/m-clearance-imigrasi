@@ -83,14 +83,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
         iconData = Icons.info_outline;
         iconColor = Colors.blue;
         break;
-      default:
+        // ignore: dead_code
         iconData = Icons.notifications_none;
         iconColor = Colors.grey;
     }
 
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: iconColor.withOpacity(0.1),
+        backgroundColor: iconColor.withAlpha(25),
         child: Icon(iconData, color: iconColor),
       ),
       title: Text(
@@ -114,7 +114,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.grey.shade200.withOpacity(0.5),
+              color: Colors.grey.shade200.withAlpha(128),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.notifications_off_outlined, size: 60, color: Colors.grey.shade400),

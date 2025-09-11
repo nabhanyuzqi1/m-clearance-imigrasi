@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,11 +20,13 @@ class ClearanceFormScreen extends StatefulWidget {
   final String agentName;
   final ClearanceApplication? existingApplication;
 
+  final String initialLanguage;
   const ClearanceFormScreen({
     super.key,
     required this.type,
     required this.agentName,
     this.existingApplication,
+    required this.initialLanguage,
   });
 
   @override
@@ -76,6 +77,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         context: context,
         screenKey: 'clearanceForm',
         stringKey: key,
+        langCode: widget.initialLanguage,
       );
 
   void _cacheTranslations() {
@@ -113,7 +115,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     } else {
       _agentNameController.text = widget.agentName;
       _selectedLocation = _locations.first;
-      _selectedFlag = "Indonesia";
+      _selectedFlag = _tr('indonesia');
       _dateController.text = DateFormat('dd MMMM yyyy').format(DateTime.now());
     }
   }
@@ -246,13 +248,13 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           );
           return downloadUrl;
         } else {
-          throw NetworkException('Upload failed with state: ${snapshot.state}', isRetryable: true);
+          throw NetworkException(_tr('upload_failed'), isRetryable: true);
         }
       },
       shouldRetry: NetworkUtils.isRetryableError,
     ).catchError((e) {
-      print('Error uploading document after retries: $e');
-      return null;
+      print(_tr('upload_error'));
+      return '';
     });
   }
 
@@ -308,22 +310,22 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       final bytes = await minifiedFile.readAsBytes();
       setState(() {
         final fileName = pickedFile.name;
-        if (documentType == 'Port Clearance') {
+        if (documentType == _tr('port_clearance')) {
           _portClearanceFileData = bytes;
           _portClearanceFileName = fileName;
         }
-        if (documentType == 'Crew List') {
+        if (documentType == _tr('crew_list')) {
           _crewListFileData = bytes;
           _crewListFileName = fileName;
         }
-        if (documentType == 'Notification Letter') {
+        if (documentType == _tr('notification_letter')) {
           _notificationLetterFileData = bytes;
           _notificationLetterFileName = fileName;
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('$documentType uploaded successfully: ${pickedFile.name}'),
+          content: Text('${_tr('upload_success')}: ${pickedFile.name}'),
           backgroundColor: Colors.green,
         ),
       );
@@ -355,21 +357,21 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
       final name = picked.name.isNotEmpty ? picked.name : 'document.pdf';
       setState(() {
-        if (documentType == 'Port Clearance') {
+        if (documentType == _tr('port_clearance')) {
           _portClearanceFileData = picked.bytes;
           _portClearanceFileName = name;
         }
-        if (documentType == 'Crew List') {
+        if (documentType == _tr('crew_list')) {
           _crewListFileData = picked.bytes;
           _crewListFileName = name;
         }
-        if (documentType == 'Notification Letter') {
+        if (documentType == _tr('notification_letter')) {
           _notificationLetterFileData = picked.bytes;
           _notificationLetterFileName = name;
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$documentType uploaded successfully: $name'), backgroundColor: Colors.green),
+        SnackBar(content: Text('${_tr('upload_success')}: $name'), backgroundColor: Colors.green),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -438,7 +440,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception('No authenticated user found');
+        throw Exception(_tr('auth_error'));
       }
 
       // Upload files to Firebase Storage in parallel
@@ -464,7 +466,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       }
 
       final uploadResults = await Future.wait(uploadTasks);
-      final portClearanceUrl = uploadTasks.length > 0 ? uploadResults[0] : null;
+      final portClearanceUrl = uploadTasks.isNotEmpty ? uploadResults[0] : null;
       final crewListUrl = uploadTasks.length > 1 ? uploadResults[1] : null;
       final notificationLetterUrl = uploadTasks.length > 2 ? uploadResults[2] : null;
 
@@ -473,7 +475,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       final application = ClearanceApplication(
         id: widget.existingApplication?.id ?? '',
         shipName: _shipNameController.text.trim(),
-        flag: _selectedFlag ?? "Indonesia",
+        flag: _selectedFlag ?? _tr('indonesia'),
         agentName: _agentNameController.text,
         agentUid: '', // Will be set by the service
         type: widget.type,
@@ -517,18 +519,19 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           MaterialPageRoute(
             builder: (context) => ClearanceResultScreen(
               application: application.copyWith(id: applicationId!),
+              initialLanguage: widget.initialLanguage,
             ),
           ),
         );
       } else {
         print('DEBUG: Application submission failed - no ID returned');
-        throw Exception('Failed to submit application');
+        throw Exception(_tr('submit_error'));
       }
     } catch (e) {
       print('DEBUG: Error in _performSubmission: $e');
       print('DEBUG: Error type: ${e.runtimeType}');
       if (e is FirebaseException) {
-        final firebaseError = e as FirebaseException;
+        final firebaseError = e;
         print('DEBUG: Firebase error code: ${firebaseError.code}');
         print('DEBUG: Firebase error message: ${firebaseError.message}');
       }
@@ -585,9 +588,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   }
 
   Widget _buildStepper() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 600; // Consider screens smaller than 600px as small
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -697,7 +697,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               ],
             ),
           ),
-          _buildTextField(label: portLabel, controller: _portController, hint: "Tanjung Priok", key: const ValueKey('port_field')),
+          _buildTextField(label: portLabel, controller: _portController, hint: _tr('tanjung_priok'), key: const ValueKey('port_field')),
           _buildTextField(label: dateLabel, controller: _dateController, hint: _selectDateHint, isReadOnly: true, isDate: true, key: const ValueKey('date_field')),
           Row(
             key: const ValueKey('crew_row'),
@@ -733,11 +733,11 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       children: [
         Text(_uploadInstruction, style: TextStyle(color: Colors.grey, fontSize: screenWidth * 0.035)),
         SizedBox(height: verticalSpacing),
-        _buildUploadCard(title: _tr('port_clearance'), subtitle: _tr('port_clearance_subtitle'), fileName: _portClearanceFileName, onTap: () => _showImageSourceActionSheet('Port Clearance'), key: const ValueKey('port_clearance_card')),
+        _buildUploadCard(title: _tr('port_clearance'), subtitle: _tr('port_clearance_subtitle'), fileName: _portClearanceFileName, onTap: () => _showImageSourceActionSheet(_tr('port_clearance')), key: const ValueKey('port_clearance_card')),
         SizedBox(height: verticalSpacing),
-        _buildUploadCard(title: _tr('crew_list'), subtitle: _tr('crew_list_subtitle'), fileName: _crewListFileName, onTap: () => _showImageSourceActionSheet('Crew List'), key: const ValueKey('crew_list_card')),
+        _buildUploadCard(title: _tr('crew_list'), subtitle: _tr('crew_list_subtitle'), fileName: _crewListFileName, onTap: () => _showImageSourceActionSheet(_tr('crew_list')), key: const ValueKey('crew_list_card')),
         SizedBox(height: verticalSpacing),
-        _buildUploadCard(title: _tr('notification_letter'), subtitle: _tr('notification_letter_subtitle'), fileName: _notificationLetterFileName, onTap: () => _showImageSourceActionSheet('Notification Letter'), key: const ValueKey('notification_letter_card')),
+        _buildUploadCard(title: _tr('notification_letter'), subtitle: _tr('notification_letter_subtitle'), fileName: _notificationLetterFileName, onTap: () => _showImageSourceActionSheet(_tr('notification_letter')), key: const ValueKey('notification_letter_card')),
         SizedBox(height: verticalSpacing),
         Row(
           children: [
@@ -799,9 +799,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                         Divider(height: verticalSpacing * 2),
                         _buildDetailRow(_tr('ship_name'), _shipNameController.text),
                         _buildDetailRow(_tr('flag'), _selectedFlag ?? '-'),
-                        _buildDetailRow(_tr('crew_count'), "WNI: ${_wniCrewController.text}, WNA: ${_wnaCrewController.text}"),
+                        _buildDetailRow(_tr('crew_count'), "${_tr('wni_label')}: ${_wniCrewController.text}, ${_tr('wna_label')}: ${_wnaCrewController.text}"),
                         _buildDetailRow(_tr('location'), _selectedLocation ?? '-'),
-                        _buildDetailRow("Date", _dateController.text),
+                        _buildDetailRow(_tr('date_label'), _dateController.text),
                       ],
                     ),
                   ),
@@ -942,7 +942,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     children: [
                       const Icon(Icons.check_circle, color: Colors.green),
                       SizedBox(width: screenWidth * 0.02),
-                      Expanded(child: Text(fileName!, style: TextStyle(color: Colors.green, fontSize: screenWidth * 0.035), overflow: TextOverflow.ellipsis)),
+                      Expanded(child: Text(fileName, style: TextStyle(color: Colors.green, fontSize: screenWidth * 0.035), overflow: TextOverflow.ellipsis)),
                       IconButton(
                         onPressed: () {
                           Uint8List? fileData;
@@ -958,7 +958,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => DocumentViewScreen(
-                                  fileData: fileData!,
+                                  fileData: fileData as Uint8List,
                                   fileName: fileName,
                                 ),
                               ),
@@ -998,7 +998,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(flex: 2, child: Text(label, style: TextStyle(color: Colors.grey, fontSize: screenWidth * 0.035))),
-          Text(" : ", style: TextStyle(fontSize: screenWidth * 0.035)),
+          Text(_tr('separator'), style: TextStyle(fontSize: screenWidth * 0.035)),
           Expanded(flex: 3, child: Text(value, style: TextStyle(fontWeight: FontWeight.bold, height: 1.4, fontSize: screenWidth * 0.035))),
         ],
       ),

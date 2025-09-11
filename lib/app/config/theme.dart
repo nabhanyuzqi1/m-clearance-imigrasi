@@ -163,12 +163,10 @@ class AppTheme {
         secondary: secondaryColor,
         secondaryContainer: secondaryVariant,
         surface: surfaceColor,
-        background: backgroundColor,
         error: errorColor,
         onPrimary: onPrimary,
         onSecondary: onSecondary,
         onSurface: onSurface,
-        onBackground: onBackground,
         onError: Colors.white,
       ),
 

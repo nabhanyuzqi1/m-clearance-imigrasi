@@ -203,7 +203,7 @@ class AgentMenuScreen extends StatelessWidget {
       ),
     );
   }
-  Widget _buildServiceCard(BuildContext context, {required String title, required String subtitle, required IconData iconData, required Color color, required bool isPrimary, required VoidCallback onTap}) { return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: isPrimary ? color : Colors.white, borderRadius: BorderRadius.circular(16), border: isPrimary ? null : Border.all(color: Colors.grey.shade300), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isPrimary ? Colors.white : color)), const SizedBox(height: 4), Text(subtitle, style: TextStyle(fontSize: 16, color: isPrimary ? Colors.white70 : Colors.grey))]), Icon(iconData, size: 32, color: isPrimary ? Colors.white : color)]))); }
+  Widget _buildServiceCard(BuildContext context, {required String title, required String subtitle, required IconData iconData, required Color color, required bool isPrimary, required VoidCallback onTap}) { return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: isPrimary ? color : Colors.white, borderRadius: BorderRadius.circular(16), border: isPrimary ? null : Border.all(color: Colors.grey.shade300), boxShadow: [BoxShadow(color: Colors.grey.withAlpha(25), blurRadius: 10, offset: const Offset(0, 5))]), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isPrimary ? Colors.white : color)), const SizedBox(height: 4), Text(subtitle, style: TextStyle(fontSize: 16, color: isPrimary ? Colors.white70 : Colors.grey))]), Icon(iconData, size: 32, color: isPrimary ? Colors.white : color)]))); }
   Widget _buildTransactionItem(BuildContext context, {required String type, required String detail, required String date}) { return Padding(padding: const EdgeInsets.only(bottom: 12.0), child: Row(children: [const Icon(Icons.star, color: Colors.blue, size: 20), const SizedBox(width: 12), Expanded(child: RichText(text: TextSpan(style: const TextStyle(fontSize: 16, color: Colors.black), children: [TextSpan(text: '$type: ', style: const TextStyle(fontWeight: FontWeight.bold)), TextSpan(text: '$detail '), TextSpan(text: date, style: const TextStyle(color: Colors.grey))])))])); }
 }
 
@@ -230,7 +230,7 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
     switch (_currentFilter) {
       case HistoryFilter.arrival: return myHistory.where((app) => app.type == ApplicationType.kedatangan).toList();
       case HistoryFilter.departure: return myHistory.where((app) => app.type == ApplicationType.keberangkatan).toList();
-      case HistoryFilter.all: default: return myHistory;
+      case HistoryFilter.all: return myHistory;
     }
   }
   @override
@@ -282,7 +282,7 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5, spreadRadius: 1)] : [],
+            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 5, spreadRadius: 1)] : [],
           ),
           child: Center(child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: Colors.black))),
         ),
@@ -325,7 +325,7 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
   Widget _buildStatusChip(ApplicationStatus status) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: _getStatusColor(status).withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: _getStatusColor(status).withAlpha(25), borderRadius: BorderRadius.circular(20)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -343,7 +343,7 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.05), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: Colors.blue.withAlpha(12), shape: BoxShape.circle),
             child: Icon(Icons.image_outlined, size: 60, color: Colors.blue.shade200),
           ),
           const SizedBox(height: 24),
@@ -361,7 +361,7 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
   Widget _buildAboutSection(ClearanceApplication app) { final isArrival = app.type == ApplicationType.kedatangan; return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_screenTr('about'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 8), Text("${isArrival ? _screenTr('last_port') : _screenTr('next_port')}: ${app.port ?? 'N/A'}, ${app.flag}"), Text("${_screenTr('crewlist')}: ${app.wniCrew ?? '0'} WNI - ${app.wnaCrew ?? '0'} WNA")]); }
   Widget _buildAgentSection(ClearanceApplication app) { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_screenTr('agent'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 8), Row(children: [const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 14)), const SizedBox(width: 8), Text(app.agentName)])]); }
   Widget _buildNoteSection(ClearanceApplication app) { if (app.status == ApplicationStatus.waiting || app.status == ApplicationStatus.approved) { return const SizedBox.shrink(); } return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_screenTr('note_by_officer'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 8), Text(app.status == ApplicationStatus.revision ? "${_screenTr('need_fix')} - ${app.notes ?? _screenTr('no_notes')}" : app.status == ApplicationStatus.declined ? "${_screenTr('declined')} - ${app.notes ?? _screenTr('no_notes')}" : "", style: const TextStyle(color: Colors.red))]); }
-  Widget _buildDialogActions(BuildContext context, ClearanceApplication app) { switch (app.status) { case ApplicationStatus.revision: return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceFormScreen(type: app.type, agentName: app.agentName, existingApplication: app, initialLanguage: widget.initialLanguage))); }, child: Text(_screenTr('fix_button'))); case ApplicationStatus.declined: return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(context), child: Text(_screenTr('done_button'))); case ApplicationStatus.approved: return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceResultScreen(application: app, initialLanguage: widget.initialLanguage))); }, child: Text(_screenTr('reports_button'))); case ApplicationStatus.waiting: default: return TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")); } }
+  Widget _buildDialogActions(BuildContext context, ClearanceApplication app) { switch (app.status) { case ApplicationStatus.revision: return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceFormScreen(type: app.type, agentName: app.agentName, existingApplication: app, initialLanguage: widget.initialLanguage))); }, child: Text(_screenTr('fix_button'))); case ApplicationStatus.declined: return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(context), child: Text(_screenTr('done_button'))); case ApplicationStatus.approved: return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceResultScreen(application: app, initialLanguage: widget.initialLanguage))); }, child: Text(_screenTr('reports_button'))); case ApplicationStatus.waiting: return TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")); } }
 }
 
 class AgentProfileScreen extends StatefulWidget {
@@ -545,7 +545,7 @@ class _AgentProfileScreenState extends State<AgentProfileScreen> {
         widget.onLanguageChange(code);
       },
       style: OutlinedButton.styleFrom(
-        backgroundColor: isSelected ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+        backgroundColor: isSelected ? Colors.blue.withAlpha(25) : Colors.transparent,
         side: BorderSide(color: isSelected ? Colors.blue : Colors.grey.shade300, width: 1.5),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
