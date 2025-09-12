@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
+import '../../../services/logging_service.dart';
 import '../../widgets/custom_app_bar.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class _NotificationSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building NotificationSettingsScreen with language: ${widget.initialLanguage}');
     return Scaffold(
       appBar: CustomAppBar(
         titleText: _tr('notificationSettings', 'title'),

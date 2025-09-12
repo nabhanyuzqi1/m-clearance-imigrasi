@@ -8,7 +8,9 @@ import '../../../localization/app_strings.dart';
 import '../../../models/clearance_application.dart';
 import '../../../models/user_account.dart';
 import '../../../services/user_service.dart';
+import '../../../services/logging_service.dart';
 import '../../widgets/skeleton_loader.dart';
+import '../../widgets/custom_app_bar.dart';
 import 'clearance_form_screen.dart';
 import 'clearance_result_screen.dart';
 
@@ -43,6 +45,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    LoggingService().info('UserHistoryScreen initialized for user: ${widget.userAccount.name}');
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text;
@@ -52,6 +55,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
   @override
   void dispose() {
+    LoggingService().debug('Disposing UserHistoryScreen');
     _searchController.dispose();
     super.dispose();
   }
@@ -74,7 +78,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
             boxShadow: isSelected ? [BoxShadow(color: AppTheme.blackColor.withAlpha(25), blurRadius: 5, spreadRadius: 1)] : [],
           ),
-          child: Center(child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: AppTheme.onSurface, fontFamily: 'Poppins'))),
+          child: Center(child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: AppTheme.onSurface, fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily))),
         ),
       ),
     );
@@ -139,7 +143,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         children: [
           Icon(Icons.circle, color: _getStatusColor(status), size: 10),
           SizedBox(width: AppTheme.spacing8),
-          Text(_getStatusText(status), style: TextStyle(color: _getStatusColor(status), fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
+          Text(_getStatusText(status), style: TextStyle(color: _getStatusColor(status), fontWeight: FontWeight.bold, fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily)),
         ],
       ),
     );
@@ -212,8 +216,11 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     final verticalPadding = screenHeight * 0.02;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_tr('history'), style: TextStyle(fontSize: AppTheme.responsiveFontSize(context, mobile: 18, tablet: 20, desktop: 22), fontFamily: 'Poppins')),
+      appBar: CustomAppBar(
+        titleText: _tr('history'),
+        backgroundColor: AppTheme.whiteColor,
+        foregroundColor: AppTheme.blackColor,
+        elevation: 0,
         automaticallyImplyLeading: false,
       ),
       body: Column(
@@ -224,7 +231,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search by ship name or port...',
+                hintText: _tr('search_hint'),
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
@@ -259,7 +266,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
                 if (snapshot.hasError) {
                   return Center(
-                    child: Text('Error: ${snapshot.error}', style: TextStyle(fontSize: AppTheme.responsiveFontSize(context, mobile: 14, tablet: 16, desktop: 18), fontFamily: 'Poppins', color: AppTheme.onSurface)),
+                    child: Text('${_tr('error_loading')}: ${snapshot.error}', style: TextStyle(fontSize: AppTheme.responsiveFontSize(context, mobile: 14, tablet: 16, desktop: 18), fontFamily: 'Poppins', color: AppTheme.onSurface)),
                   );
                 }
 
@@ -286,6 +293,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                 }
 
                 return ListView.builder(
+                  shrinkWrap: true,
                   padding: EdgeInsets.all(AppTheme.spacing8),
                   itemCount: filteredApplications.length,
                   itemBuilder: (context, index) {

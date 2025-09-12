@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
+import '../../../services/logging_service.dart';
 
 class SubmissionSentScreen extends StatelessWidget {
   final String initialLanguage;
@@ -12,6 +13,8 @@ class SubmissionSentScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building SubmissionSentScreen with language: $initialLanguage');
+
     String tr(String key) => AppStrings.tr(
       context: context,
       screenKey: 'submissionSent',
@@ -138,8 +141,9 @@ class SubmissionSentScreen extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: () {
                         // Navigate to history screen
-                        Navigator.of(context).pop(); // Go back to home
-                        // TODO: Navigate to history tab
+                        Navigator.pushReplacementNamed(context, '/user-home');
+                        // Note: This navigates to home, user can then tap History tab
+                        // For better UX, we could implement deep linking to history tab
                       },
                       style: ElevatedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
@@ -157,7 +161,7 @@ class SubmissionSentScreen extends StatelessWidget {
 
               // Additional Info
               Text(
-                'Need help? Contact our support team.',
+                tr('support_info'),
                 style: TextStyle(
                   fontSize: AppTheme.fontSizeBody2,
                   color: AppTheme.subtitleColor,

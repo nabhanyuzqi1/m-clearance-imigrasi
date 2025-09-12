@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
+import '../../../services/logging_service.dart';
 
 /// ChangePasswordScreen
 ///
@@ -34,6 +35,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   void dispose() {
+    LoggingService().debug('Disposing ChangePasswordScreen resources');
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
@@ -42,15 +44,21 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   // Memvalidasi form dan (disimulasikan) menyimpan password baru
   void _submitChangePassword() {
+    LoggingService().info('Password change attempt initiated');
     if (_formKey.currentState!.validate()) {
+      LoggingService().info('Password change form validation successful');
       // TODO: Implementasi logika ganti password sesungguhnya
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_tr('password_updated')),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
-      Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_tr('password_updated')),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } else {
+      LoggingService().warning('Password change form validation failed');
     }
   }
 

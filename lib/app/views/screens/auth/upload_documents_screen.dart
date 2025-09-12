@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/config/theme.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
+import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import 'package:m_clearance_imigrasi/app/localization/app_strings.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -43,15 +44,20 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   @override
   void initState() {
     super.initState();
+    LoggingService().info('UploadDocumentsScreen initialized with language: ${widget.initialLanguage}');
     _selectedLanguage = widget.initialLanguage;
+
     // Navigate to login if user signs out while on this screen
     _authSub = _authService.authStateChanges.listen((user) {
       if (user == null && mounted) {
+        LoggingService().info('User signed out, navigating to login from upload documents screen');
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       }
     });
+
     // Enforce preconditions on entry
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      LoggingService().info('Checking preconditions for document upload');
       _checkPreconditions(navigateOnFail: true);
     });
   }
@@ -63,7 +69,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   }
 
   Future<void> _checkPreconditions({bool navigateOnFail = false}) async {
-    print('DEBUG: upload_documents_screen: _checkPreconditions called, navigateOnFail = $navigateOnFail');
+    LoggingService().debug('Checking preconditions for document upload, navigateOnFail: $navigateOnFail');
     try {
       await _authService.ensureCanUploadDocuments();
       if (mounted) {
@@ -72,7 +78,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         });
       }
     } on StateError catch (e) {
-      print('DEBUG: upload_documents_screen: _checkPreconditions failed with: ${e.message}');
+      LoggingService().error('Precondition check failed: ${e.message}', e);
       if (mounted) {
         setState(() {
           _canUpload = false;
@@ -83,43 +89,46 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       if (navigateOnFail) {
         _routeForErrorMessage(e.message);
       }
-    } catch (_) {
+    } catch (e) {
+      LoggingService().error('Unexpected error during precondition check: $e', e);
       // Keep UI responsive on unexpected errors
     }
   }
 
   void _routeForErrorMessage(String message) {
-    print('DEBUG: upload_documents_screen: _routeForErrorMessage: $message');
+    LoggingService().debug('Routing based on error message: $message');
     if (!mounted) return;
+
     if (message.contains('Email is not verified')) {
       final email = FirebaseAuth.instance.currentUser?.email ?? '';
-      print('DEBUG: upload_documents_screen: navigating to confirmation');
+      LoggingService().info('Email not verified, navigating to confirmation screen');
       Navigator.pushReplacementNamed(context, AppRoutes.confirmation,
           arguments: {'initialLanguage': _selectedLanguage, 'userData': {'email': email}});
     } else if (message.contains('No authenticated user') ||
         message.contains('User data not found')) {
-      print('DEBUG: upload_documents_screen: navigating to login');
+      LoggingService().warning('No authenticated user or user data not found, navigating to login');
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     } else if (message.contains('Current status')) {
       // Parse the status from the message
       final statusMatch = RegExp(r'Current status: (\w+)').firstMatch(message);
       final status = statusMatch?.group(1);
-      print('DEBUG: upload_documents_screen: parsed status = $status');
+      LoggingService().debug('Parsed user status: $status');
+
       if (status == 'pending_approval') {
-        print('DEBUG: upload_documents_screen: navigating to registrationPending');
+        LoggingService().info('User status pending_approval, navigating to registration pending');
         Navigator.pushReplacementNamed(context, AppRoutes.registrationPending,
             arguments: {'initialLanguage': _selectedLanguage});
       } else if (status == 'approved') {
-        print('DEBUG: upload_documents_screen: navigating to userHome');
+        LoggingService().info('User status approved, navigating to user home');
         Navigator.pushReplacementNamed(context, AppRoutes.userHome);
       } else {
         // For other statuses like pending_documents or unknown, navigate to login or handle gracefully
-        print('DEBUG: upload_documents_screen: unknown status, navigating to login');
+        LoggingService().warning('Unknown user status: $status, navigating to login');
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       }
     } else {
       // Handle unexpected errors gracefully
-      print('DEBUG: upload_documents_screen: unexpected error, navigating to login');
+      LoggingService().error('Unexpected error during routing: $message');
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     }
   }

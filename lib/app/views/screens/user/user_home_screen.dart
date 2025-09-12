@@ -1,24 +1,32 @@
- import 'package:flutter/material.dart';
- import 'package:provider/provider.dart';
- import '../../../localization/app_strings.dart';
- import '../../../providers/language_provider.dart';
- import '../../../models/clearance_application.dart';
- import '../../../models/user_account.dart';
- import '../../../services/notification_service.dart';
- import '../../../services/user_service.dart';
- import '../../../config/routes.dart';
- import '../../../services/auth_service.dart';
- import '../../../config/theme.dart';
- import '../../widgets/custom_app_bar.dart';
- import '../../widgets/custom_bottom_navbar.dart';
- import '../../widgets/custom_button.dart';
- import '../../widgets/bouncing_dots_loader.dart';
- import '../../widgets/skeleton_loader.dart';
- import '../auth/change_password_screen.dart';
- import 'clearance_form_screen.dart';
- import 'notification_screen.dart';
- import 'history_screen.dart';
- import 'language_selection_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../localization/app_strings.dart';
+import '../../../providers/language_provider.dart';
+import '../../../models/clearance_application.dart';
+import '../../../models/user_account.dart';
+import '../../../services/user_service.dart';
+import '../../../config/routes.dart';
+import '../../../services/auth_service.dart';
+import '../../../config/theme.dart';
+import '../../../services/logging_service.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../widgets/custom_bottom_navbar.dart';
+import '../../widgets/custom_button.dart';
+import '../../widgets/bouncing_dots_loader.dart';
+import '../../widgets/skeleton_loader.dart';
+import '../auth/change_password_screen.dart';
+import 'history_screen.dart';
+import 'language_selection_screen.dart';
+
+ImageProvider<Object> _buildProfileImage(String imageUrl, double screenWidth) {
+  try {
+    return NetworkImage(imageUrl);
+  } catch (e) {
+    LoggingService().error('Error loading profile image: $e');
+    return const AssetImage('assets/images/logo.png'); // Fallback image
+  }
+}
 
 class UserHomeScreen extends StatefulWidget {
   final String initialLanguage;
@@ -38,7 +46,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   @override
   void initState() {
     super.initState();
-    debugPrint('[UserHomeScreen] initState with initialLanguage: ${widget.initialLanguage}');
+    LoggingService().info('UserHomeScreen initialized with language: ${widget.initialLanguage}');
+    _loadSelectedIndex();
     _loadCurrentUser();
   }
 
@@ -56,7 +65,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         return;
       }
     } catch (e) {
-      print('Error loading current user: $e');
+      LoggingService().error('Error loading current user: $e', e);
       if (mounted) {
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       }
@@ -72,11 +81,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     _loadCurrentUser();
   }
 
-  void _onItemTapped(int index) => setState(() => _selectedIndex = index);
+  Future<void> _loadSelectedIndex() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedIndex = prefs.getInt('user_selected_index') ?? 0;
+    });
+  }
+
+  Future<void> _onItemTapped(int index) async {
+    setState(() => _selectedIndex = index);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('user_selected_index', index);
+  }
 
   void _showLogoutDialog(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final fontSize = screenWidth * 0.04;
+    final fontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6);
 
     showDialog(
       context: context,
@@ -91,8 +111,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               stringKey: 'logout_confirm_title',
               langCode: widget.initialLanguage,
             ),
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045),
+            style: AppTheme.labelLarge(context).copyWith(
+                fontWeight: FontWeight.bold),
           )),
           content: Text(
             AppStrings.tr(
@@ -205,17 +225,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             showUnselectedLabels: true,
             backgroundColor: AppTheme.whiteColor,
             elevation: 8,
+            languageCode: widget.initialLanguage,
           ),
         );
       },
     );
   }
+
+
 }
 
-// User Menu Screen Component
+// User Menu Screen - Main home screen with service cards
 class UserMenuScreen extends StatelessWidget {
   final UserAccount userAccount;
-
   final String initialLanguage;
 
   const UserMenuScreen({
@@ -224,198 +246,288 @@ class UserMenuScreen extends StatelessWidget {
     required this.initialLanguage,
   });
 
+  String _tr(BuildContext context, String screenKey, String stringKey) =>
+      AppStrings.tr(
+        context: context,
+        screenKey: screenKey,
+        stringKey: stringKey,
+        langCode: initialLanguage,
+      );
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final horizontalPadding = screenWidth * 0.04;
-    final verticalSpacing = screenWidth * 0.03;
+    final horizontalPadding = screenWidth * 0.06;
+    final verticalSpacing = screenWidth * 0.04;
 
-    String screenTr(String key) => AppStrings.tr(
-          context: context,
-          screenKey: 'userHome',
-          stringKey: key,
-          langCode: initialLanguage,
-        );
-
-    return StreamBuilder<int>(
-      stream: NotificationService().getUnreadCount(),
-      builder: (context, snapshot) {
-        final unreadCount = snapshot.data ?? 0;
-
-        return Scaffold(
-          backgroundColor: AppTheme.whiteColor,
-          appBar: CustomAppBar(
-            title: LogoTitle(text: 'M-Clearance ISam'),
-            actions: [
-              NotificationIconWithBadge(
-                badgeCount: unreadCount,
-                onPressed: () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => NotificationScreen(
-                                initialLanguage: initialLanguage,
-                              )));
-                },
-              ),
-              SizedBox(width: screenWidth * 0.02),
-            ],
+    return Scaffold(
+      backgroundColor: AppTheme.whiteColor,
+      appBar: CustomAppBar(
+        title: LogoTitle(
+          text: AppStrings.tr(
+            context: context,
+            screenKey: 'splash',
+            stringKey: 'app_name',
+            langCode: initialLanguage,
           ),
-          body: StreamBuilder<List<ClearanceApplication>>(
-            stream: UserService().getUserApplications(),
-            builder: (context, snapshot) {
-              final applications = snapshot.data ?? [];
-              final lastTwoTransactions = applications.take(2).toList();
-
-              return ListView(
-                padding: EdgeInsets.all(horizontalPadding),
-                children: [
-                  // User Profile Section
-                  Row(
+        ),
+        backgroundColor: AppTheme.whiteColor,
+        foregroundColor: AppTheme.blackColor,
+        elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.pushNamed(context, AppRoutes.userNotification);
+            },
+            icon: const Icon(Icons.notifications_outlined),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(horizontalPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Welcome section
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: screenWidth * 0.08,
+                  backgroundColor: AppTheme.greyShade200,
+                  backgroundImage: userAccount.profileImageUrl != null
+                      ? _buildProfileImage(userAccount.profileImageUrl!, screenWidth)
+                      : null,
+                  child: userAccount.profileImageUrl == null
+                      ? Icon(Icons.person, size: screenWidth * 0.08, color: AppTheme.greyColor)
+                      : null,
+                ),
+                SizedBox(width: screenWidth * 0.04),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        radius: screenWidth * 0.06,
-                        backgroundColor: AppTheme.greyShade200,
-                        backgroundImage: userAccount.profileImageUrl != null
-                            ? NetworkImage(userAccount.profileImageUrl!)
-                            : null,
-                        child: userAccount.profileImageUrl == null
-                            ? Icon(Icons.person, size: screenWidth * 0.075, color: AppTheme.greyColor)
-                            : null,
-                      ),
-                      SizedBox(width: screenWidth * 0.03),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(screenTr('welcome'), style: TextStyle(fontSize: screenWidth * 0.04, color: AppTheme.greyColor)),
-                            Text(userAccount.name, style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                          ],
+                      Text(
+                        _tr(context, 'userHome', 'hello'),
+                        style: AppTheme.bodyMedium(context).copyWith(
+                          color: AppTheme.greyColor,
                         ),
+                      ),
+                      Text(
+                        userAccount.name,
+                        style: AppTheme.headingSmall(context).copyWith(
+                          color: AppTheme.blackColor,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                  SizedBox(height: verticalSpacing * 2),
+                ),
+              ],
+            ),
+            SizedBox(height: verticalSpacing * 1.5),
 
-                  // Service Cards
-                  _buildServiceCard(
-                    context,
-                    title: screenTr('arrival'),
-                    subtitle: screenTr('last_port'),
-                    iconData: Icons.anchor,
-                    color: AppTheme.primaryColor,
-                    isPrimary: true,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ClearanceFormScreen(
-                              type: ApplicationType.kedatangan,
-                              agentName: userAccount.name,
-                              initialLanguage: initialLanguage),
-                        ),
-                      );
-                    },
-                  ),
-                  SizedBox(height: verticalSpacing),
-                  _buildServiceCard(
-                    context,
-                    title: screenTr('departure'),
-                    subtitle: screenTr('next_port'),
-                    iconData: Icons.directions_boat,
-                    color: AppTheme.blackColor87,
-                    isPrimary: false,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ClearanceFormScreen(
-                              type: ApplicationType.keberangkatan,
-                              agentName: userAccount.name,
-                              initialLanguage: initialLanguage),
-                        ),
-                      );
-                    },
-                  ),
-                  SizedBox(height: verticalSpacing * 3),
+            // Service cards
+            Text(
+              _tr(context, 'userHome', 'services'),
+              style: AppTheme.headingSmall(context).copyWith(
+                color: AppTheme.blackColor,
+              ),
+            ),
+            SizedBox(height: verticalSpacing),
 
-                  // Last Transactions
-                  Text(screenTr('last_transactions'), style: TextStyle(fontSize: screenWidth * 0.045, fontWeight: FontWeight.bold)),
-                  SizedBox(height: verticalSpacing),
-                  if (snapshot.connectionState == ConnectionState.waiting)
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: verticalSpacing),
-                      child: Column(
-                        children: List.generate(2, (index) => Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            children: [
-                              SkeletonLoader(
-                                width: screenWidth * 0.08,
-                                height: screenWidth * 0.08,
-                                borderRadius: BorderRadius.circular(screenWidth * 0.04),
-                              ),
-                              SizedBox(width: screenWidth * 0.03),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SkeletonLoader(
-                                      width: double.infinity,
-                                      height: screenWidth * 0.04,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    SkeletonLoader(
-                                      width: screenWidth * 0.5,
-                                      height: screenWidth * 0.035,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+            // Arrival Clearance Card
+            _buildServiceCard(
+              context,
+              title: _tr(context, 'userHome', 'arrival_clearance'),
+              subtitle: _tr(context, 'userHome', 'arrival_description'),
+              icon: Icons.anchor,
+              color: AppTheme.primaryColor,
+              serviceIcon: Icons.anchor,
+              isPrimary: true,
+              onTap: () {
+                LoggingService().info('Navigating to arrival clearance form');
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.clearanceForm,
+                  arguments: {
+                    'type': ApplicationType.kedatangan,
+                    'agentName': userAccount.name,
+                    'initialLanguage': initialLanguage,
+                  },
+                );
+              },
+            ),
+            SizedBox(height: verticalSpacing),
+
+            // Departure Clearance Card
+            _buildServiceCard(
+              context,
+              title: _tr(context, 'userHome', 'departure_clearance'),
+              subtitle: _tr(context, 'userHome', 'departure_description'),
+              icon: Icons.directions_boat,
+              color: AppTheme.secondaryColor,
+              serviceIcon: Icons.directions_boat,
+              isPrimary: false,
+              onTap: () {
+                LoggingService().info('Navigating to departure clearance form');
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.clearanceForm,
+                  arguments: {
+                    'type': ApplicationType.keberangkatan,
+                    'agentName': userAccount.name,
+                    'initialLanguage': initialLanguage,
+                  },
+                );
+              },
+            ),
+            SizedBox(height: verticalSpacing * 2),
+
+            // Recent applications section
+            Text(
+              _tr(context, 'userHome', 'recent_applications'),
+              style: AppTheme.labelLarge(context).copyWith(
+                color: AppTheme.blackColor,
+              ),
+            ),
+            SizedBox(height: verticalSpacing),
+
+            // Recent applications list (placeholder for now)
+            StreamBuilder<List<ClearanceApplication>>(
+              stream: UserService().getUserApplications(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SkeletonListLoader(itemCount: 3);
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      _tr(context, 'userHome', 'error_loading_applications'),
+                      style: TextStyle(color: AppTheme.errorColor),
+                    ),
+                  );
+                }
+
+                final applications = snapshot.data ?? [];
+                final recentApps = applications.take(3).toList();
+
+                if (recentApps.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inbox,
+                          size: screenWidth * 0.15,
+                          color: AppTheme.greyColor,
+                        ),
+                        SizedBox(height: verticalSpacing),
+                        Text(
+                          _tr(context, 'userHome', 'no_applications'),
+                          style: AppTheme.bodyMedium(context).copyWith(
+                            color: AppTheme.greyColor,
                           ),
-                        )),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: recentApps.map((app) {
+                    final statusColor = _getStatusColor(app.status);
+                    final statusText = _getStatusText(app.status, context);
+
+                    return Container(
+                      margin: EdgeInsets.only(bottom: verticalSpacing * 0.5),
+                      padding: EdgeInsets.all(verticalSpacing),
+                      decoration: BoxDecoration(
+                        color: AppTheme.whiteColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.greyShade200),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.greyColor.withAlpha(13),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                    )
-                  else if (lastTwoTransactions.isEmpty)
-                    Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: verticalSpacing * 2),
-                        child: Text(screenTr('no_transactions'), style: TextStyle(color: AppTheme.greyColor, fontSize: screenWidth * 0.04))
-                      )
-                    )
-                  else
-                    ...lastTwoTransactions.map((app) => _buildTransactionItem(
-                      context,
-                      key: ValueKey(app.id),
-                      type: app.type == ApplicationType.kedatangan ? screenTr('arrival') : screenTr('departure'),
-                      detail: "${app.shipName} - ${app.port ?? 'N/A'}",
-                      date: "(${app.date ?? 'No Date'})",
-                    )),
-                ],
-              );
-            },
-          ),
-        );
-      },
+                      child: Row(
+                        children: [
+                          Icon(
+                            app.type == ApplicationType.kedatangan ? Icons.anchor : Icons.directions_boat,
+                            color: AppTheme.primaryColor,
+                            size: screenWidth * 0.06,
+                          ),
+                          SizedBox(width: horizontalPadding * 0.5),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  app.shipName,
+                                  style: AppTheme.bodyMedium(context).copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.blackColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  app.date ?? 'No Date',
+                                  style: AppTheme.bodySmall(context).copyWith(
+                                    color: AppTheme.greyColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: screenWidth * 0.02,
+                              vertical: screenWidth * 0.01,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withAlpha(25),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              statusText,
+                              style: AppTheme.labelSmall(context).copyWith(
+                                color: statusColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildServiceCard(BuildContext context, {
     required String title,
     required String subtitle,
-    required IconData iconData,
+    required IconData icon,
     required Color color,
+    required IconData serviceIcon,
     required bool isPrimary,
     required VoidCallback onTap,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final cardPadding = screenWidth * 0.05;
     final iconSize = screenWidth * 0.08;
-    final titleFontSize = screenWidth * 0.05;
-    final subtitleFontSize = screenWidth * 0.04;
+    final titleFontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeH6, tablet: AppTheme.fontSizeH5, desktop: AppTheme.fontSizeH4);
+    final subtitleFontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody2, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1);
 
     return InkWell(
       onTap: onTap,
@@ -428,7 +540,7 @@ class UserMenuScreen extends StatelessWidget {
           border: isPrimary ? null : Border.all(color: AppTheme.greyShade300),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.greyColor.withAlpha(25), // 0.1 * 255 ≈ 25
+              color: AppTheme.greyColor.withAlpha(25),
               blurRadius: 10,
               offset: const Offset(0, 5)
             )
@@ -463,61 +575,37 @@ class UserMenuScreen extends StatelessWidget {
               ),
             ),
             SizedBox(width: screenWidth * 0.02),
-            Icon(iconData, size: iconSize, color: isPrimary ? Colors.white : color),
+            Icon(serviceIcon, size: iconSize, color: isPrimary ? Colors.white : color),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTransactionItem(BuildContext context, {
-    Key? key,
-    required String type,
-    required String detail,
-    required String date,
-  }) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final verticalPadding = screenWidth * 0.03;
-    final horizontalSpacing = screenWidth * 0.03;
-    final iconSize = screenWidth * 0.05;
-    final fontSize = screenWidth * 0.04;
+  Color _getStatusColor(ApplicationStatus status) {
+    switch (status) {
+      case ApplicationStatus.waiting:
+        return AppTheme.primaryColor;
+      case ApplicationStatus.revision:
+        return AppTheme.warningColor;
+      case ApplicationStatus.approved:
+        return AppTheme.successColor;
+      case ApplicationStatus.declined:
+        return AppTheme.errorColor;
+    }
+  }
 
-    return Container(
-      margin: EdgeInsets.only(bottom: verticalPadding),
-      padding: EdgeInsets.all(verticalPadding),
-      decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.greyShade200),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.greyColor.withAlpha(13), // 0.05 * 255 ≈ 13
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.star, color: AppTheme.primaryColor, size: iconSize),
-          SizedBox(width: horizontalSpacing),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: TextStyle(fontSize: fontSize, color: AppTheme.blackColor87, height: 1.4),
-                children: [
-                  TextSpan(text: '$type: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  TextSpan(text: '$detail '),
-                  TextSpan(text: date, style: TextStyle(color: AppTheme.greyColor)),
-                ],
-              ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
-          ),
-        ],
-      ),
-    );
+  String _getStatusText(ApplicationStatus status, BuildContext context) {
+    switch (status) {
+      case ApplicationStatus.waiting:
+        return _tr(context, 'userHistory', 'waiting');
+      case ApplicationStatus.revision:
+        return _tr(context, 'userHistory', 'revision');
+      case ApplicationStatus.approved:
+        return _tr(context, 'userHistory', 'approved');
+      case ApplicationStatus.declined:
+        return _tr(context, 'userHistory', 'declined');
+    }
   }
 }
 
@@ -555,7 +643,7 @@ class UserProfileScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
       appBar: CustomAppBar(
-        titleText: _tr(context, 'userProfile', 'profile'),
+        titleText: 'Setting',
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
         elevation: 0,
@@ -573,7 +661,7 @@ class UserProfileScreen extends StatelessWidget {
                     radius: screenWidth * 0.15,
                     backgroundColor: AppTheme.greyShade200,
                     backgroundImage: userAccount.profileImageUrl != null
-                        ? NetworkImage(userAccount.profileImageUrl!)
+                        ? _buildProfileImage(userAccount.profileImageUrl!, screenWidth)
                         : null,
                     child: userAccount.profileImageUrl == null
                         ? Icon(Icons.person, size: screenWidth * 0.15, color: AppTheme.greyColor)
@@ -587,13 +675,15 @@ class UserProfileScreen extends StatelessWidget {
             // User Info
             Text(
               userAccount.name,
-              style: TextStyle(fontSize: screenWidth * 0.06, fontWeight: FontWeight.bold),
+              style: AppTheme.headingMedium(context),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: screenWidth * 0.02),
             Text(
               userAccount.email,
-              style: TextStyle(fontSize: screenWidth * 0.04, color: AppTheme.greyShade600),
+              style: AppTheme.bodyMedium(context).copyWith(
+                color: AppTheme.greyShade600,
+              ),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: verticalSpacing * 2),
@@ -604,7 +694,7 @@ class UserProfileScreen extends StatelessWidget {
               icon: Icons.edit,
               title: _tr(context, 'userProfile', 'edit_profile'),
               onTap: () {
-                debugPrint('[UserHomeScreen] Navigating to editAgentProfile with initialLanguage: $initialLanguage');
+                LoggingService().info('Navigating to editAgentProfile with language: $initialLanguage');
                 Navigator.pushNamed(
                   context,
                   AppRoutes.editAgentProfile,
@@ -669,8 +759,6 @@ class UserProfileScreen extends StatelessWidget {
               },
             ),
 
-            Divider(height: verticalSpacing * 2),
-
             _buildMenuItem(
               context,
               icon: Icons.logout,
@@ -694,7 +782,7 @@ class UserProfileScreen extends StatelessWidget {
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final iconSize = screenWidth * 0.06;
-    final fontSize = screenWidth * 0.04;
+    final fontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6);
     final verticalPadding = screenWidth * 0.02;
 
     return ListTile(
@@ -704,6 +792,7 @@ class UserProfileScreen extends StatelessWidget {
         style: TextStyle(
           color: textColor ?? AppTheme.blackColor,
           fontSize: fontSize,
+
         ),
         overflow: TextOverflow.ellipsis,
       ),
@@ -714,6 +803,4 @@ class UserProfileScreen extends StatelessWidget {
       contentPadding: EdgeInsets.symmetric(horizontal: 0, vertical: verticalPadding),
     );
   }
-
 }
-

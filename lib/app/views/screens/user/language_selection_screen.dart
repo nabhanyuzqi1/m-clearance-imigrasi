@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/language_provider.dart';
 import '../../../localization/app_strings.dart';
+import '../../../services/logging_service.dart';
 
 class LanguageSelectionScreen extends StatelessWidget {
   const LanguageSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building LanguageSelectionScreen');
     final languageProvider = Provider.of<LanguageProvider>(context);
     final langCode = languageProvider.locale.languageCode;
 
@@ -30,7 +32,7 @@ class LanguageSelectionScreen extends StatelessWidget {
             languageCode: 'en',
             currentLanguageCode: langCode,
             onTap: () {
-              debugPrint('[LanguageSelectionScreen] Setting language to English (en)');
+              LoggingService().info('Setting language to English (en)');
               languageProvider.setLocale(const Locale('en'));
               Navigator.pop(context);
             },
@@ -41,7 +43,7 @@ class LanguageSelectionScreen extends StatelessWidget {
             languageCode: 'id',
             currentLanguageCode: langCode,
             onTap: () {
-              debugPrint('[LanguageSelectionScreen] Setting language to Indonesian (id)');
+              LoggingService().info('Setting language to Indonesian (id)');
               languageProvider.setLocale(const Locale('id'));
               Navigator.pop(context);
             },

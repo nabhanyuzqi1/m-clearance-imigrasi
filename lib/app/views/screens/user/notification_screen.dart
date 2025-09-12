@@ -3,6 +3,7 @@ import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/notification_item.dart';
 import '../../../services/notification_service.dart';
+import '../../../services/logging_service.dart';
 
 class NotificationScreen extends StatefulWidget {
   final String initialLanguage;
@@ -92,6 +93,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building NotificationScreen with language: ${widget.initialLanguage}');
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(

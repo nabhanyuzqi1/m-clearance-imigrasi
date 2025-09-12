@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../config/theme.dart';
 import '../../../services/user_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/logging_service.dart';
 import '../../../config/routes.dart';
 import '../../../providers/language_provider.dart';
 import '../../../localization/app_strings.dart';
@@ -49,13 +50,14 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
   @override
   void initState() {
     super.initState();
-    debugPrint('[EditAgentProfileScreen] initState');
+    LoggingService().info('EditAgentProfileScreen initialized for user: ${widget.username}');
     _nameController.text = widget.currentName;
     _emailController.text = widget.currentEmail;
   }
 
   @override
   void dispose() {
+    LoggingService().debug('Disposing EditAgentProfileScreen');
     _nameController.dispose();
     _emailController.dispose();
     super.dispose();
@@ -69,23 +71,51 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
         final cameraStatus = await Permission.camera.request();
         hasPermission = cameraStatus.isGranted;
         if (cameraStatus.isPermanentlyDenied && mounted) {
+          final screenWidth = MediaQuery.of(context).size.width;
           showDialog(
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: Text(_tr(context, 'permission_required')),
-                content: Text(_tr(context, 'camera_permission_message')),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: Text(
+                  _tr(context, 'permission_required'),
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.045,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.onSurface,
+                  ),
+                ),
+                content: Text(
+                  _tr(context, 'camera_permission_message'),
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.04,
+                    color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
+                  ),
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: Text(_tr(context,'cancel')),
+                    child: Text(
+                      _tr(context,'cancel'),
+                      style: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: screenWidth * 0.04,
+                      ),
+                    ),
                   ),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
                       openAppSettings();
                     },
-                    child: Text(_tr(context,'open_settings')),
+                    child: Text(
+                      _tr(context,'open_settings'),
+                      style: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: screenWidth * 0.04,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               );
@@ -97,23 +127,51 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
         final storageStatus = await Permission.photos.request();
         hasPermission = storageStatus.isGranted;
         if (storageStatus.isPermanentlyDenied && mounted) {
+          final screenWidth = MediaQuery.of(context).size.width;
           showDialog(
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: Text(_tr(context,'permission_required')),
-                content: Text(_tr(context,'storage_permission_message')),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: Text(
+                  _tr(context,'permission_required'),
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.045,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.onSurface,
+                  ),
+                ),
+                content: Text(
+                  _tr(context,'storage_permission_message'),
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.04,
+                    color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
+                  ),
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: Text(_tr(context,'cancel')),
+                    child: Text(
+                      _tr(context,'cancel'),
+                      style: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: screenWidth * 0.04,
+                      ),
+                    ),
                   ),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
                       openAppSettings();
                     },
-                    child: Text(_tr(context,'open_settings')),
+                    child: Text(
+                      _tr(context,'open_settings'),
+                      style: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: screenWidth * 0.04,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               );
@@ -142,11 +200,20 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
   }
 
   void _showImageSourceDialog() {
+    final screenWidth = MediaQuery.of(context).size.width;
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(_tr(context,'select_image_source')),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            _tr(context,'select_image_source'),
+            style: TextStyle(
+              fontSize: screenWidth * 0.045,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.onSurface,
+            ),
+          ),
           actions: [
             TextButton(
               onPressed: () async {
@@ -156,7 +223,13 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                   _pickImage(ImageSource.camera);
                 }
               },
-              child: Text(_tr(context,'camera')),
+              child: Text(
+                _tr(context,'camera'),
+                style: TextStyle(
+                  color: AppTheme.primaryColor,
+                  fontSize: screenWidth * 0.04,
+                ),
+              ),
             ),
             TextButton(
               onPressed: () async {
@@ -166,11 +239,23 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                   _pickImage(ImageSource.gallery);
                 }
               },
-              child: Text(_tr(context,'gallery')),
+              child: Text(
+                _tr(context,'gallery'),
+                style: TextStyle(
+                  color: AppTheme.primaryColor,
+                  fontSize: screenWidth * 0.04,
+                ),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text(_tr(context,'cancel')),
+              child: Text(
+                _tr(context,'cancel'),
+                style: TextStyle(
+                  color: AppTheme.greyColor,
+                  fontSize: screenWidth * 0.04,
+                ),
+              ),
             ),
           ],
         );
@@ -208,19 +293,41 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
         UserService.currentProfileImagePath = null; // Clear static path
 
         if (emailChanged) {
+          final screenWidth = MediaQuery.of(context).size.width;
           await showDialog(
             context: context,
             barrierDismissible: false,
             builder: (context) => AlertDialog(
-              title: Text(_tr(context,'email_changed_title')),
-              content: Text(_tr(context,'email_changed_body')),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text(
+                _tr(context,'email_changed_title'),
+                style: TextStyle(
+                  fontSize: screenWidth * 0.045,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.onSurface,
+                ),
+              ),
+              content: Text(
+                _tr(context,'email_changed_body'),
+                style: TextStyle(
+                  fontSize: screenWidth * 0.04,
+                  color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
+                ),
+              ),
               actions: [
                 TextButton(
                   onPressed: () async {
                     await AuthService().signOut();
                     Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
                   },
-                  child: Text(_tr(context,'ok')),
+                  child: Text(
+                    _tr(context,'ok'),
+                    style: TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontSize: screenWidth * 0.04,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -238,7 +345,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
         throw Exception('Update failed');
       }
     } catch (e) {
-      print('Error updating profile: $e');
+      LoggingService().error('Error updating profile: $e', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

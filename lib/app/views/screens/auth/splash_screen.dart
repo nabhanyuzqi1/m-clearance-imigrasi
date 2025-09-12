@@ -6,6 +6,7 @@ import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../providers/language_provider.dart';
+import '../../../services/logging_service.dart';
 
 /// SplashScreen
 ///
@@ -28,6 +29,8 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    LoggingService().info('SplashScreen initialized, starting navigation timer');
+
     // Atur gaya System UI Overlay agar sesuai dengan latar belakang splash screen
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
@@ -38,10 +41,17 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Navigasi setelah penundaan singkat
     Future.delayed(const Duration(seconds: 1), () {
+      LoggingService().info('Splash screen timer completed, navigating to login');
       if (mounted) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    LoggingService().debug('Disposing SplashScreen');
+    super.dispose();
   }
 
   @override

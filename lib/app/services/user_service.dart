@@ -58,7 +58,8 @@ class UserService {
               throw NetworkException('User account not found', isRetryable: false);
             }
 
-            return UserAccount.fromFirestore(doc);
+            final userAccount = UserAccount.fromFirestore(doc);
+            return userAccount;
           },
           shouldRetry: NetworkUtils.isRetryableError,
         );
@@ -105,7 +106,7 @@ class UserService {
       if (imagePath != null && imagePath.isNotEmpty) {
         try {
           final imageUrl = await _uploadProfileImage(user.uid, imagePath);
-          if (imageUrl != null) {
+          if (imageUrl != null && imageUrl.isNotEmpty) {
             updateData['profileImageUrl'] = imageUrl;
             LoggingService().info('Profile image uploaded successfully: $imageUrl');
           }

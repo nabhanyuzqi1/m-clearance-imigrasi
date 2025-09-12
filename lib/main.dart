@@ -10,6 +10,7 @@ import 'app/config/theme.dart';
 import 'firebase_options.dart';
 import 'app/views/widgets/auth_wrapper.dart';
 import 'app/providers/language_provider.dart';
+import 'app/views/widgets/skeleton_loader.dart' as skeleton;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -122,6 +123,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // Dispose shared shimmer animation controller
+    skeleton.ShimmerAnimationController.dispose();
     super.dispose();
   }
 

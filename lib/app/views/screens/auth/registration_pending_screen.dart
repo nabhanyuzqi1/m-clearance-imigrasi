@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 // PERBAIKAN: Mengimpor widget loader dari file terpusat.
 import '../../widgets/bouncing_dots_loader.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/logging_service.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import 'package:m_clearance_imigrasi/app/localization/app_strings.dart';
@@ -22,9 +23,15 @@ class _RegistrationPendingScreenState extends State<RegistrationPendingScreen> {
   }
 
   Future<void> _signOutAndGoToLogin() async {
-    await _authService.signOut();
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+    LoggingService().info('User signing out from registration pending screen');
+    try {
+      await _authService.signOut();
+      LoggingService().info('Sign out successful, navigating to login');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+      }
+    } catch (e) {
+      LoggingService().error('Error during sign out: $e', e);
     }
   }
 

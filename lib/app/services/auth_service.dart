@@ -422,4 +422,34 @@ class AuthService {
   Future<void> clearUserDataCache() async {
     await _cacheManager.clearUserDataCache();
   }
+
+  /// Download file data from Firebase Storage using download URL or storage path
+  Future<Uint8List?> downloadFileData(String filePathOrUrl) async {
+    try {
+      // Validate the input
+      if (filePathOrUrl.isEmpty) {
+        LoggingService().error('File path or URL is empty');
+        return null;
+      }
+
+      final ref = filePathOrUrl.startsWith('https') ? _storage.refFromURL(filePathOrUrl) : _storage.ref().child(filePathOrUrl);
+      final data = await ref.getData();
+
+      if (data == null || data.isEmpty) {
+        LoggingService().error('Downloaded file data is null or empty');
+        return null;
+      }
+
+      return data;
+    } catch (e) {
+      LoggingService().error('Error downloading file data from $filePathOrUrl: $e');
+
+      // Handle specific Firebase exceptions
+      if (e.toString().contains('ClientException') || e.toString().contains('JavaScriptObject')) {
+        LoggingService().error('ClientException detected - this may be a web-specific error with Firebase Storage');
+      }
+
+      return null;
+    }
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/theme.dart';
+import '../../services/logging_service.dart';
 
 class CustomTextField extends StatelessWidget {
   final String? label;
@@ -68,6 +69,7 @@ class CustomTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building CustomTextField with label: $label');
     final defaultContentPadding = EdgeInsets.symmetric(
       horizontal: AppTheme.responsivePadding(context),
       vertical: AppTheme.spacing12,

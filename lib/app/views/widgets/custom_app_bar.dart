@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../services/logging_service.dart';
+import '../../config/theme.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Widget? title;
@@ -37,11 +39,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building CustomAppBar with title: ${titleText ?? 'widget'}');
     final screenWidth = MediaQuery.of(context).size.width;
     final defaultTitleStyle = TextStyle(
       fontWeight: FontWeight.bold,
       fontSize: screenWidth * 0.045,
-      color: foregroundColor ?? Colors.black,
+      color: foregroundColor ?? AppTheme.onSurface,
     );
 
     final appBarTitle = title ?? (titleText != null
@@ -55,8 +58,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: appBarTitle,
       leading: leading,
       actions: actions,
-      backgroundColor: backgroundColor ?? Colors.white,
-      foregroundColor: foregroundColor ?? Colors.black,
+      backgroundColor: backgroundColor ?? AppTheme.surfaceColor,
+      foregroundColor: foregroundColor ?? AppTheme.onSurface,
       elevation: elevation ?? 0,
       centerTitle: centerTitle,
       toolbarHeight: toolbarHeight,
@@ -90,6 +93,7 @@ class NotificationIconWithBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building NotificationIconWithBadge with count: $badgeCount');
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Stack(
@@ -98,7 +102,7 @@ class NotificationIconWithBadge extends StatelessWidget {
           icon: Icon(
             Icons.notifications_none_outlined,
             size: iconSize ?? screenWidth * 0.06,
-            color: iconColor ?? Colors.black54,
+            color: iconColor ?? AppTheme.onSurface.withAlpha(138), // 0.54 * 255
           ),
           onPressed: onPressed,
         ),
@@ -149,6 +153,7 @@ class LogoTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building LogoTitle with text: $text');
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Row(
@@ -159,6 +164,7 @@ class LogoTitle extends StatelessWidget {
           errorBuilder: (context, error, stackTrace) => Icon(
             Icons.directions_boat,
             size: logoSize ?? screenWidth * 0.08,
+            color: AppTheme.primaryColor,
           ),
         ),
         SizedBox(width: screenWidth * 0.02),
@@ -168,7 +174,7 @@ class LogoTitle extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: fontSize ?? screenWidth * 0.045,
-              color: textColor ?? Colors.black,
+              color: textColor ?? AppTheme.onSurface,
             ),
           ),
       ],

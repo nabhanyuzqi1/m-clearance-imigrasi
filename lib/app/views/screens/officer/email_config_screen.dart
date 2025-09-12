@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/email_config.dart';
 import '../../../services/email_config_service.dart';
+import '../../../services/logging_service.dart';
+import '../../../config/theme.dart';
+import '../../widgets/custom_app_bar.dart';
 
 class EmailConfigScreen extends StatefulWidget {
   final String initialLanguage;
@@ -52,6 +55,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
   @override
   void initState() {
     super.initState();
+    LoggingService().info('EmailConfigScreen initialized with language: ${widget.initialLanguage}');
     _selectedLanguage = widget.initialLanguage;
     _loadEmailConfig();
   }
@@ -59,21 +63,29 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
   Future<void> _loadEmailConfig() async {
     setState(() => _isLoading = true);
     try {
-      print('[EmailConfigScreen] Loading email configuration...');
+      LoggingService().info('Loading email configuration...');
       _emailConfig = await _configService.getEmailConfig();
       if (_emailConfig == null) {
-        print('[EmailConfigScreen] No config found, initializing default config...');
+        LoggingService().info('No config found, initializing default config...');
         // Initialize with default config
         await _configService.initializeDefaultConfig();
         _emailConfig = await _configService.getEmailConfig();
       }
       _populateControllers();
-      print('[EmailConfigScreen] Successfully loaded config: ${_emailConfig?.smtpHost}');
+      LoggingService().info('Successfully loaded config: ${_emailConfig?.smtpHost}');
     } catch (e) {
-      print('[EmailConfigScreen] Error loading config: $e');
+      LoggingService().error('Error loading email config: $e', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading config: $e')),
+          SnackBar(
+            content: Text(AppStrings.tr(
+              context: context,
+              screenKey: 'emailConfig',
+              stringKey: 'error_loading',
+              langCode: _selectedLanguage,
+            )),
+            backgroundColor: AppTheme.errorColor,
+          ),
         );
       }
     } finally {
@@ -108,7 +120,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
   Future<void> _saveConfig() async {
     setState(() => _isSaving = true);
     try {
-      print('[EmailConfigScreen] Saving email configuration...');
+      LoggingService().info('Saving email configuration...');
       final updatedConfig = EmailConfig(
         smtpHost: _smtpHostController.text,
         smtpPort: int.tryParse(_smtpPortController.text) ?? 587,
@@ -135,20 +147,31 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
       final success = await _configService.updateEmailConfig(updatedConfig);
       if (success) {
         setState(() => _emailConfig = updatedConfig);
-        print('[EmailConfigScreen] Successfully saved config');
+        LoggingService().info('Successfully saved email config');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_tr('emailConfig', 'config_saved'))),
+            SnackBar(
+              content: Text(_tr('emailConfig', 'config_saved')),
+              backgroundColor: AppTheme.successColor,
+            ),
           );
         }
       } else {
         throw Exception('Failed to save configuration');
       }
     } catch (e) {
-      print('[EmailConfigScreen] Error saving config: $e');
+      LoggingService().error('Error saving email config: $e', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving config: $e')),
+          SnackBar(
+            content: Text(AppStrings.tr(
+              context: context,
+              screenKey: 'emailConfig',
+              stringKey: 'error_saving',
+              langCode: _selectedLanguage,
+            )),
+            backgroundColor: AppTheme.errorColor,
+          ),
         );
       }
     } finally {
@@ -159,16 +182,21 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Text(
-          _tr('emailConfig', 'email_configuration'),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+      backgroundColor: AppTheme.whiteColor,
+      appBar: CustomAppBar(
+        title: LogoTitle(
+          text: AppStrings.tr(
+            context: context,
+            screenKey: 'splash',
+            stringKey: 'app_name',
+            langCode: _selectedLanguage,
+          ),
         ),
+        backgroundColor: AppTheme.whiteColor,
+        foregroundColor: AppTheme.blackColor,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, color: AppTheme.onSurface),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
@@ -176,22 +204,26 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
             TextButton(
               onPressed: _isSaving ? null : _saveConfig,
               child: _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                  ? SizedBox(
+                      width: AppTheme.spacing20,
+                      height: AppTheme.spacing20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryColor),
                     )
                   : Text(
                       _tr('emailConfig', 'save'),
-                      style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'Poppins',
+                      ),
                     ),
             ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+              padding: EdgeInsets.all(AppTheme.spacing16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -202,12 +234,12 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
                   _buildTextField(_tr('emailConfig', 'smtp_password'), _smtpPasswordController, obscureText: true),
                   _buildSwitchField(_tr('emailConfig', 'use_tls'), _smtpUseTls, (value) => setState(() => _smtpUseTls = value)),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: AppTheme.spacing24),
                   _buildSectionTitle(_tr('emailConfig', 'sender_info')),
                   _buildTextField(_tr('emailConfig', 'from_email'), _fromEmailController, keyboardType: TextInputType.emailAddress),
                   _buildTextField(_tr('emailConfig', 'from_name'), _fromNameController),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: AppTheme.spacing24),
                   _buildSectionTitle(_tr('emailConfig', 'email_templates')),
                   _buildTextField(_tr('emailConfig', 'verification_subject'), _verificationSubjectController),
                   _buildTextField(_tr('emailConfig', 'verification_body'), _verificationBodyController, maxLines: 3),
@@ -222,7 +254,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
                   _buildTextField(_tr('emailConfig', 'rejection_body'), _rejectionBodyController, maxLines: 3),
                   _buildTextField(_tr('emailConfig', 'rejection_template_id'), _rejectionTemplateIdController),
 
-                  const SizedBox(height: 32),
+                  SizedBox(height: AppTheme.spacing32),
                 ],
               ),
             ),
@@ -231,10 +263,15 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
 
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+        style: TextStyle(
+          fontSize: AppTheme.fontSizeH6,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.onSurface,
+          fontFamily: 'Poppins',
+        ),
       ),
     );
   }
@@ -242,17 +279,40 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
   Widget _buildTextField(String label, TextEditingController controller,
       {TextInputType keyboardType = TextInputType.text, bool obscureText = false, int maxLines = 1}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
         obscureText: obscureText,
         maxLines: maxLines,
+        style: TextStyle(
+          color: AppTheme.onSurface,
+          fontFamily: 'Poppins',
+        ),
         decoration: InputDecoration(
           labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            borderSide: BorderSide(color: AppTheme.greyShade400),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            borderSide: BorderSide(color: AppTheme.greyShade400),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            borderSide: BorderSide(color: AppTheme.primaryColor, width: 2),
+          ),
           filled: true,
-          fillColor: Colors.grey.shade50,
+          fillColor: AppTheme.greyShade50,
+          labelStyle: TextStyle(
+            color: AppTheme.subtitleColor,
+            fontFamily: 'Poppins',
+          ),
+          hintStyle: TextStyle(
+            color: AppTheme.subtitleColor,
+            fontFamily: 'Poppins',
+          ),
         ),
       ),
     );
@@ -260,15 +320,23 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
 
   Widget _buildSwitchField(String label, bool value, ValueChanged<bool> onChanged) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 16)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeBody1,
+              color: AppTheme.onSurface,
+              fontFamily: 'Poppins',
+            ),
+          ),
           Switch(
             value: value,
             onChanged: onChanged,
-            activeTrackColor: Colors.blue,
+            activeThumbColor: AppTheme.primaryColor,
+            activeTrackColor: AppTheme.primaryColor.withAlpha(128),
           ),
         ],
       ),
@@ -277,6 +345,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
 
   @override
   void dispose() {
+    LoggingService().debug('Disposing EmailConfigScreen resources');
     _smtpHostController.dispose();
     _smtpPortController.dispose();
     _smtpUsernameController.dispose();

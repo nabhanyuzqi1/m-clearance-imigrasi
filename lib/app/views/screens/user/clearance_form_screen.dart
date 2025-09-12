@@ -7,12 +7,15 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:typed_data';
 import 'dart:io';
+import 'package:shimmer/shimmer.dart' as shimmer;
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/clearance_application.dart';
 import '../../../services/user_service.dart';
 import '../../../services/network_utils.dart';
+import '../../../services/logging_service.dart';
+import '../../widgets/custom_app_bar.dart';
 import 'clearance_result_screen.dart';
 import 'document_view_screen.dart';
 
@@ -63,8 +66,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   bool _isSubmitting = false;
 
   // Cached translations to prevent rebuilds
-  late String _arrivalTitle;
-  late String _departureTitle;
   late String _formInstruction;
   late String _shipNameHint;
   late String _selectDateHint;
@@ -82,8 +83,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       );
 
   void _cacheTranslations() {
-    _arrivalTitle = _tr('arrival_title');
-    _departureTitle = _tr('departure_title');
     _formInstruction = _tr('form_instruction');
     _shipNameHint = _tr('ship_name_hint');
     _selectDateHint = _tr('select_date');
@@ -97,10 +96,12 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   @override
   void initState() {
     super.initState();
+    LoggingService().info('ClearanceFormScreen initialized for ${widget.type}');
     _cacheTranslations();
 
     if (widget.existingApplication != null) {
       final app = widget.existingApplication!;
+      LoggingService().debug('Loading existing application: ${app.id}');
       _shipNameController.text = app.shipName;
       _selectedFlag = app.flag;
       _agentNameController.text = app.agentName;
@@ -114,6 +115,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       _crewListFileName = app.crewListFile;
       _notificationLetterFileName = app.notificationLetterFile;
     } else {
+      LoggingService().debug('Creating new application form');
       _agentNameController.text = widget.agentName;
       _selectedLocation = _locations.first;
       _selectedFlag = _tr('indonesia');
@@ -123,6 +125,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
   @override
   void dispose() {
+    LoggingService().debug('Disposing ClearanceFormScreen resources');
     _shipNameController.dispose();
     _agentNameController.dispose();
     _portController.dispose();
@@ -134,8 +137,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
   void _goToStep(int step) {
     if (step > 1 && !_formKey.currentState!.validate()) {
+      LoggingService().warning('Form validation failed, cannot proceed to step $step');
       return;
     }
+    LoggingService().debug('Navigating to step $step');
     setState(() { _currentStep = step; });
   }
 
@@ -228,10 +233,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   Future<String?> _uploadDocumentToStorage(Uint8List fileData, String fileName, String userId) async {
     return NetworkUtils.executeWithRetry(
       () async {
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final date = DateTime.now().toIso8601String().split('T')[0];
         final fileExtension = fileName.split('.').last;
         final baseName = fileName.split('.').first;
-        final uniqueFileName = '${baseName}_${timestamp}_${userId.substring(0, 8)}.$fileExtension';
+        final uniqueFileName = 'isam_${date}_$baseName.$fileExtension';
 
         final storageRef = FirebaseStorage.instance.ref();
         final documentRef = storageRef.child('applications/$userId/documents/$uniqueFileName');
@@ -243,18 +248,23 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         );
 
         if (snapshot.state == TaskState.success) {
-          final downloadUrl = await NetworkUtils.withTimeout(
-            documentRef.getDownloadURL(),
-            const Duration(seconds: 5),
-          );
-          return downloadUrl;
+          try {
+            final downloadUrl = await NetworkUtils.withTimeout(
+              documentRef.getDownloadURL(),
+              const Duration(seconds: 5),
+            );
+            return downloadUrl;
+          } catch (e) {
+            LoggingService().error('Failed to get download URL, returning storage path', e);
+            return documentRef.fullPath;
+          }
         } else {
           throw NetworkException(_tr('upload_failed'), isRetryable: true);
         }
       },
       shouldRetry: NetworkUtils.isRetryableError,
     ).catchError((e) {
-      print(_tr('upload_error'));
+      LoggingService().error(_tr('upload_error'), e);
       return '';
     });
   }
@@ -384,7 +394,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   void _submitApplication() {
     final screenWidth = MediaQuery.of(context).size.width;
 
+    LoggingService().info('Submit application button pressed');
+
     if (_portClearanceFileData == null || _crewListFileData == null || _notificationLetterFileData == null) {
+      LoggingService().warning('Missing required documents, redirecting to upload step');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_tr('upload_all_docs')),
@@ -435,16 +448,18 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      print('DEBUG: Starting application submission process');
-      print('DEBUG: Application type: ${widget.type}');
-      print('DEBUG: Existing application: ${widget.existingApplication?.id}');
+      LoggingService().info('Starting application submission process');
+      LoggingService().debug('Application type: ${widget.type}');
+      LoggingService().debug('Existing application: ${widget.existingApplication?.id}');
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
+        LoggingService().error('No authenticated user found during submission');
         throw Exception(_tr('auth_error'));
       }
 
       // Upload files to Firebase Storage in parallel
+      LoggingService().debug('Starting file uploads to Firebase Storage');
 
       final uploadTasks = <Future<String?>>[];
 
@@ -471,7 +486,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       final crewListUrl = uploadTasks.length > 1 ? uploadResults[1] : null;
       final notificationLetterUrl = uploadTasks.length > 2 ? uploadResults[2] : null;
 
-      // Files uploaded successfully
+      LoggingService().info('File uploads completed successfully');
 
       final application = ClearanceApplication(
         id: widget.existingApplication?.id ?? '',
@@ -489,24 +504,24 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         notificationLetterFile: notificationLetterUrl ?? _notificationLetterFileName,
       );
 
-      print('DEBUG: Created ClearanceApplication object: ${application.shipName}');
+      LoggingService().debug('Created ClearanceApplication object: ${application.shipName}');
 
       String? applicationId;
       if (widget.existingApplication != null) {
         // Update existing application
-        print('DEBUG: Updating existing application');
+        LoggingService().info('Updating existing application');
         final success = await _userService.updateApplication(widget.existingApplication!.id, application);
         if (success) {
           applicationId = widget.existingApplication!.id;
         }
       } else {
         // Submit new application
-        print('DEBUG: Submitting new application');
+        LoggingService().info('Submitting new application');
         applicationId = await _userService.submitClearanceApplication(application);
       }
 
       if (applicationId != null && mounted) {
-        print('DEBUG: Application submission successful, ID: $applicationId');
+        LoggingService().info('Application submission successful, ID: $applicationId');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('success_message')),
@@ -525,16 +540,16 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           ),
         );
       } else {
-        print('DEBUG: Application submission failed - no ID returned');
+        LoggingService().error('Application submission failed - no ID returned');
         throw Exception(_tr('submit_error'));
       }
     } catch (e) {
-      print('DEBUG: Error in _performSubmission: $e');
-      print('DEBUG: Error type: ${e.runtimeType}');
+      LoggingService().error('Error in _performSubmission: $e', e);
+      LoggingService().debug('Error type: ${e.runtimeType}');
       if (e is FirebaseException) {
         final firebaseError = e;
-        print('DEBUG: Firebase error code: ${firebaseError.code}');
-        print('DEBUG: Firebase error message: ${firebaseError.message}');
+        LoggingService().debug('Firebase error code: ${firebaseError.code}');
+        LoggingService().debug('Firebase error message: ${firebaseError.message}');
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -553,7 +568,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final applicationType = widget.existingApplication?.type ?? widget.type;
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final horizontalPadding = screenWidth * 0.06; // 6% of screen width
@@ -561,9 +575,16 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(applicationType == ApplicationType.kedatangan ? _arrivalTitle : _departureTitle,
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+      appBar: CustomAppBar(
+        titleText: AppStrings.tr(
+          context: context,
+          screenKey: 'clearanceForm',
+          stringKey: widget.type == ApplicationType.kedatangan ? 'arrival_title' : 'departure_title',
+          langCode: widget.initialLanguage,
+        ),
+        backgroundColor: AppTheme.whiteColor,
+        foregroundColor: AppTheme.blackColor,
+        elevation: 0,
       ),
       body: SafeArea(
         child: Column(
@@ -573,13 +594,29 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               child: _buildStepper(),
             ),
             Expanded(
-              child: IndexedStack(
-                index: _currentStep - 1,
-                children: [
-                  _buildFormStep(key: const ValueKey('form_step')),
-                  _buildUploadStep(key: const ValueKey('upload_step')),
-                  _buildSubmitStep(key: const ValueKey('submit_step')),
-                ],
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.1, 0.0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  );
+                },
+                child: IndexedStack(
+                  key: ValueKey<int>(_currentStep),
+                  index: _currentStep - 1,
+                  children: [
+                    _buildFormStep(key: const ValueKey('form_step')),
+                    _buildUploadStep(key: const ValueKey('upload_step')),
+                    _buildSubmitStep(key: const ValueKey('submit_step')),
+                  ],
+                ),
               ),
             ),
           ],
@@ -776,6 +813,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final horizontalPadding = screenWidth * 0.06;
     final verticalSpacing = screenWidth * 0.03;
 
+    if (_isSubmitting) {
+      return _buildShimmerLoading();
+    }
+
     return Padding(
       key: key,
       padding: EdgeInsets.all(horizontalPadding),
@@ -783,7 +824,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         children: [
           Expanded(
             child: ListView(
-              shrinkWrap: true,
               children: [
                 Text(_tr('review_confirm'), style: TextStyle(fontSize: screenWidth * 0.045, fontWeight: FontWeight.bold)),
                 SizedBox(height: verticalSpacing),
@@ -877,6 +917,68 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     );
   }
 
+  Widget _buildShimmerLoading() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth * 0.06;
+    final verticalSpacing = screenWidth * 0.03;
+
+    return Padding(
+      padding: EdgeInsets.all(horizontalPadding),
+      child: shimmer.Shimmer.fromColors(
+        baseColor: AppTheme.greyShade200,
+        highlightColor: AppTheme.greyShade100,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                children: [
+                  // Title shimmer
+                  Container(
+                    height: screenWidth * 0.06,
+                    width: screenWidth * 0.4,
+                    color: AppTheme.greyShade300,
+                  ),
+                  SizedBox(height: verticalSpacing),
+
+                  // Vessel details card shimmer
+                  Container(
+                    height: screenWidth * 0.8,
+                    decoration: BoxDecoration(
+                      color: AppTheme.greyShade300,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  SizedBox(height: verticalSpacing * 2),
+
+                  // Documents card shimmer
+                  Container(
+                    height: screenWidth * 0.6,
+                    decoration: BoxDecoration(
+                      color: AppTheme.greyShade300,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Submit button shimmer
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: verticalSpacing * 2),
+              child: Container(
+                height: screenWidth * 0.12,
+                decoration: BoxDecoration(
+                  color: AppTheme.greyShade300,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required String label,
     required TextEditingController controller,
@@ -926,6 +1028,17 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final verticalSpacing = screenWidth * 0.03;
 
     bool isUploaded = fileName != null;
+    Uint8List? fileData;
+    if (isUploaded) {
+      if (title == _tr('port_clearance')) {
+        fileData = _portClearanceFileData;
+      } else if (title == _tr('crew_list')) {
+        fileData = _crewListFileData;
+      } else if (title == _tr('notification_letter')) {
+        fileData = _notificationLetterFileData;
+      }
+    }
+
     return Card(
       key: key,
       elevation: 2,
@@ -941,19 +1054,34 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
             isUploaded
                 ? Row(
                     children: [
+                      // File preview/thumbnail
+                      Container(
+                        width: screenWidth * 0.08,
+                        height: screenWidth * 0.08,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          color: AppTheme.greyShade200,
+                        ),
+                        child: fileData != null && fileName.toLowerCase().endsWith('.pdf')
+                            ? Icon(Icons.picture_as_pdf, color: AppTheme.errorColor, size: screenWidth * 0.05)
+                            : fileData != null && (fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg') || fileName.toLowerCase().endsWith('.png'))
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.memory(
+                                      fileData,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          Icon(Icons.image, color: AppTheme.greyColor, size: screenWidth * 0.05),
+                                    ),
+                                  )
+                                : Icon(Icons.insert_drive_file, color: AppTheme.primaryColor, size: screenWidth * 0.05),
+                      ),
+                      SizedBox(width: screenWidth * 0.02),
                       const Icon(Icons.check_circle, color: AppTheme.successColor),
                       SizedBox(width: screenWidth * 0.02),
                       Expanded(child: Text(fileName, style: TextStyle(color: AppTheme.successColor, fontSize: screenWidth * 0.035), overflow: TextOverflow.ellipsis)),
                       IconButton(
                         onPressed: () {
-                          Uint8List? fileData;
-                          if (title == _tr('port_clearance')) {
-                            fileData = _portClearanceFileData;
-                          } else if (title == _tr('crew_list')) {
-                            fileData = _crewListFileData;
-                          } else if (title == _tr('notification_letter')) {
-                            fileData = _notificationLetterFileData;
-                          }
                           if (fileData != null) {
                             Navigator.push(
                               context,

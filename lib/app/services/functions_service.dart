@@ -15,14 +15,14 @@ class FunctionsService {
 
   Future<void> officerDecideAccount({
     required String targetUid,
-    required String decision, // 'approved' | 'rejected'
-    String? note,
+    required String decision, // 'approved' | 'rejected' | 'revision_requested'
+    String? reason,
   }) async {
     final callable = _functions.httpsCallable('officerDecideAccount');
     await callable(<String, dynamic>{
       'targetUid': targetUid,
       'decision': decision,
-      if (note != null && note.isNotEmpty) 'note': note,
+      if (reason != null && reason.isNotEmpty) 'reason': reason,
     });
   }
 
@@ -48,5 +48,11 @@ class FunctionsService {
   Future<void> verifyEmailCode(String code) async {
     final callable = _functions.httpsCallable('verifyEmailCode');
     await callable(<String, dynamic>{'code': code});
+  }
+
+  Future<Map<String, dynamic>> generateHistoryPDF(String applicationId) async {
+    final callable = _functions.httpsCallable('generateHistoryPDF');
+    final result = await callable(<String, dynamic>{'applicationId': applicationId});
+    return Map<String, dynamic>.from(result.data ?? {});
   }
 }

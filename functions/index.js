@@ -578,11 +578,303 @@ exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
 });
 
 /**
- * getOfficerDashboardStats (callable)
- * Returns lightweight counts for officer dashboard cards.
- * - pendingAccounts: users with status == 'pending_approval'
- * - approvedToday: users moved to approved since midnight UTC
- * - rejectedToday: users moved to rejected since midnight UTC
+ * generateClearanceDocument (helper)
+ * Generates a PDF document containing the application data with M-Clearance ISam logo and uploads it to Firebase Storage.
+ */
+async function generateClearanceDocument(uid, application) {
+  console.log('[generateClearanceDocument] Starting PDF generation for user:', uid, 'application:', application.id);
+
+  try {
+    const PDFMake = require('pdfmake');
+    console.log('[generateClearanceDocument] PDFMake loaded successfully');
+
+    const fonts = {
+      Roboto: {
+        normal: 'node_modules/pdfmake/build/vfs_fonts.js#Roboto-Regular.ttf',
+        bold: 'node_modules/pdfmake/build/vfs_fonts.js#Roboto-Medium.ttf',
+      }
+    };
+    const pdfMake = new PDFMake(fonts);
+    console.log('[generateClearanceDocument] PDFMake instance created');
+
+    // M-Clearance ISam logo (base64 encoded - you would need to replace this with actual base64)
+    // For now using a placeholder - in production, you'd upload the logo to storage and reference it
+    const logoBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='; // Placeholder
+
+    // Safely format dates
+    let submittedAtText = 'N/A';
+    try {
+      if (application.createdAt) {
+        const timestamp = application.createdAt.toMillis ? application.createdAt.toMillis() : application.createdAt;
+        submittedAtText = new Date(timestamp).toLocaleString();
+      }
+    } catch (dateError) {
+      console.warn('[generateClearanceDocument] Error formatting date:', dateError);
+    }
+
+    const docDefinition = {
+      content: [
+        // Header with logo
+        {
+          columns: [
+            {
+              image: logoBase64,
+              width: 50,
+              height: 50,
+              alignment: 'left'
+            },
+            {
+              text: 'M-Clearance ISam',
+              style: 'companyHeader',
+              alignment: 'right',
+              margin: [0, 15, 0, 0]
+            }
+          ],
+          margin: [0, 0, 0, 20]
+        },
+        // Divider line
+        {
+          canvas: [
+            {
+              type: 'line',
+              x1: 0, y1: 0,
+              x2: 515, y2: 0,
+              lineWidth: 1,
+              lineColor: '#007bff'
+            }
+          ],
+          margin: [0, 0, 0, 20]
+        },
+        // Title
+        { text: 'Clearance Application Document', style: 'header', alignment: 'center' },
+        { text: `Application ID: ${application.id || 'N/A'}`, style: 'subheader', alignment: 'center' },
+        // Spacer
+        { text: '', margin: [0, 0, 0, 20] },
+        // Application Details
+        {
+          table: {
+            widths: ['auto', '*'],
+            body: [
+              [{ text: 'Ship Name:', style: 'tableLabel' }, { text: application.shipName || 'N/A', style: 'tableValue' }],
+              [{ text: 'Flag:', style: 'tableLabel' }, { text: application.flag || 'N/A', style: 'tableValue' }],
+              [{ text: 'Agent Name:', style: 'tableLabel' }, { text: application.agentName || 'N/A', style: 'tableValue' }],
+              [{ text: 'Application Type:', style: 'tableLabel' }, { text: application.type || 'N/A', style: 'tableValue' }],
+              [{ text: 'Port:', style: 'tableLabel' }, { text: application.port || 'N/A', style: 'tableValue' }],
+              [{ text: 'Date:', style: 'tableLabel' }, { text: application.date || 'N/A', style: 'tableValue' }],
+              [{ text: 'WNI Crew:', style: 'tableLabel' }, { text: (application.wniCrew?.toString()) || '0', style: 'tableValue' }],
+              [{ text: 'WNA Crew:', style: 'tableLabel' }, { text: (application.wnaCrew?.toString()) || '0', style: 'tableValue' }],
+              [{ text: 'Location:', style: 'tableLabel' }, { text: application.location || 'N/A', style: 'tableValue' }],
+              [{ text: 'Status:', style: 'tableLabel' }, { text: application.status || 'N/A', style: 'tableValue' }],
+              [{ text: 'Submitted At:', style: 'tableLabel' }, { text: submittedAtText, style: 'tableValue' }],
+              [{ text: 'Reviewed By:', style: 'tableLabel' }, { text: application.officerName || 'Not reviewed yet', style: 'tableValue' }],
+            ]
+          },
+          layout: {
+            fillColor: function (rowIndex) {
+              return (rowIndex % 2 === 0) ? '#f8f9fa' : null;
+            }
+          },
+          margin: [0, 0, 0, 20]
+        },
+        // Notes section if available
+        ...(application.notes ? [
+          { text: 'Officer Notes:', style: 'notesHeader', margin: [0, 20, 0, 10] },
+          {
+            text: application.notes,
+            style: 'notesText',
+            margin: [0, 0, 0, 20]
+          }
+        ] : []),
+        // Footer
+        {
+          text: 'Generated by M-Clearance ISam System',
+          style: 'footer',
+          alignment: 'center',
+          margin: [0, 40, 0, 0]
+        }
+      ],
+      styles: {
+        companyHeader: {
+          fontSize: 20,
+          bold: true,
+          color: '#007bff'
+        },
+        header: {
+          fontSize: 18,
+          bold: true,
+          margin: [0, 0, 0, 10],
+          color: '#007bff'
+        },
+        subheader: {
+          fontSize: 14,
+          bold: true,
+          margin: [0, 5, 0, 5],
+          color: '#495057'
+        },
+        tableLabel: {
+          fontSize: 12,
+          bold: true,
+          color: '#495057',
+          margin: [0, 8, 0, 8]
+        },
+        tableValue: {
+          fontSize: 12,
+          color: '#212529',
+          margin: [0, 8, 0, 8]
+        },
+        notesHeader: {
+          fontSize: 14,
+          bold: true,
+          color: '#dc3545'
+        },
+        notesText: {
+          fontSize: 12,
+          color: '#6c757d',
+          italics: true
+        },
+        footer: {
+          fontSize: 10,
+          color: '#6c757d',
+          italics: true
+        }
+      },
+      defaultStyle: {
+        font: 'Roboto'
+      }
+    };
+
+    console.log('[generateClearanceDocument] Creating PDF document...');
+
+    // Create PDF document
+    const pdfDoc = pdfMake.createPdfKitDocument(docDefinition);
+    console.log('[generateClearanceDocument] PDF document created');
+
+    // Collect PDF data
+    const chunks = [];
+    pdfDoc.on('data', chunk => chunks.push(chunk));
+    console.log('[generateClearanceDocument] PDF data collection started');
+
+    // Return a promise that resolves when PDF is generated and uploaded
+    return new Promise((resolve, reject) => {
+      pdfDoc.on('end', async () => {
+        try {
+          console.log('[generateClearanceDocument] PDF generation completed, concatenating chunks...');
+          const result = Buffer.concat(chunks);
+          console.log('[generateClearanceDocument] PDF buffer created, size:', result.length);
+
+          // Upload to Firebase Storage
+          console.log('[generateClearanceDocument] Starting upload to Firebase Storage...');
+          const bucket = admin.storage().bucket();
+          const safeShipName = (application.shipName || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
+          const filename = `clearance_documents/${uid}/${safeShipName}_${Date.now()}.pdf`;
+          const file = bucket.file(filename);
+
+          console.log('[generateClearanceDocument] Uploading file:', filename);
+          await file.save(result, {
+            metadata: { contentType: 'application/pdf' },
+          });
+          console.log('[generateClearanceDocument] File uploaded successfully');
+
+          // Get signed URL
+          console.log('[generateClearanceDocument] Generating signed URL...');
+          const [signedUrl] = await file.getSignedUrl({
+            action: 'read',
+            expires: '03-09-2491'
+          });
+
+          console.log('[generateClearanceDocument] Signed URL generated successfully');
+          resolve(signedUrl);
+        } catch (uploadError) {
+          console.error('[generateClearanceDocument] Upload error:', uploadError);
+          reject(new Error(`Upload failed: ${uploadError.message}`));
+        }
+      });
+
+      pdfDoc.on('error', (error) => {
+        console.error('[generateClearanceDocument] PDF generation error:', error);
+        reject(new Error(`PDF generation failed: ${error.message}`));
+      });
+
+      pdfDoc.end();
+    });
+  } catch (e) {
+    console.error('[generateClearanceDocument] Unexpected error:', e);
+    throw new Error(`PDF generation failed: ${e.message}`);
+  }
+}
+
+/**
+ * Officer/Admin decision on a user account pending approval.
+ * Input: { targetUid: string, decision: 'approved'|'rejected', note?: string }
+ * Effect: updates users/{uid}.status and updatedAt. Optionally stores decidedBy/note metadata.
+ * onUserDocUpdate will generate notifications.
+ */
+exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
+ requireAuth(context);
+ ensureOfficerOrAdmin(context);
+
+ const targetUid = (data && data.targetUid) || '';
+ const decision = (data && data.decision) || '';
+ const note = (data && data.note) || '';
+
+ if (!targetUid || !['approved', 'rejected'].includes(decision)) {
+   throw new functions.https.HttpsError('invalid-argument', 'Provide targetUid and decision in [approved|rejected].');
+ }
+
+ const callerUid = context.auth.uid;
+ const callerEmail = (context.auth.token && context.auth.token.email) || '';
+ const userRef = db.collection('users').doc(targetUid);
+
+ await db.runTransaction(async (txn) => {
+   const snap = await txn.get(userRef);
+   if (!snap.exists) {
+     throw new functions.https.HttpsError('not-found', 'User document not found.');
+   }
+   const data = snap.data() || {};
+   const status = data.status || 'pending_email_verification';
+   if (status !== 'pending_approval') {
+     throw new functions.https.HttpsError('failed-precondition', `User status must be pending_approval. Got: ${status}`);
+   }
+
+   const updates = {
+     status: decision,
+     updatedAt: FieldValue.serverTimestamp(),
+     decidedBy: callerEmail || callerUid,
+   };
+   if (note && typeof note === 'string' && note.length <= 1000) {
+     updates.decisionNote = note;
+   }
+   txn.update(userRef, updates);
+
+   // Generate clearance document if approved
+   if (decision === 'approved') {
+     // Get application data
+     const applicationRef = db.collection('applications').doc(targetUid);
+     const applicationSnap = await applicationRef.get();
+     if (!applicationSnap.exists) {
+       throw new functions.https.HttpsError('not-found', 'Application document not found.');
+     }
+     const applicationData = applicationSnap.data() || {};
+
+     // Generate and upload clearance document
+     try {
+       const documentUrl = await generateClearanceDocument(targetUid, applicationData);
+       // Save document URL to application
+       await db.collection('applications').doc(targetUid).update({ clearanceDocumentUrl: documentUrl });
+     } catch (e) {
+       console.error('[officerDecideAccount] generateClearanceDocument error:', e);
+       // Optionally, you might want to handle the error more gracefully
+       // For example, set a flag in the user document to indicate that the document generation failed
+       // and needs to be retried.
+       throw new functions.https.HttpsError('internal', 'Failed to generate clearance document.');
+     }
+   }
+ });
+
+ return { ok: true, uid: targetUid, status: decision };
+});
+
+/**
  * - pendingArrival/pendingDeparture: applications awaiting review by type
  */
 exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) => {
@@ -940,11 +1232,72 @@ exports.testEmailSend = functions.https.onCall(async (data, context) => {
 
 
 /**
- * Applications triggers
- * - Ensure defaults on create
- * - Update counters on create
- * - Notify user on status decision transitions (approved/declined)
+ * generateHistoryPDF (callable)
+ * Generates a PDF document for application history details with M-Clearance ISam logo.
  */
+exports.generateHistoryPDF = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  const uid = context.auth.uid;
+  const applicationId = data?.applicationId;
+
+  if (!applicationId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Application ID is required.');
+  }
+
+  try {
+    console.log('[generateHistoryPDF] Starting PDF generation for application:', applicationId);
+
+    // Get application data
+    const applicationRef = db.collection('applications').doc(applicationId);
+    const applicationSnap = await applicationRef.get();
+
+    if (!applicationSnap.exists) {
+      console.error('[generateHistoryPDF] Application not found:', applicationId);
+      throw new functions.https.HttpsError('not-found', 'Application not found.');
+    }
+
+    const application = applicationSnap.data();
+    console.log('[generateHistoryPDF] Retrieved application data for:', applicationId);
+
+    // Verify user owns this application
+    if (application.agentUid !== uid) {
+      console.error('[generateHistoryPDF] Permission denied for user:', uid, 'on application:', applicationId);
+      throw new functions.https.HttpsError('permission-denied', 'You do not have permission to access this application.');
+    }
+
+    // Generate PDF
+    console.log('[generateHistoryPDF] Calling generateClearanceDocument...');
+    const pdfUrl = await generateClearanceDocument(uid, application);
+
+    console.log('[generateHistoryPDF] PDF generated successfully for application:', applicationId, 'URL:', pdfUrl);
+    return { success: true, pdfUrl };
+
+  } catch (error) {
+    console.error('[generateHistoryPDF] Error generating PDF for application:', applicationId, error);
+
+    // Provide more specific error messages
+    if (error.code === 'not-found') {
+      throw error;
+    } else if (error.code === 'permission-denied') {
+      throw error;
+    } else {
+      // Log the full error for debugging
+      console.error('[generateHistoryPDF] Full error details:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code
+      });
+      throw new functions.https.HttpsError('internal', `Failed to generate PDF: ${error.message}`);
+    }
+  }
+});
+
+/**
+  * Applications triggers
+  * - Ensure defaults on create
+  * - Update counters on create
+  * - Notify user on status decision transitions (approved/declined)
+  */
 exports.onApplicationCreate = functions.firestore
   .document('applications/{appId}')
   .onCreate(async (snap, context) => {

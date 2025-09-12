@@ -84,7 +84,7 @@ service cloud.firestore {
         && new.username == old.username
         && new.nationality == old.nationality
         && (
-          (bs == 'pending_approval' && (ns == 'approved' || ns == 'rejected'))
+          (bs in ['waiting', 'revision', 'pending_approval'] && (ns == 'approved' || ns == 'rejected' || ns == 'revision'))
           || (ns == bs) // allow no-op
         );
     }

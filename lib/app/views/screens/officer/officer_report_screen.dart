@@ -2,6 +2,9 @@
 
 import 'package:flutter/material.dart';
 import '../../../localization/app_strings.dart';
+import '../../../services/logging_service.dart';
+import '../../../config/theme.dart';
+import '../../widgets/custom_app_bar.dart';
 
 class OfficerReportScreen extends StatelessWidget {
   final String initialLanguage;
@@ -10,17 +13,35 @@ class OfficerReportScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building OfficerReportScreen with language: $initialLanguage');
     return Scaffold(
-      appBar: AppBar(
-        title: Text(AppStrings.tr(
-          context: context,
-          screenKey: 'officerReport',
-          stringKey: 'title',
-          langCode: initialLanguage,
-        )),
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: CustomAppBar(
+        title: LogoTitle(
+          text: AppStrings.tr(
+            context: context,
+            screenKey: 'splash',
+            stringKey: 'app_name',
+            langCode: initialLanguage,
+          ),
+        ),
+        backgroundColor: AppTheme.whiteColor,
+        foregroundColor: AppTheme.blackColor,
+        elevation: 0,
       ),
-      body: const Center(
-        child: Text('Officer Report Screen'),
+      body: Center(
+        child: Text(
+          AppStrings.tr(
+            context: context,
+            screenKey: 'officerReport',
+            stringKey: 'coming_soon',
+            langCode: initialLanguage,
+          ),
+          style: TextStyle(
+            color: AppTheme.onSurface,
+            fontSize: AppTheme.fontSizeLarge,
+          ),
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../models/clearance_application.dart';
 import '../../../localization/app_strings.dart';
+import '../../../services/logging_service.dart';
 
 class VerificationLoadingScreen extends StatelessWidget {
   final ClearanceApplication application;
@@ -15,6 +16,7 @@ class VerificationLoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building VerificationLoadingScreen for application: ${application.id}');
     return Scaffold(
       appBar: AppBar(
         title: Text(AppStrings.tr(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
+import '../../../services/logging_service.dart';
 
 class SubmissionWaitingScreen extends StatelessWidget {
   final String initialLanguage;
@@ -12,6 +13,8 @@ class SubmissionWaitingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building SubmissionWaitingScreen with language: $initialLanguage');
+
     String tr(String key) => AppStrings.tr(
       context: context,
       screenKey: 'submissionWaiting',
@@ -184,8 +187,9 @@ class SubmissionWaitingScreen extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: () {
                         // Navigate to history screen
-                        Navigator.of(context).pop(); // Go back to home
-                        // TODO: Navigate to history tab
+                        Navigator.pushReplacementNamed(context, '/user-home');
+                        // Note: This navigates to home, user can then tap History tab
+                        // For better UX, we could implement deep linking to history tab
                       },
                       style: ElevatedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
@@ -213,7 +217,7 @@ class SubmissionWaitingScreen extends StatelessWidget {
                     ),
                     SizedBox(height: AppTheme.spacing8),
                     Text(
-                      'Application submitted successfully',
+                      tr('progress_text'),
                       style: TextStyle(
                         fontSize: AppTheme.fontSizeCaption,
                         color: AppTheme.subtitleColor,

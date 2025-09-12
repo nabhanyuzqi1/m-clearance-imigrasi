@@ -7,6 +7,7 @@ import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/user_model.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/logging_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   final String initialLanguage;
@@ -36,11 +37,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    LoggingService().info('RegisterScreen initialized with language: ${widget.initialLanguage}');
     _selectedLanguage = widget.initialLanguage;
   }
 
   @override
   void dispose() {
+    LoggingService().debug('Disposing RegisterScreen resources');
     _corporateNameController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
@@ -50,24 +53,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _goToNextStep() {
-    debugPrint('[RegisterScreen] _goToNextStep called, _agreeToTerms: $_agreeToTerms');
+    LoggingService().info('Registration next step attempted, terms agreed: $_agreeToTerms');
     if (!_agreeToTerms) {
-      debugPrint('[RegisterScreen] Terms not agreed');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('terms_req')), backgroundColor: AppTheme.errorColor),
-      );
+      LoggingService().warning('Terms not agreed to during registration');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('terms_req')), backgroundColor: AppTheme.errorColor),
+        );
+      }
       return;
     }
 
     final isValid = _formKey.currentState!.validate();
-    debugPrint('[RegisterScreen] Form valid: $isValid');
+    LoggingService().debug('Registration form validation result: $isValid');
     if (isValid) {
       _performRegistration();
     }
   }
 
   Future<void> _performRegistration() async {
-    debugPrint('[RegisterScreen] Starting registration');
+    LoggingService().info('Starting user registration for email: ${_emailController.text}');
     try {
       final UserModel? user = await _authService.registerWithEmailAndPassword(
         _emailController.text,
@@ -77,7 +82,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         '', // nationality removed from UI; pass empty to keep function signature unchanged
       );
       if (user != null) {
-        debugPrint('[RegisterScreen] Registration successful, navigating to email verification');
+        LoggingService().info('Registration successful for user: ${user.email}, navigating to email verification');
         if (mounted) {
           Navigator.pushReplacementNamed(
             context,
@@ -89,6 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           );
         }
       } else {
+        LoggingService().warning('Registration failed - no user returned for email: ${_emailController.text}');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -99,7 +105,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('[RegisterScreen] FirebaseAuthException: ${e.code} - ${e.message}');
+      LoggingService().error('Registration failed with FirebaseAuthException: ${e.code} - ${e.message}', e);
       String errorMessage;
       switch (e.code) {
         case 'email-already-in-use':
@@ -120,7 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       }
     } catch (e) {
-      debugPrint('[RegisterScreen] Unexpected error: $e');
+      LoggingService().error('Unexpected error during registration: $e', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

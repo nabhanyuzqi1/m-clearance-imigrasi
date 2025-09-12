@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/clearance_application.dart';
 import 'firestore_provider.dart';
 import '../services/logging_service.dart';
+import '../services/notification_service.dart';
 
 class ApplicationRepository {
   final FirebaseFirestore _db;
@@ -130,6 +131,32 @@ class ApplicationRepository {
       LoggingService().info('Application $appId status updated to $decision');
     } catch (e) {
       LoggingService().error('Error updating application $appId status', e);
+      rethrow;
+    } finally {
+       // Create application status notification
+      final notificationService = NotificationService();
+      // Get shipName from application
+      final application = await _db.collection('applications').doc(appId).get();
+      final shipName = application.data()?['shipName'] ?? '';
+      notificationService.createApplicationNotification(
+        appId,
+        shipName,
+        decision == 'approved'
+            ? ApplicationStatus.approved
+            : decision == 'revision'
+                ? ApplicationStatus.revision
+                : ApplicationStatus.declined,
+      );
+    }
+  }
+
+  Future<void> updateApplication(String appId, ClearanceApplication application) async {
+    try {
+      LoggingService().info('Updating application $appId');
+      await _db.collection('applications').doc(appId).update(application.toFirestore());
+      LoggingService().info('Application $appId updated successfully');
+    } catch (e) {
+      LoggingService().error('Error updating application $appId', e);
       rethrow;
     }
   }

@@ -9,6 +9,7 @@ import '../../../localization/app_strings.dart';
 import '../../../models/user_model.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/logging_service.dart';
 
 /// ConfirmationScreen
 ///
@@ -42,27 +43,34 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
   @override
   void initState() {
     super.initState();
+    LoggingService().info('ConfirmationScreen initialized with language: ${widget.initialLanguage}');
     _selectedLanguage = widget.initialLanguage;
+
     // Otomatis fokus ke input PIN saat layar dimuat
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_focusNode);
     });
+
     // Ensure user authenticated; if not, go to login
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      LoggingService().warning('No authenticated user found in ConfirmationScreen, redirecting to login');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.login);
       });
     }
+
     // Automatically send verification code on first load
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      LoggingService().info('Automatically sending verification code on screen load');
       await _resendCode(silent: true);
     });
   }
 
   @override
   void dispose() {
+    LoggingService().debug('Disposing ConfirmationScreen resources');
     _codeController.dispose();
     _focusNode.dispose();
     _cooldownTimer?.cancel();
@@ -89,7 +97,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       UserModel? updatedUser;
       try {
         updatedUser = await AuthService().updateEmailVerified();
-        print('DEBUG: confirmation_screen: updateEmailVerified returned status = ${updatedUser?.status}');
+        LoggingService().debug('updateEmailVerified returned status = ${updatedUser?.status}');
       } catch (_) {}
       setState(() {
         _isVerifying = false;

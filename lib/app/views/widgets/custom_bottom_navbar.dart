@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../services/logging_service.dart';
+import '../../config/theme.dart';
+import '../../localization/app_strings.dart';
 
 class NavigationItem {
   final String label;
@@ -28,6 +31,7 @@ class CustomBottomNavbar extends StatelessWidget {
   final TextStyle? unselectedLabelStyle;
   final double? iconSize;
   final BottomNavigationBarType type;
+  final String? languageCode;
 
   const CustomBottomNavbar({
     super.key,
@@ -44,10 +48,12 @@ class CustomBottomNavbar extends StatelessWidget {
     this.unselectedLabelStyle,
     this.iconSize,
     this.type = BottomNavigationBarType.fixed,
+    this.languageCode,
   });
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug('Building CustomBottomNavbar with currentIndex: $currentIndex');
     final screenWidth = MediaQuery.of(context).size.width;
     final defaultIconSize = iconSize ?? screenWidth * 0.06;
     final defaultSelectedLabelStyle = TextStyle(
@@ -61,32 +67,59 @@ class CustomBottomNavbar extends StatelessWidget {
     return BottomNavigationBar(
       type: type,
       items: items.map((item) {
+        // Get localized label if language code is provided
+        final localizedLabel = languageCode != null
+            ? _getLocalizedLabel(context, item.label, languageCode!)
+            : item.label;
+
         return BottomNavigationBarItem(
           icon: Icon(
             item.icon,
             size: defaultIconSize,
-            color: unselectedItemColor ?? Colors.grey,
+            color: unselectedItemColor ?? AppTheme.onSurface.withAlpha(102), // 0.4 * 255
           ),
           activeIcon: Icon(
             item.activeIcon ?? item.icon,
             size: defaultIconSize,
-            color: selectedItemColor ?? Theme.of(context).primaryColor,
+            color: selectedItemColor ?? AppTheme.primaryColor,
           ),
-          label: item.label,
+          label: localizedLabel,
           backgroundColor: item.color,
         );
       }).toList(),
       currentIndex: currentIndex,
       onTap: onTap,
-      backgroundColor: backgroundColor ?? Colors.white,
-      selectedItemColor: selectedItemColor ?? Theme.of(context).primaryColor,
-      unselectedItemColor: unselectedItemColor ?? Colors.grey,
+      backgroundColor: backgroundColor ?? AppTheme.surfaceColor,
+      selectedItemColor: selectedItemColor ?? AppTheme.primaryColor,
+      unselectedItemColor: unselectedItemColor ?? AppTheme.onSurface.withAlpha(102), // 0.4 * 255
       showSelectedLabels: showSelectedLabels,
       showUnselectedLabels: showUnselectedLabels,
       selectedLabelStyle: selectedLabelStyle ?? defaultSelectedLabelStyle,
       unselectedLabelStyle: unselectedLabelStyle ?? defaultUnselectedLabelStyle,
       elevation: elevation ?? 8,
     );
+  }
+
+  String _getLocalizedLabel(BuildContext context, String label, String languageCode) {
+    // Map hardcoded labels to localized keys
+    final labelMap = {
+      'Home': {'screenKey': 'userHome', 'stringKey': 'home'},
+      'History': {'screenKey': 'userHistory', 'stringKey': 'history'},
+      'Settings': {'screenKey': 'userProfile', 'stringKey': 'settings'},
+      'Reports': {'screenKey': 'adminHome', 'stringKey': 'report'},
+    };
+
+    final mapping = labelMap[label];
+    if (mapping != null) {
+      return AppStrings.tr(
+        context: context,
+        screenKey: mapping['screenKey']!,
+        stringKey: mapping['stringKey']!,
+        langCode: languageCode,
+      );
+    }
+
+    return label; // Fallback to original label
   }
 }
 
@@ -131,13 +164,13 @@ class NavigationItems {
   static List<NavigationItem> adminItems = [
     const NavigationItem(
       label: 'Home',
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home_filled,
+      icon: Icons.dashboard_outlined,
+      activeIcon: Icons.dashboard,
     ),
     const NavigationItem(
       label: 'Reports',
-      icon: Icons.assessment_outlined,
-      activeIcon: Icons.assessment,
+      icon: Icons.analytics_outlined,
+      activeIcon: Icons.analytics,
     ),
     const NavigationItem(
       label: 'Settings',

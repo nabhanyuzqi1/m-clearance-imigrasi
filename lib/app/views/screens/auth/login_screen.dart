@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart' as shimmer;
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
@@ -197,29 +198,98 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 Positioned(
                   top: MediaQuery.of(context).padding.top + AppTheme.paddingSmall,
+                  left: responsivePadding * 2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.whiteColor,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.blackColor.withAlpha(64),
+                          offset: const Offset(0, 2),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      'Sign In',
+                      style: TextStyle(
+                        color: AppTheme.blackColor,
+                        fontSize: AppTheme.fontSizeBody2,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + AppTheme.paddingSmall,
                   right: responsivePadding * 2,
-                  child: _buildLanguageSwitcher(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Change Language',
+                        style: TextStyle(
+                          color: AppTheme.whiteColor,
+                          fontSize: AppTheme.fontSizeBody2,
+                          fontWeight: FontWeight.w500,
+                          fontFamily: 'Poppins',
+                          shadows: [
+                            Shadow(
+                              offset: const Offset(1, 1),
+                              blurRadius: 2,
+                              color: AppTheme.blackColor.withAlpha(128),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildLanguageSwitcher(),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
           if (_isLoading)
-            Container(
-              color: AppTheme.blackColor.withAlpha(128),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: AppTheme.paddingLarge),
-                    Text(
-                      _tr('logging_in'),
-                      style: AppTheme.labelLarge(context).copyWith(
-                        color: AppTheme.whiteColor,
-                        fontWeight: FontWeight.bold,
+            shimmer.Shimmer.fromColors(
+              baseColor: AppTheme.blackColor.withAlpha(128),
+              highlightColor: AppTheme.blackColor.withAlpha(64),
+              child: Container(
+                color: AppTheme.blackColor.withAlpha(128),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: AppTheme.whiteColor.withAlpha(128),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const CircularProgressIndicator(
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: AppTheme.paddingLarge),
+                      Container(
+                        width: 150,
+                        height: 20,
+                        color: AppTheme.whiteColor.withAlpha(128),
+                        child: Text(
+                          _tr('logging_in'),
+                          style: AppTheme.labelLarge(context).copyWith(
+                            color: AppTheme.whiteColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -247,11 +317,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       size: AppTheme.fontSizeXXXXLarge * 2,
                       color: AppTheme.primaryColor),
                 ),
-              ),
-              const SizedBox(height: AppTheme.paddingLarge),
-              Text(
-                _tr('welcome'),
-                style: AppTheme.headingSmall(context),
               ),
               const SizedBox(height: AppTheme.paddingLarge),
               CustomTextField(
