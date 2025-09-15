@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../auth/change_password_screen.dart';
@@ -85,12 +86,7 @@ class AdminMenuScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String tr(String stringKey) => AppStrings.tr(
-          context: context,
-          screenKey: 'adminHome',
-          stringKey: stringKey,
-          langCode: initialLanguage,
-        );
+    String tr(String stringKey) => AppLocalizations.of(context).get('adminHome.$stringKey');
 
 
     return Scaffold(
@@ -229,23 +225,13 @@ class AdminAnalyticsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String tr(String stringKey) => AppStrings.tr(
-          context: context,
-          screenKey: 'adminAnalytics',
-          stringKey: stringKey,
-          langCode: initialLanguage,
-        );
+    String tr(String stringKey) => AppLocalizations.of(context).get('adminAnalytics.$stringKey');
 
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
       appBar: CustomAppBar(
         title: LogoTitle(
-          text: AppStrings.tr(
-            context: context,
-            screenKey: 'splash',
-            stringKey: 'app_name',
-            langCode: initialLanguage,
-          ),
+          text: AppLocalizations.of(context).get('splash.app_name'),
         ),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
@@ -288,12 +274,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    String tr(String stringKey) => AppStrings.tr(
-          context: context,
-          screenKey: 'adminProfile',
-          stringKey: stringKey,
-          langCode: _selectedLanguage,
-        );
+    String tr(String stringKey) => AppLocalizations.of(context).get('adminProfile.$stringKey');
 
     void showLogoutDialog() {
       showDialog(
@@ -337,12 +318,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: AppTheme.whiteColor,
       appBar: CustomAppBar(
         title: LogoTitle(
-          text: AppStrings.tr(
-            context: context,
-            screenKey: 'splash',
-            stringKey: 'app_name',
-            langCode: _selectedLanguage,
-          ),
+          text: AppLocalizations.of(context).get('splash.app_name'),
         ),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,

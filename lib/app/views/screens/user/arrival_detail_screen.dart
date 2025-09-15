@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../models/clearance_application.dart';
 import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/auth_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_button.dart';
 import 'document_view_screen.dart';
+import '../../../utils/file_utils.dart';
 
 class ArrivalDetailScreen extends StatelessWidget {
   final ClearanceApplication application;
@@ -19,34 +21,14 @@ class ArrivalDetailScreen extends StatelessWidget {
     required this.initialLanguage,
   });
 
-  String _tr(BuildContext context, String key) => AppStrings.tr(
-        context: context,
-        screenKey: 'userHistory',
-        stringKey: key,
-        langCode: initialLanguage,
-      );
+  String _tr(BuildContext context, String key) => AppLocalizations.of(context).get('userHistory.$key');
 
-  String _extractFileName(String filePath) {
-    try {
-      // Handle both full URLs and simple file names
-      if (filePath.contains('/')) {
-        return filePath.split('/').last;
-      } else if (filePath.contains('%2F')) {
-        // Handle URL-encoded paths
-        final decoded = Uri.decodeComponent(filePath);
-        return decoded.split('/').last;
-      } else {
-        return filePath;
-      }
-    } catch (e) {
-      LoggingService().error('Error extracting file name from: $filePath', e);
-      return 'Unknown File';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     LoggingService().debug('Building ArrivalDetailScreen for application: ${application.id}');
+    final screenWidth = MediaQuery.of(context).size.width;
+    final responsivePadding = screenWidth > 600 ? AppTheme.spacing16 : screenWidth * 0.04;
     return Scaffold(
       backgroundColor: AppTheme.greyShade50,
       appBar: CustomAppBar(
@@ -56,7 +38,7 @@ class ArrivalDetailScreen extends StatelessWidget {
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(AppTheme.spacing16),
+        padding: EdgeInsets.all(responsivePadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -89,7 +71,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                     child: Icon(
                       Icons.anchor,
                       color: AppTheme.whiteColor,
-                      size: 32,
+                      size: screenWidth > 600 ? 32.0 : screenWidth * 0.08,
                     ),
                   ),
                   SizedBox(width: AppTheme.spacing16),
@@ -146,7 +128,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                       Icon(
                         Icons.info_outline,
                         color: AppTheme.primaryColor,
-                        size: 24,
+                        size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
                       ),
                       SizedBox(width: AppTheme.spacing12),
                       Text(
@@ -180,7 +162,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                         Icon(
                           _getStatusIcon(application.status),
                           color: _getStatusColor(application.status),
-                          size: 16,
+                          size: screenWidth > 600 ? 16.0 : screenWidth * 0.04,
                         ),
                         SizedBox(width: AppTheme.spacing8),
                         Text(
@@ -223,7 +205,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                       Icon(
                         Icons.description,
                         color: AppTheme.primaryColor,
-                        size: 24,
+                        size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
                       ),
                       SizedBox(width: AppTheme.spacing12),
                       Text(
@@ -282,7 +264,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                         Icon(
                           Icons.attach_file,
                           color: AppTheme.primaryColor,
-                          size: 24,
+                          size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
                         ),
                         SizedBox(width: AppTheme.spacing12),
                         Text(
@@ -366,17 +348,32 @@ class ArrivalDetailScreen extends StatelessWidget {
   Future<void> _generatePDF(BuildContext context) async {
     try {
       // Show loading dialog
+      final screenWidth = MediaQuery.of(context).size.width;
+      final isTablet = screenWidth > 600;
+      final maxWidth = isTablet ? 400.0 : double.infinity;
+
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (BuildContext context) {
-          return AlertDialog(
-            content: Row(
-              children: [
-                CircularProgressIndicator(color: AppTheme.primaryColor),
-                SizedBox(width: AppTheme.spacing16),
-                Text('Generating PDF...'),
-              ],
+          return Container(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: AlertDialog(
+              content: Row(
+                children: [
+                  CircularProgressIndicator(color: AppTheme.primaryColor),
+                  SizedBox(width: AppTheme.spacing16),
+                  Expanded(
+                    child: Text(
+                      'Generating PDF...',
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.04,
+                        color: AppTheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -444,13 +441,14 @@ class ArrivalDetailScreen extends StatelessWidget {
   }
 
   Widget _buildDetailItem(BuildContext context, String label, String value) {
+    final screenWidth = MediaQuery.of(context).size.width;
     return Padding(
       padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: screenWidth > 600 ? 120.0 : screenWidth * 0.25,
             child: Text(
               label,
               style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface),
@@ -466,13 +464,14 @@ class ArrivalDetailScreen extends StatelessWidget {
   }
 
   Widget _buildFileItem(BuildContext context, String label, String fileName) {
+    final screenWidth = MediaQuery.of(context).size.width;
     return Padding(
       padding: EdgeInsets.only(bottom: AppTheme.spacing12),
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: screenWidth > 600 ? 40.0 : screenWidth * 0.1,
+            height: screenWidth > 600 ? 40.0 : screenWidth * 0.1,
             decoration: BoxDecoration(
               color: fileName.toLowerCase().endsWith('.pdf')
                   ? AppTheme.errorColor.withAlpha(25)
@@ -486,7 +485,7 @@ class ArrivalDetailScreen extends StatelessWidget {
               color: fileName.toLowerCase().endsWith('.pdf')
                   ? AppTheme.errorColor
                   : AppTheme.primaryColor,
-              size: 20,
+              size: screenWidth > 600 ? 20.0 : screenWidth * 0.05,
             ),
           ),
           SizedBox(width: AppTheme.spacing12),
@@ -504,7 +503,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  _extractFileName(fileName),
+                  getFileNameFromUrl(fileName),
                   style: TextStyle(
                     color: AppTheme.subtitleColor,
                     fontFamily: 'Poppins',
@@ -531,7 +530,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (context) => DocumentViewScreen(
                         fileData: fileData,
-                        fileName: _extractFileName(fileName),
+                        fileName: getFileNameFromUrl(fileName),
                       ),
                     ),
                   );
@@ -550,7 +549,7 @@ class ArrivalDetailScreen extends StatelessWidget {
             icon: Icon(
               Icons.visibility,
               color: AppTheme.primaryColor,
-              size: 20,
+              size: screenWidth > 600 ? 20.0 : screenWidth * 0.05,
             ),
           ),
         ],

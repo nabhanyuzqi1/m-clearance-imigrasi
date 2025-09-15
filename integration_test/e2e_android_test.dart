@@ -20,9 +20,10 @@ import 'package:m_clearance_imigrasi/main.dart' as app;
 
 // Reuse helpers from the existing scenario
 import 'auth_flow_test.dart' as authflow;
-
-void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+import 'officer_report_flow_test.dart' as officer_report_flow;
+ 
+ void main() {
+   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   group('E2E Android: Auth + Routing flow', () {
     testWidgets(
@@ -165,5 +166,8 @@ void main() {
       },
       timeout: const Timeout(Duration(minutes: 4)),
     );
+  });
+  group('E2E Android: Officer Report Flow', () {
+    officer_report_flow.main();
   });
 }

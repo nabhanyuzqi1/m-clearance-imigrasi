@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
 
 class SubmissionWaitingScreen extends StatelessWidget {
@@ -15,12 +16,7 @@ class SubmissionWaitingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     LoggingService().debug('Building SubmissionWaitingScreen with language: $initialLanguage');
 
-    String tr(String key) => AppStrings.tr(
-      context: context,
-      screenKey: 'submissionWaiting',
-      stringKey: key,
-      langCode: initialLanguage,
-    );
+    String tr(String key) => AppLocalizations.of(context).get('submissionWaiting.$key');
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,

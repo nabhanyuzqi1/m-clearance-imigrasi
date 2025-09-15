@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/config/theme.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
+import '../../../localization/app_localizations.dart';
 import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import 'package:m_clearance_imigrasi/app/localization/app_strings.dart';
@@ -39,7 +40,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   StreamSubscription<User?>? _authSub;
   late String _selectedLanguage;
 
-  String _tr(String key) => AppStrings.tr(context: context, screenKey: 'uploadDocuments', stringKey: key, langCode: _selectedLanguage);
+  String _tr(String key) => AppLocalizations.of(context).get('uploadDocuments.$key');
 
   @override
   void initState() {
@@ -286,25 +287,58 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         return true;
       } else if (cameraStatus.isPermanentlyDenied) {
         if (mounted) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final isTablet = screenWidth > 600;
+          final maxWidth = isTablet ? 400.0 : double.infinity;
+
           showDialog(
             context: context,
             builder: (BuildContext context) {
-              return AlertDialog(
-                title: Text(_tr('permission_required')),
-                content: Text(_tr('camera_permission_message')),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(_tr('cancel')),
+              return Container(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: AlertDialog(
+                  title: Text(
+                    _tr('permission_required'),
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.045,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.onSurface,
+                    ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      openAppSettings();
-                    },
-                    child: Text(_tr('open_settings')),
+                  content: Text(
+                    _tr('camera_permission_message'),
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.04,
+                      color: AppTheme.onSurface.withAlpha(179),
+                    ),
                   ),
-                ],
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        _tr('cancel'),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: screenWidth * 0.04,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        openAppSettings();
+                      },
+                      child: Text(
+                        _tr('open_settings'),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: screenWidth * 0.04,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           );
@@ -320,25 +354,58 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         return true;
       } else if (storageStatus.isPermanentlyDenied) {
         if (mounted) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final isTablet = screenWidth > 600;
+          final maxWidth = isTablet ? 400.0 : double.infinity;
+
           showDialog(
             context: context,
             builder: (BuildContext context) {
-              return AlertDialog(
-                title: Text(_tr('permission_required')),
-                content: Text(_tr('storage_permission_message')),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(_tr('cancel')),
+              return Container(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: AlertDialog(
+                  title: Text(
+                    _tr('permission_required'),
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.045,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.onSurface,
+                    ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      openAppSettings();
-                    },
-                    child: Text(_tr('open_settings')),
+                  content: Text(
+                    _tr('storage_permission_message'),
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.04,
+                      color: AppTheme.onSurface.withAlpha(179),
+                    ),
                   ),
-                ],
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        _tr('cancel'),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: screenWidth * 0.04,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        openAppSettings();
+                      },
+                      child: Text(
+                        _tr('open_settings'),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: screenWidth * 0.04,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           );
@@ -422,6 +489,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         user.uid,
         _nibFile!,
         _nibFileName ?? 'nib.pdf',
+        docType: 'port_clearance',
       );
       if (nibUrl != null && nibUrl.isNotEmpty) {
         uploadedPaths.add(nibUrl);
@@ -433,6 +501,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         _ktpFile!,
         // Ensure a default extension when missing to avoid odd content-type behaviors
         _ktpFileName ?? 'ktp.jpg',
+        docType: 'crew_list',
       );
       if (ktpUrl != null && ktpUrl.isNotEmpty) {
         uploadedPaths.add(ktpUrl);
@@ -497,6 +566,10 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   @override
   Widget build(BuildContext context) {
     final busy = _isUploading || _isMarking;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth * 0.06; // 6% of screen width for responsive padding
+    final verticalPadding = AppTheme.spacing24;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_tr('title')),
@@ -506,7 +579,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       ),
       backgroundColor: AppTheme.backgroundColor,
       body: Padding(
-        padding: EdgeInsets.all(AppTheme.spacing24),
+        padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -523,6 +596,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
               subtitle: _tr('nib_subtitle'),
               fileName: _nibFileName,
               onTap: busy ? null : _pickNibFile,
+              screenWidth: screenWidth,
             ),
             SizedBox(height: AppTheme.spacing20),
             _buildUploadCard(
@@ -530,6 +604,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
               subtitle: _tr('ktp_subtitle'),
               fileName: _ktpFileName,
               onTap: busy ? null : _pickKtpFile,
+              screenWidth: screenWidth,
             ),
             const Spacer(),
             SizedBox(
@@ -557,10 +632,14 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     required String subtitle,
     String? fileName,
     required VoidCallback? onTap,
+    required double screenWidth,
   }) {
     final isUploaded = fileName != null;
+    final cardHeight = screenWidth > 600 ? 120.0 : 100.0; // Responsive height for tablets
+    final horizontalPadding = screenWidth * 0.04; // Responsive padding for card content
+
     return Container(
-      padding: EdgeInsets.all(AppTheme.spacing16),
+      padding: EdgeInsets.all(horizontalPadding),
       decoration: BoxDecoration(
         color: AppTheme.greyShade50,
         borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
@@ -570,15 +649,15 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            height: 100,
+            height: cardHeight,
             width: double.infinity,
             decoration: BoxDecoration(
               color: AppTheme.greyShade200,
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
             ),
             child: isUploaded
-                ? Icon(Icons.check_circle, color: AppTheme.successColor, size: 40)
-                : Icon(Icons.image_outlined, color: AppTheme.greyShade600, size: 40),
+                ? Icon(Icons.check_circle, color: AppTheme.successColor, size: screenWidth > 600 ? 50 : 40)
+                : Icon(Icons.image_outlined, color: AppTheme.greyShade600, size: screenWidth > 600 ? 50 : 40),
           ),
           SizedBox(height: AppTheme.spacing16),
           Text(title, style: TextStyle(fontSize: AppTheme.fontSizeH6, fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface)),

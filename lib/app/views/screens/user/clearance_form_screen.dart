@@ -11,6 +11,7 @@ import 'package:shimmer/shimmer.dart' as shimmer;
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
 import '../../../services/user_service.dart';
 import '../../../services/network_utils.dart';
@@ -75,12 +76,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   late String _submitApplicationText;
   late String _saving;
 
-  String _tr(String key) => AppStrings.tr(
-        context: context,
-        screenKey: 'clearanceForm',
-        stringKey: key,
-        langCode: widget.initialLanguage,
-      );
+  String _tr(String key) => AppLocalizations.of(context).get('clearanceForm.$key');
 
   void _cacheTranslations() {
     _formInstruction = _tr('form_instruction');
@@ -230,13 +226,13 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     }
   }
 
-  Future<String?> _uploadDocumentToStorage(Uint8List fileData, String fileName, String userId) async {
+  Future<String?> _uploadDocumentToStorage(Uint8List fileData, String fileName, String userId, String docType) async {
     return NetworkUtils.executeWithRetry(
       () async {
-        final date = DateTime.now().toIso8601String().split('T')[0];
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
         final fileExtension = fileName.split('.').last;
-        final baseName = fileName.split('.').first;
-        final uniqueFileName = 'isam_${date}_$baseName.$fileExtension';
+        final sanitizedDocType = docType.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_').toLowerCase();
+        final uniqueFileName = '${sanitizedDocType}_${userId}_$timestamp.$fileExtension';
 
         final storageRef = FirebaseStorage.instance.ref();
         final documentRef = storageRef.child('applications/$userId/documents/$uniqueFileName');
@@ -244,14 +240,14 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         final uploadTask = documentRef.putData(fileData);
         final snapshot = await NetworkUtils.withTimeout(
           uploadTask.whenComplete(() => null),
-          const Duration(seconds: 15),
+          const Duration(seconds: 90),
         );
 
         if (snapshot.state == TaskState.success) {
           try {
             final downloadUrl = await NetworkUtils.withTimeout(
               documentRef.getDownloadURL(),
-              const Duration(seconds: 5),
+              const Duration(seconds: 15),
             );
             return downloadUrl;
           } catch (e) {
@@ -408,37 +404,43 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       return;
     }
 
+    final isTablet = screenWidth > 600;
+    final maxWidth = isTablet ? 400.0 : double.infinity;
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Center(child: Text(_tr('submit_dialog_title'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045))),
-          content: Text(_tr('submit_dialog_content'), textAlign: TextAlign.center, style: TextStyle(fontSize: screenWidth * 0.04)),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: <Widget>[
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
-                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.08, vertical: screenWidth * 0.03)
+        return Container(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Center(child: Text(_tr('submit_dialog_title'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045))),
+            content: Text(_tr('submit_dialog_content'), textAlign: TextAlign.center, style: TextStyle(fontSize: screenWidth * 0.04)),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: <Widget>[
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.08, vertical: screenWidth * 0.03)
+                ),
+                child: Text(_tr('cancel'), style: TextStyle(color: AppTheme.primaryColor, fontSize: screenWidth * 0.04)),
+                onPressed: () { Navigator.of(context).pop(); },
               ),
-              child: Text(_tr('cancel'), style: TextStyle(color: AppTheme.primaryColor, fontSize: screenWidth * 0.04)),
-              onPressed: () { Navigator.of(context).pop(); },
-            ),
-            SizedBox(width: screenWidth * 0.02),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.08, vertical: screenWidth * 0.03)
+              SizedBox(width: screenWidth * 0.02),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.08, vertical: screenWidth * 0.03)
+                ),
+                child: Text(_tr('send'), style: TextStyle(fontSize: screenWidth * 0.04)),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _performSubmission();
+                },
               ),
-              child: Text(_tr('send'), style: TextStyle(fontSize: screenWidth * 0.04)),
-              onPressed: () {
-                Navigator.of(context).pop();
-                _performSubmission();
-              },
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -464,19 +466,19 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       final uploadTasks = <Future<String?>>[];
 
       if (_portClearanceFileData != null && _portClearanceFileName != null) {
-        uploadTasks.add(_uploadDocumentToStorage(_portClearanceFileData!, _portClearanceFileName!, user.uid));
+        uploadTasks.add(_uploadDocumentToStorage(_portClearanceFileData!, _portClearanceFileName!, user.uid, 'port_clearance'));
       } else {
         uploadTasks.add(Future.value(null));
       }
 
       if (_crewListFileData != null && _crewListFileName != null) {
-        uploadTasks.add(_uploadDocumentToStorage(_crewListFileData!, _crewListFileName!, user.uid));
+        uploadTasks.add(_uploadDocumentToStorage(_crewListFileData!, _crewListFileName!, user.uid, 'crew_list'));
       } else {
         uploadTasks.add(Future.value(null));
       }
 
       if (_notificationLetterFileData != null && _notificationLetterFileName != null) {
-        uploadTasks.add(_uploadDocumentToStorage(_notificationLetterFileData!, _notificationLetterFileName!, user.uid));
+        uploadTasks.add(_uploadDocumentToStorage(_notificationLetterFileData!, _notificationLetterFileName!, user.uid, 'notification_letter'));
       } else {
         uploadTasks.add(Future.value(null));
       }
@@ -576,12 +578,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: CustomAppBar(
-        titleText: AppStrings.tr(
-          context: context,
-          screenKey: 'clearanceForm',
-          stringKey: widget.type == ApplicationType.kedatangan ? 'arrival_title' : 'departure_title',
-          langCode: widget.initialLanguage,
-        ),
+        titleText: AppLocalizations.of(context).get(widget.type == ApplicationType.kedatangan ? 'clearanceForm.arrival_title' : 'clearanceForm.departure_title'),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
         elevation: 0,

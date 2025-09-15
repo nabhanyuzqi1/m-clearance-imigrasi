@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class FunctionsService {
   final FirebaseFunctions _functions;
@@ -8,6 +9,12 @@ class FunctionsService {
 
   Future<Map<String, dynamic>> getOfficerDashboardStats() async {
     final callable = _functions.httpsCallable('getOfficerDashboardStats');
+    final result = await callable();
+    final data = Map<String, dynamic>.from(result.data ?? {});
+    return data;
+  }
+  Future<Map<String, dynamic>> getOfficerMonthlyStats() async {
+    final callable = _functions.httpsCallable('getOfficerMonthlyStats');
     final result = await callable();
     final data = Map<String, dynamic>.from(result.data ?? {});
     return data;
@@ -53,6 +60,12 @@ class FunctionsService {
   Future<Map<String, dynamic>> generateHistoryPDF(String applicationId) async {
     final callable = _functions.httpsCallable('generateHistoryPDF');
     final result = await callable(<String, dynamic>{'applicationId': applicationId});
+    return Map<String, dynamic>.from(result.data ?? {});
+  }
+
+  Future<Map<String, dynamic>> generateMonthlyReport(Map<String, dynamic> stats) async {
+    final callable = _functions.httpsCallable('generateMonthlyReport');
+    final result = await callable(<String, dynamic>{'stats': stats});
     return Map<String, dynamic>.from(result.data ?? {});
   }
 }

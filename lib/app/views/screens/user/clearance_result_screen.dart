@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/auth_service.dart';
@@ -20,12 +21,7 @@ class ClearanceResultScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     LoggingService().info('Building ClearanceResultScreen for application: ${application.id}, status: ${application.status}');
 
-    String tr(String key) => AppStrings.tr(
-          context: context,
-          screenKey: 'clearanceResult',
-          stringKey: key,
-          langCode: initialLanguage,
-        );
+    String tr(String key) => AppLocalizations.of(context).get('clearanceResult.$key');
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -281,9 +277,7 @@ class ClearanceResultScreen extends StatelessWidget {
                       ),
                     ),
                     SizedBox(height: AppTheme.spacing12),
-                    _buildFilePreview(tr('port_clearance'), application.portClearanceFile, tr, context),
-                    _buildFilePreview(tr('crew_list'), application.crewListFile, tr, context),
-                    _buildFilePreview(tr('notification_letter'), application.notificationLetterFile, tr, context),
+                    ..._buildFileWidgets(application, tr, context),
                   ],
                 ),
               ),
@@ -560,118 +554,125 @@ class ClearanceResultScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildFilePreview(String label, String? fileName, String Function(String) tr, BuildContext context) {
-    if (fileName == null || fileName.isEmpty) {
-      return Padding(
-        padding: EdgeInsets.only(bottom: AppTheme.spacing8),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppTheme.greyShade200,
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              ),
-              child: Icon(
-                Icons.insert_drive_file,
-                color: AppTheme.greyColor,
-                size: 16,
-              ),
-            ),
-            SizedBox(width: AppTheme.spacing12),
-            Expanded(
-              child: Text(
-                '$label: ${tr('no_file_attached')}',
-                style: TextStyle(
-                  color: AppTheme.greyColor,
-                  fontFamily: 'Poppins',
-                  fontSize: AppTheme.fontSizeBody2,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
+  String _extractFilename(String fileName) {
+    try {
+      return Uri.parse(fileName).pathSegments.last;
+    } catch (e) {
+      return fileName.split('/').last;
     }
+  }
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: AppTheme.spacing8),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: fileName.toLowerCase().endsWith('.pdf')
-                  ? AppTheme.errorColor.withAlpha(25)
-                  : AppTheme.primaryColor.withAlpha(25),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-            ),
-            child: Icon(
-              fileName.toLowerCase().endsWith('.pdf')
-                  ? Icons.picture_as_pdf
-                  : Icons.image,
-              color: fileName.toLowerCase().endsWith('.pdf')
-                  ? AppTheme.errorColor
-                  : AppTheme.primaryColor,
-              size: 16,
-            ),
-          ),
-          SizedBox(width: AppTheme.spacing12),
-          Expanded(
-            child: Text(
-              '$label: ${fileName.split('/').last}',
-              style: TextStyle(
-                color: AppTheme.onSurface,
-                fontFamily: 'Poppins',
-                fontSize: AppTheme.fontSizeBody2,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: () async {
-              if (fileName.isNotEmpty) {
-                // Show loading
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Downloading file...')),
-                );
+  Widget _buildFileCard(String fileName, String Function(String) tr, BuildContext context) {
+    String filename = _extractFilename(fileName);
 
-                try {
-                  final authService = AuthService();
-                  final fileData = await authService.downloadFileData(fileName);
-
-                  if (fileData != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DocumentViewScreen(
-                          fileData: fileData,
-                          fileName: fileName.split('/').last,
-                        ),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to download file')),
-                    );
-                  }
-                } catch (e) {
-                  LoggingService().error('Error downloading file: $e');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error downloading file')),
-                  );
-                }
-              }
-            },
-            icon: Icon(
-              Icons.visibility,
-              color: AppTheme.primaryColor,
-              size: 20,
-            ),
+    return Container(
+      margin: EdgeInsets.only(bottom: AppTheme.spacing12),
+      decoration: BoxDecoration(
+        color: AppTheme.whiteColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.greyColor.withAlpha(25),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: filename.toLowerCase().endsWith('.pdf')
+                ? AppTheme.errorColor.withAlpha(25)
+                : AppTheme.primaryColor.withAlpha(25),
+            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+          ),
+          child: Icon(
+            filename.toLowerCase().endsWith('.pdf')
+                ? Icons.picture_as_pdf
+                : Icons.image,
+            color: filename.toLowerCase().endsWith('.pdf')
+                ? AppTheme.errorColor
+                : AppTheme.primaryColor,
+            size: 20,
+          ),
+        ),
+        title: Text(
+          filename,
+          style: TextStyle(
+            fontWeight: FontWeight.w500,
+            color: AppTheme.onSurface,
+            fontFamily: 'Poppins',
+            fontSize: AppTheme.fontSizeBody1,
+          ),
+        ),
+        trailing: IconButton(
+          onPressed: () async {
+            // Show loading
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Downloading file...')),
+            );
+
+            try {
+              final authService = AuthService();
+              final fileData = await authService.downloadFileData(fileName);
+
+              if (fileData != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DocumentViewScreen(
+                      fileData: fileData,
+                      fileName: filename,
+                    ),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to download file')),
+                );
+              }
+            } catch (e) {
+              LoggingService().error('Error downloading file: $e');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error downloading file')),
+              );
+            }
+          },
+          icon: Icon(
+            Icons.visibility,
+            color: AppTheme.primaryColor,
+            size: 24,
+          ),
+        ),
+      ),
     );
+  }
+
+  List<Widget> _buildFileWidgets(ClearanceApplication application, String Function(String) tr, BuildContext context) {
+    List<Widget> widgets = [];
+    if (application.portClearanceFile != null && application.portClearanceFile!.isNotEmpty) {
+      widgets.add(_buildFileCard(application.portClearanceFile!, tr, context));
+    }
+    if (application.crewListFile != null && application.crewListFile!.isNotEmpty) {
+      widgets.add(_buildFileCard(application.crewListFile!, tr, context));
+    }
+    if (application.notificationLetterFile != null && application.notificationLetterFile!.isNotEmpty) {
+      widgets.add(_buildFileCard(application.notificationLetterFile!, tr, context));
+    }
+    if (widgets.isEmpty) {
+      widgets.add(
+        Text(
+          tr('no_file_attached'),
+          style: TextStyle(
+            color: AppTheme.greyColor,
+            fontFamily: 'Poppins',
+            fontSize: AppTheme.fontSizeBody2,
+          ),
+        ),
+      );
+    }
+    return widgets;
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../models/clearance_application.dart';
 import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
 
 class VerificationLoadingScreen extends StatelessWidget {
@@ -19,12 +20,7 @@ class VerificationLoadingScreen extends StatelessWidget {
     LoggingService().debug('Building VerificationLoadingScreen for application: ${application.id}');
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppStrings.tr(
-          context: context,
-          screenKey: 'submissionSent',
-          stringKey: 'title',
-          langCode: initialLanguage,
-        )),
+        title: Text(AppLocalizations.of(context).get('submissionSent.title')),
       ),
       body: Center(
         child: Text('Verification loading for ${application.shipName}', style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),

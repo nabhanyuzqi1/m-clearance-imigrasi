@@ -84,12 +84,12 @@ class UserService {
   }
 
   // Update user profile
-  Future<bool> updateUserProfile(String name, String email, {String? imagePath}) async {
+  Future<UserAccount?> updateUserProfile(String name, String email, {String? imagePath}) async {
     try {
       final user = _auth.currentUser;
       if (user == null) {
         LoggingService().error('No authenticated user found');
-        return false;
+        return null;
       }
 
       final updateData = {
@@ -108,6 +108,7 @@ class UserService {
           final imageUrl = await _uploadProfileImage(user.uid, imagePath);
           if (imageUrl != null && imageUrl.isNotEmpty) {
             updateData['profileImageUrl'] = imageUrl;
+            updateData['photoURL'] = imageUrl;
             LoggingService().info('Profile image uploaded successfully: $imageUrl');
           }
         } catch (uploadError) {
@@ -130,7 +131,9 @@ class UserService {
       await cacheManager.clearUserDataCache();
 
       LoggingService().info('User profile updated successfully');
-      return true;
+      
+      // Fetch and return the updated user account
+      return await getCurrentUserAccount();
     } catch (e) {
       LoggingService().error('Error updating user profile', e);
       LoggingService().debug('Error type: ${e.runtimeType}');
@@ -138,7 +141,7 @@ class UserService {
         LoggingService().debug('Firebase error code: ${e.code}');
         LoggingService().debug('Firebase error message: ${e.message}');
       }
-      return false;
+      return null;
     }
   }
 
@@ -157,10 +160,16 @@ class UserService {
       LoggingService().debug('Uploading image to Firebase Storage: users/$userId/profile_image.jpg');
 
       final uploadTask = profileImageRef.putFile(file);
-      final snapshot = await uploadTask.whenComplete(() => null);
+      final snapshot = await NetworkUtils.withTimeout(
+        uploadTask.whenComplete(() => null),
+        const Duration(seconds: 90),
+      );
 
       if (snapshot.state == TaskState.success) {
-        final downloadUrl = await profileImageRef.getDownloadURL();
+        final downloadUrl = await NetworkUtils.withTimeout(
+          profileImageRef.getDownloadURL(),
+          const Duration(seconds: 15),
+        );
         LoggingService().info('Image uploaded successfully, download URL: $downloadUrl');
         return downloadUrl;
       } else {

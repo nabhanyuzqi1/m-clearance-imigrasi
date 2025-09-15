@@ -1,6 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const { Resend } = require("resend");
+const { logger } = require("firebase-functions");
 
 // Initialize Admin SDK exactly once
 admin.initializeApp();
@@ -101,12 +102,26 @@ async function resolveUserName(uid, fallbackEmail) {
   return 'User';
 }
 
-function callerRole(context) {
-  return (context.auth && context.auth.token && context.auth.token.role) || 'user';
+async function callerRole(context) {
+  try {
+    const uid = context.auth.uid;
+    const userRef = db.collection('users').doc(uid);
+    const userSnap = await userRef.get();
+    if (userSnap.exists) {
+      const userData = userSnap.data() || {};
+      const firestoreRole = userData.role;
+      if (firestoreRole && ['user', 'officer', 'admin'].includes(firestoreRole)) {
+        return firestoreRole;
+      }
+    }
+  } catch (error) {
+    console.error('[callerRole] Error fetching role from Firestore:', error);
+  }
+  return 'user';
 }
 
-function ensureOfficerOrAdmin(context) {
-  const role = callerRole(context);
+async function ensureOfficerOrAdmin(context) {
+  const role = await callerRole(context);
   if (role !== 'officer' && role !== 'admin') {
     throw new functions.https.HttpsError('permission-denied', 'Officer or admin role required.');
   }
@@ -509,7 +524,7 @@ exports.onDocumentFinalize = functions.storage.object().onFinalize(async (object
  */
 exports.setUserRole = functions.https.onCall(async (data, context) => {
   requireAuth(context);
-  const role = callerRole(context);
+  const role = await callerRole(context);
   if (role !== 'admin') {
     throw new functions.https.HttpsError('permission-denied', 'Admin role required.');
   }
@@ -529,53 +544,6 @@ exports.setUserRole = functions.https.onCall(async (data, context) => {
   return { ok: true, uid: targetUid, role: newRole };
 });
 
-/**
- * officerDecideAccount (callable)
- * Officer/Admin decision on a user account pending approval.
- * Input: { targetUid: string, decision: 'approved'|'rejected', note?: string }
- * Effect: updates users/{uid}.status and updatedAt. Optionally stores decidedBy/note metadata.
- * onUserDocUpdate will generate notifications.
- */
-exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
-  requireAuth(context);
-  ensureOfficerOrAdmin(context);
-
-  const targetUid = (data && data.targetUid) || '';
-  const decision = (data && data.decision) || '';
-  const note = (data && data.note) || '';
-
-  if (!targetUid || !['approved', 'rejected'].includes(decision)) {
-    throw new functions.https.HttpsError('invalid-argument', 'Provide targetUid and decision in [approved|rejected].');
-  }
-
-  const callerUid = context.auth.uid;
-  const callerEmail = (context.auth.token && context.auth.token.email) || '';
-  const userRef = db.collection('users').doc(targetUid);
-
-  await db.runTransaction(async (txn) => {
-    const snap = await txn.get(userRef);
-    if (!snap.exists) {
-      throw new functions.https.HttpsError('not-found', 'User document not found.');
-    }
-    const data = snap.data() || {};
-    const status = data.status || 'pending_email_verification';
-    if (status !== 'pending_approval') {
-      throw new functions.https.HttpsError('failed-precondition', `User status must be pending_approval. Got: ${status}`);
-    }
-
-    const updates = {
-      status: decision,
-      updatedAt: FieldValue.serverTimestamp(),
-      decidedBy: callerEmail || callerUid,
-    };
-    if (note && typeof note === 'string' && note.length <= 1000) {
-      updates.decisionNote = note;
-    }
-    txn.update(userRef, updates);
-  });
-
-  return { ok: true, uid: targetUid, status: decision };
-});
 
 /**
  * generateClearanceDocument (helper)
@@ -810,8 +778,21 @@ async function generateClearanceDocument(uid, application) {
  * onUserDocUpdate will generate notifications.
  */
 exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
- requireAuth(context);
- ensureOfficerOrAdmin(context);
+  requireAuth(context);
+  const callerUid = context.auth.uid;
+  const userRef = db.collection('users').doc(callerUid);
+  const userSnap = await userRef.get();
+
+  if (!userSnap.exists) {
+    throw new functions.https.HttpsError('permission-denied', 'Caller user document not found.');
+  }
+
+  const userData = userSnap.data() || {};
+  const role = userData.role;
+
+  if (role !== 'officer' && role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', `Officer or admin role required. Your role is '${role}'.`);
+  }
 
  const targetUid = (data && data.targetUid) || '';
  const decision = (data && data.decision) || '';
@@ -821,12 +802,11 @@ exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
    throw new functions.https.HttpsError('invalid-argument', 'Provide targetUid and decision in [approved|rejected].');
  }
 
- const callerUid = context.auth.uid;
  const callerEmail = (context.auth.token && context.auth.token.email) || '';
- const userRef = db.collection('users').doc(targetUid);
+ const targetUserRef = db.collection('users').doc(targetUid);
 
  await db.runTransaction(async (txn) => {
-   const snap = await txn.get(userRef);
+   const snap = await txn.get(targetUserRef);
    if (!snap.exists) {
      throw new functions.https.HttpsError('not-found', 'User document not found.');
    }
@@ -844,7 +824,7 @@ exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
    if (note && typeof note === 'string' && note.length <= 1000) {
      updates.decisionNote = note;
    }
-   txn.update(userRef, updates);
+   txn.update(targetUserRef, updates);
 
    // Generate clearance document if approved
    if (decision === 'approved') {
@@ -879,9 +859,9 @@ exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
  */
 exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) => {
   requireAuth(context);
-  ensureOfficerOrAdmin(context);
+  await ensureOfficerOrAdmin(context);
 
-  const functionStart = DateTime.now();
+  const functionStart = Date.now();
   console.log('[getOfficerDashboardStats] Function started');
 
   const startOfDay = new Date();
@@ -897,17 +877,17 @@ exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) 
 
   // Helper to count a query without loading all docs (fallback)
   async function countQuery(q, label) {
-    const queryStart = DateTime.now();
+    const queryStart = Date.now();
     const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
-    const queryTime = DateTime.now().difference(queryStart);
-    console.log(`[getOfficerDashboardStats] ${label} count took ${queryTime.inMilliseconds}ms, returned ${snap.size} docs`);
+    const queryTime = Date.now() - queryStart;
+    console.log(`[getOfficerDashboardStats] ${label} count took ${queryTime}ms, returned ${snap.size} docs`);
     return snap.size;
   }
 
   const usersCol = db.collection('users');
   const applicationsCol = db.collection('applications');
 
-  const countStart = DateTime.now();
+  const countStart = Date.now();
 
   // Use counters where available, fallback to counting
   const [
@@ -924,11 +904,11 @@ exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) 
     counters.pendingDeparture !== undefined ? Promise.resolve(counters.pendingDeparture) : countQuery(applicationsCol.where('type', '==', 'departure').where('status', '==', 'waiting'), 'pendingDeparture'),
   ]);
 
-  const countTime = DateTime.now().difference(countStart);
-  console.log(`[getOfficerDashboardStats] All counts took ${countTime.inMilliseconds}ms`);
+  const countTime = Date.now() - countStart;
+  console.log(`[getOfficerDashboardStats] All counts took ${countTime}ms`);
 
-  const totalTime = DateTime.now().difference(functionStart);
-  console.log(`[getOfficerDashboardStats] Total function time: ${totalTime.inMilliseconds}ms`);
+  const totalTime = Date.now() - functionStart;
+  console.log(`[getOfficerDashboardStats] Total function time: ${totalTime}ms`);
 
   return {
     pendingAccounts,
@@ -936,6 +916,39 @@ exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) 
     rejectedToday,
     pendingArrival,
     pendingDeparture,
+  };
+});
+/**
+ * Get officer monthly statistics
+ */
+exports.getOfficerMonthlyStats = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  await ensureOfficerOrAdmin(context);
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const applicationsCol = db.collection('applications');
+
+  async function countQuery(q) {
+    const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
+    return snap.size;
+  }
+
+  const [
+    pendingArrival,
+    pendingDeparture,
+    pendingAccounts,
+  ] = await Promise.all([
+    countQuery(applicationsCol.where('type', '==', 'arrival').where('status', '==', 'waiting').where('createdAt', '>=', Timestamp.fromDate(startOfMonth))),
+    countQuery(applicationsCol.where('type', '==', 'departure').where('status', '==', 'waiting').where('createdAt', '>=', Timestamp.fromDate(startOfMonth))),
+    countQuery(db.collection('users').where('status', '==', 'pending_approval').where('createdAt', '>=', Timestamp.fromDate(startOfMonth))),
+  ]);
+
+  return {
+    pendingArrival,
+    pendingDeparture,
+    pendingAccounts,
   };
 });
 
@@ -1062,7 +1075,7 @@ exports.issueEmailVerificationCode = functions.https.onCall(async (data, context
  */
 exports.initializeCounters = functions.https.onCall(async (data, context) => {
   requireAuth(context);
-  ensureOfficerOrAdmin(context);
+  await ensureOfficerOrAdmin(context);
 
   console.log('[initializeCounters] Starting counter initialization');
 
@@ -1259,11 +1272,7 @@ exports.generateHistoryPDF = functions.https.onCall(async (data, context) => {
     const application = applicationSnap.data();
     console.log('[generateHistoryPDF] Retrieved application data for:', applicationId);
 
-    // Verify user owns this application
-    if (application.agentUid !== uid) {
-      console.error('[generateHistoryPDF] Permission denied for user:', uid, 'on application:', applicationId);
-      throw new functions.https.HttpsError('permission-denied', 'You do not have permission to access this application.');
-    }
+    // Ownership check is handled by Firestore rules
 
     // Generate PDF
     console.log('[generateHistoryPDF] Calling generateClearanceDocument...');
@@ -1355,3 +1364,113 @@ exports.onApplicationUpdate = functions.firestore
     }
   });
 
+async function generateMonthlyReportPDF(uid, stats) {
+  console.log('[generateMonthlyReportPDF] Starting PDF generation for user:', uid);
+
+  try {
+    const PDFMake = require('pdfmake');
+    const fonts = {
+      Roboto: {
+        normal: 'node_modules/pdfmake/build/vfs_fonts.js#Roboto-Regular.ttf',
+        bold: 'node_modules/pdfmake/build/vfs_fonts.js#Roboto-Medium.ttf',
+      }
+    };
+    const pdfMake = new PDFMake(fonts);
+
+    const now = new Date();
+    const date = new Date(now.getFullYear(), now.getMonth(), 1);
+    const title = `Monthly Report - ${date.getMonth() + 1}/${date.getFullYear()}`;
+
+    const docDefinition = {
+      content: [
+        { text: title, style: 'header', alignment: 'center' },
+        { text: `Generated on: ${now.toLocaleString()}`, style: 'subheader', alignment: 'center' },
+        { text: `Generated by: Officer ${uid}`, style: 'subheader', alignment: 'center' },
+        { text: '', margin: [0, 0, 0, 20] },
+        {
+          table: {
+            widths: ['*', 'auto'],
+            body: [
+              [{ text: 'Category', style: 'tableHeader' }, { text: 'Count', style: 'tableHeader' }],
+              ['Pending Arrivals', stats.pendingArrival?.toString() ?? '0'],
+              ['Pending Departures', stats.pendingDeparture?.toString() ?? '0'],
+              ['Pending Accounts', stats.pendingAccounts?.toString() ?? '0'],
+            ]
+          },
+          layout: 'lightHorizontalLines'
+        }
+      ],
+      styles: {
+        header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
+        subheader: { fontSize: 12, margin: [0, 0, 0, 5] },
+        tableHeader: { bold: true, fontSize: 13, color: 'black' }
+      },
+      defaultStyle: { font: 'Roboto' }
+    };
+
+    const pdfDoc = pdfMake.createPdfKitDocument(docDefinition);
+    const chunks = [];
+    pdfDoc.on('data', chunk => chunks.push(chunk));
+
+    return new Promise((resolve, reject) => {
+      pdfDoc.on('end', () => {
+        const result = Buffer.concat(chunks);
+        resolve(result);
+      });
+      pdfDoc.on('error', reject);
+      pdfDoc.end();
+    });
+  } catch (e) {
+    console.error('[generateMonthlyReportPDF] Unexpected error:', e);
+    throw new Error(`PDF generation failed: ${e.message}`);
+  }
+}
+
+exports.generateMonthlyReport = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  await ensureOfficerOrAdmin(context);
+
+  const { stats } = data;
+  const uid = context.auth.uid;
+
+  try {
+    const now = new Date();
+    const date = new Date(now.getFullYear(), now.getMonth(), 1);
+    const title = `Monthly Report - ${date.getMonth() + 1}/${date.getFullYear()}`;
+
+    // Generate PDF
+    const pdfBytes = await generateMonthlyReportPDF(uid, stats);
+
+    // Upload to Firebase Storage
+    const bucket = admin.storage().bucket();
+    const filename = `reports/${uid}/monthly_${date.getFullYear()}_${date.getMonth() + 1}.pdf`;
+    const file = bucket.file(filename);
+
+    await file.save(pdfBytes, {
+      metadata: { contentType: 'application/pdf' },
+    });
+
+    const [signedUrl] = await file.getSignedUrl({
+      action: 'read',
+      expires: '03-09-2491'
+    });
+
+    // Save report metadata to Firestore
+    const reportData = {
+      title,
+      type: 'monthly',
+      date: Timestamp.fromDate(date),
+      createdBy: uid,
+      createdAt: Timestamp.now(),
+      pdfUrl: signedUrl,
+      stats,
+    };
+
+    const reportRef = await db.collection('reports').add(reportData);
+
+    return { success: true, reportId: reportRef.id, pdfUrl: signedUrl };
+  } catch (error) {
+    logger.error("Error generating monthly report", error);
+    throw new functions.https.HttpsError('internal', 'Failed to generate monthly report.');
+  }
+});

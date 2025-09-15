@@ -14,7 +14,7 @@ class ApplicationRepository {
   /// If [agentUid] provided, filter by agentUid for user-specific lists.
   Stream<List<ClearanceApplication>> streamApplications({
     required String type,
-    required String status,
+    String? status,
     String? agentUid,
     int? limit,
   }) {
@@ -27,8 +27,10 @@ class ApplicationRepository {
 
     Query query = _db.collection('applications')
         .where('type', isEqualTo: normalizedType)
-        .where('status', isEqualTo: status)
         .orderBy('updatedAt', descending: true);
+    if (status != null) {
+      query = query.where('status', isEqualTo: status);
+    }
     if (agentUid != null) {
       query = query.where('agentUid', isEqualTo: agentUid);
     }

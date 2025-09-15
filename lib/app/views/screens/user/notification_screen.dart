@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../models/notification_item.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/logging_service.dart';
@@ -15,12 +16,7 @@ class NotificationScreen extends StatefulWidget {
 
 class _NotificationScreenState extends State<NotificationScreen> {
   final NotificationService _notificationService = NotificationService();
-  String _tr(String key) => AppStrings.tr(
-        context: context,
-        screenKey: 'notifications',
-        stringKey: key,
-        langCode: widget.initialLanguage,
-      );
+  String _tr(String key) => AppLocalizations.of(context).get('notifications.$key');
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();

@@ -2,16 +2,17 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../models/user_model.dart';
+import '../../../providers/language_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 
 class RegisterScreen extends StatefulWidget {
-  final String initialLanguage;
-  const RegisterScreen({super.key, this.initialLanguage = 'EN'});
+  const RegisterScreen({super.key});
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
@@ -21,6 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final AuthService _authService = AuthService();
   final TextEditingController _corporateNameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
@@ -28,17 +30,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _agreeToTerms = false;
-  late String _selectedLanguage;
-
   String _tr(String key) {
-    return AppStrings.tr(context: context, screenKey: 'register', stringKey: key, langCode: _selectedLanguage);
-  }
-  
-  @override
-  void initState() {
-    super.initState();
-    LoggingService().info('RegisterScreen initialized with language: ${widget.initialLanguage}');
-    _selectedLanguage = widget.initialLanguage;
+    return AppLocalizations.of(context)!.get('register.$key');
   }
 
   @override
@@ -46,6 +39,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     LoggingService().debug('Disposing RegisterScreen resources');
     _corporateNameController.dispose();
     _usernameController.dispose();
+    _fullNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -79,6 +73,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _passwordController.text,
         _corporateNameController.text,
         _usernameController.text,
+        _fullNameController.text,
         '', // nationality removed from UI; pass empty to keep function signature unchanged
       );
       if (user != null) {
@@ -88,8 +83,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             context,
             AppRoutes.confirmation,
             arguments: {
-              'userData': {'email': _emailController.text},
-              'initialLanguage': _selectedLanguage,
+              'userData': {'email': _emailController.text}
             },
           );
         }
@@ -166,6 +160,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
               controller: _usernameController,
               decoration: _buildInputDecoration(hintText: _tr('username_hint')),
               validator: (v) => v!.isEmpty ? _tr('username_req') : null,
+            ),
+            const SizedBox(height: 20),
+            _buildLabel(_tr('full_name')),
+            TextFormField(
+              controller: _fullNameController,
+              decoration: _buildInputDecoration(hintText: _tr('full_name_hint')),
+              validator: (v) => v!.isEmpty ? _tr('full_name_req') : null,
             ),
             const SizedBox(height: 20),
             // Nationality field removed per requirement.

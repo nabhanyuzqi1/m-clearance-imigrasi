@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/config/routes.dart';
 import 'app/config/theme.dart';
+import 'app/localization/app_localizations.dart';
+import 'app/services/auth_service.dart';
 import 'firebase_options.dart';
 import 'app/views/widgets/auth_wrapper.dart';
 import 'app/providers/language_provider.dart';
@@ -77,9 +79,12 @@ void main() async {
 
   // Preload critical assets for better startup performance
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => LanguageProvider(),
-      child: const MyApp(),
+    Provider<AuthService>(
+      create: (_) => AuthService(),
+      child: ChangeNotifierProvider(
+        create: (context) => LanguageProvider(),
+        child: const MyApp(),
+      ),
     ),
   );
 }
@@ -166,6 +171,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             Locale('id', 'ID'),
           ],
           localizationsDelegates: const [
+            AppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
+import '../../../providers/language_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  final String initialLanguage;
-  const ForgotPasswordScreen({super.key, this.initialLanguage = 'EN'});
+  const ForgotPasswordScreen({super.key});
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
@@ -15,20 +16,8 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
   final AuthService _authService = AuthService();
-  late String _selectedLanguage;
   String _tr(String key) {
-    return AppStrings.tr(
-        context: context, // showDialog is async
-        screenKey: 'forgotPassword',
-        stringKey: key,
-        langCode: _selectedLanguage);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    LoggingService().info('ForgotPasswordScreen initialized with language: ${widget.initialLanguage}');
-    _selectedLanguage = widget.initialLanguage;
+    return AppLocalizations.of(context)!.get('forgotPassword.$key');
   }
 
   @override
@@ -48,41 +37,47 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         LoggingService().info('Password reset email sent successfully to: ${_emailController.text}');
         if (mounted) {
           final screenWidth = MediaQuery.of(context).size.width;
+          final isTablet = screenWidth > 600;
+          final maxWidth = isTablet ? 400.0 : double.infinity;
+
           showDialog(
             context: context, // showDialog is async
-            builder: (context) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text(
-                _tr('success_dialog_title'),
-                style: TextStyle(
-                  fontSize: screenWidth * 0.045,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.onSurface,
-                ),
-              ),
-              content: Text(
-                "${_tr('success_dialog_content')}${_emailController.text}",
-                style: TextStyle(
-                  fontSize: screenWidth * 0.04,
-                  color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Close dialog
-                    Navigator.pop(context); // Go back from Forgot Password screen
-                  },
-                  child: Text(
-                    _tr('ok_button'),
-                    style: TextStyle(
-                      color: AppTheme.primaryColor,
-                      fontSize: screenWidth * 0.04,
-                      fontWeight: FontWeight.w600,
-                    ),
+            builder: (context) => Container(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: Text(
+                  _tr('success_dialog_title'),
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.045,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.onSurface,
                   ),
                 ),
-              ],
+                content: Text(
+                  "${_tr('success_dialog_content')}${_emailController.text}",
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.04,
+                    color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context); // Close dialog
+                      Navigator.pop(context); // Go back from Forgot Password screen
+                    },
+                    child: Text(
+                      _tr('ok_button'),
+                      style: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: screenWidth * 0.04,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }

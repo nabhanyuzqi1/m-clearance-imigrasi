@@ -27,7 +27,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   // Helper untuk mendapatkan string terjemahan
   String _tr(String key) => AppStrings.tr(
-        context: context,
         screenKey: 'changePassword',
         stringKey: key,
         langCode: widget.initialLanguage,

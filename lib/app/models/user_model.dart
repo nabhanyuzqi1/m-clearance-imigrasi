@@ -5,6 +5,7 @@ class UserModel {
   final String email;
   final String corporateName;
   final String username;
+  final String fullName;
   final String nationality;
   final String role;
   final String status; // Should be one of the enum values
@@ -13,12 +14,14 @@ class UserModel {
   final Timestamp createdAt;
   final Timestamp updatedAt;
   final List<Map<String, dynamic>> documents;
+  final String? photoURL;
 
   UserModel({
     required this.uid,
     required this.email,
     required this.corporateName,
     required this.username,
+    required this.fullName,
     required this.nationality,
     required this.role,
     required this.status,
@@ -27,6 +30,7 @@ class UserModel {
     required this.createdAt,
     required this.updatedAt,
     required this.documents,
+    this.photoURL,
   });
 
   factory UserModel.fromFirestore(dynamic doc) {
@@ -47,6 +51,7 @@ class UserModel {
       email: email,
       corporateName: data['corporateName'] ?? '',
       username: data['username'] ?? '',
+      fullName: data['fullName'] ?? '',
       nationality: data['nationality'] ?? '',
       role: role,
       status: status,
@@ -55,6 +60,7 @@ class UserModel {
       createdAt: data['createdAt'] ?? Timestamp.now(),
       updatedAt: data['updatedAt'] ?? Timestamp.now(),
       documents: List<Map<String, dynamic>>.from(data['documents'] ?? []),
+      photoURL: data['photoURL'] ?? data['profileImageUrl'],
     );
   }
 
@@ -63,6 +69,7 @@ class UserModel {
       'email': email,
       'corporateName': corporateName,
       'username': username,
+      'fullName': fullName,
       'nationality': nationality,
       'role': role,
       'status': status,
@@ -71,6 +78,7 @@ class UserModel {
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'documents': documents,
+      'photoURL': photoURL,
     };
   }
   static dynamic _serializeValue(dynamic value) {
@@ -92,6 +100,7 @@ class UserModel {
       'email': email,
       'corporateName': corporateName,
       'username': username,
+      'fullName': fullName,
       'nationality': nationality,
       'role': role,
       'status': status,
@@ -100,6 +109,7 @@ class UserModel {
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
       'documents': documents.map((doc) => _serializeValue(doc)).toList(),
+      'photoURL': photoURL,
     };
   }
 
@@ -122,6 +132,7 @@ class UserModel {
       email: json['email'] ?? '',
       corporateName: json['corporateName'] ?? '',
       username: json['username'] ?? '',
+      fullName: json['fullName'] ?? '',
       nationality: json['nationality'] ?? '',
       role: json['role'] ?? 'user',
       status: json['status'] ?? 'pending_email_verification',
@@ -130,6 +141,7 @@ class UserModel {
       createdAt: Timestamp.fromMillisecondsSinceEpoch(json['createdAt'] ?? 0),
       updatedAt: Timestamp.fromMillisecondsSinceEpoch(json['updatedAt'] ?? 0),
       documents: (json['documents'] as List<dynamic>?)?.map((doc) => _deserializeValue(doc) as Map<String, dynamic>).toList() ?? [],
+      photoURL: json['photoURL'],
     );
   }
 }

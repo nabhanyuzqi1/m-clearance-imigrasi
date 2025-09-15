@@ -60,7 +60,7 @@ class AuthService {
   }
 
   Future<UserModel?> registerWithEmailAndPassword(String email, String password,
-      String corporateName, String username, String nationality) async {
+      String corporateName, String username, String fullName, String nationality) async {
     try {
       final UserCredential userCredential =
           await _firebaseAuth.createUserWithEmailAndPassword(
@@ -74,6 +74,7 @@ class AuthService {
           email: email,
           corporateName: corporateName,
           username: username,
+          fullName: fullName,
           nationality: nationality,
           role: 'user',
           status: 'pending_email_verification',
@@ -180,31 +181,47 @@ class AuthService {
   ///
   /// Uses file bytes for upload, handled uniformly across platforms by file_picker.
   /// Generates unique filename using timestamp and UUID to prevent overwrites.
-  Future<String?> uploadDocument(String uid, Uint8List fileBytes, String docName) async {
+  Future<String?> uploadDocument(
+    String uid,
+    Uint8List fileBytes,
+    String docName, {
+    String? docType,
+  }) async {
     try {
-      // Generate unique filename to prevent overwrites
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileExtension = docName.split('.').last;
-      final baseName = docName.split('.').first;
-      final uniqueFileName = '${baseName}_${timestamp}_${uid.substring(0, 8)}.$fileExtension';
+      final uniqueFileName = _generateUniqueFileName(
+        uid,
+        docName,
+        docType: docType,
+      );
 
       final ref = _storage.ref().child('users/$uid/documents/$uniqueFileName');
-      await ref.putData(fileBytes);
+      final uploadTask = ref.putData(fileBytes);
+      final snapshot = await NetworkUtils.withTimeout(
+        uploadTask.whenComplete(() => null),
+        const Duration(seconds: 90),
+      );
 
-      final String downloadUrl = await ref.getDownloadURL();
-      await _firestore.collection('users').doc(uid).update({
-        'documents': FieldValue.arrayUnion([
-          {
-            'documentName': docName, // Keep original name for display
-            'storagePath': downloadUrl,
-            'uploadedAt': Timestamp.now(),
-          }
-        ]),
-        'status': 'pending_approval',
-        'hasUploadedDocuments': true,
-        'updatedAt': Timestamp.now(),
-      });
-      return downloadUrl;
+      if (snapshot.state == TaskState.success) {
+        final String downloadUrl = await NetworkUtils.withTimeout(
+          ref.getDownloadURL(),
+          const Duration(seconds: 15),
+        );
+        await _firestore.collection('users').doc(uid).update({
+          'documents': FieldValue.arrayUnion([
+            {
+              'documentName': docName, // Keep original name for display
+              'storagePath': downloadUrl,
+              'uploadedAt': Timestamp.now(),
+            }
+          ]),
+          'status': 'pending_approval',
+          'hasUploadedDocuments': true,
+          'updatedAt': Timestamp.now(),
+        });
+        return downloadUrl;
+      } else {
+        throw NetworkException('Upload failed', isRetryable: true);
+      }
     } on FirebaseException catch (e) {
       LoggingService().error('Firebase Storage error during upload: ${e.message}', e);
       return null;
@@ -212,6 +229,17 @@ class AuthService {
       LoggingService().error('An unexpected error occurred during upload', e);
       return null;
     }
+  }
+
+  String _generateUniqueFileName(String uid, String originalName, {String? docType}) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileExtension = originalName.split('.').last;
+    final documentType = docType ?? 'document';
+
+    // Sanitize docType to be filesystem-friendly
+    final sanitizedDocType = documentType.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_').toLowerCase();
+
+    return '${sanitizedDocType}_${uid}_$timestamp.$fileExtension';
   }
 
   Future<void> sendVerificationEmail() async {
@@ -445,7 +473,9 @@ class AuthService {
       LoggingService().error('Error downloading file data from $filePathOrUrl: $e');
 
       // Handle specific Firebase exceptions
-      if (e.toString().contains('ClientException') || e.toString().contains('JavaScriptObject')) {
+      if (kIsWeb && e.toString().contains('FirebaseException')) {
+        LoggingService().error('A web-specific Firebase error occurred: $e');
+      } else if (e.toString().contains('ClientException') || e.toString().contains('JavaScriptObject')) {
         LoggingService().error('ClientException detected - this may be a web-specific error with Firebase Storage');
       }
 

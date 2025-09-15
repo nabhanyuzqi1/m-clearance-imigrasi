@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../localization/app_strings.dart';
 import '../../../providers/language_provider.dart';
 import '../../../models/clearance_application.dart';
@@ -18,6 +19,7 @@ import '../../widgets/skeleton_loader.dart';
 import '../auth/change_password_screen.dart';
 import 'history_screen.dart';
 import 'language_selection_screen.dart';
+import 'user_settings_screen.dart';
 
 ImageProvider<Object> _buildProfileImage(String imageUrl, double screenWidth) {
   try {
@@ -96,67 +98,52 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   void _showLogoutDialog(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final maxWidth = isTablet ? 400.0 : double.infinity;
     final fontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6);
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Center(
-              child: Text(
-            AppStrings.tr(
-              context: context,
-              screenKey: 'userProfile',
-              stringKey: 'logout_confirm_title',
-              langCode: widget.initialLanguage,
+        return Container(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Center(
+                child: Text(
+              AppLocalizations.of(context).get('userProfile.logout_confirm_title'),
+              style: AppTheme.labelLarge(context).copyWith(
+                  fontWeight: FontWeight.bold),
+            )),
+            content: Text(
+              AppLocalizations.of(context).get('userProfile.logout_confirm_body'),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: fontSize),
             ),
-            style: AppTheme.labelLarge(context).copyWith(
-                fontWeight: FontWeight.bold),
-          )),
-          content: Text(
-            AppStrings.tr(
-              context: context,
-              screenKey: 'userProfile',
-              stringKey: 'logout_confirm_body',
-              langCode: widget.initialLanguage,
-            ),
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: fontSize),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: <Widget>[
+              CustomButton(
+                text: AppLocalizations.of(context).get('userProfile.cancel'),
+                type: CustomButtonType.outlined,
+                borderColor: AppTheme.errorShade200,
+                foregroundColor: AppTheme.errorColor,
+                onPressed: () => Navigator.of(dialogContext).pop(),
+              ),
+              SizedBox(width: screenWidth * 0.02),
+              CustomButton(
+                text: AppLocalizations.of(context).get('userProfile.logout'),
+                type: CustomButtonType.elevated,
+                backgroundColor: AppTheme.errorShade400,
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  await AuthService().signOut();
+                  if (mounted) {
+                    Navigator.pushReplacementNamed(context, AppRoutes.login);
+                  }
+                },
+              )
+            ],
           ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: <Widget>[
-            CustomButton(
-              text: AppStrings.tr(
-                context: context,
-                screenKey: 'userProfile',
-                stringKey: 'cancel',
-                langCode: widget.initialLanguage,
-              ),
-              type: CustomButtonType.outlined,
-              borderColor: AppTheme.errorShade200,
-              foregroundColor: AppTheme.errorColor,
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-            SizedBox(width: screenWidth * 0.02),
-            CustomButton(
-              text: AppStrings.tr(
-                context: context,
-                screenKey: 'userProfile',
-                stringKey: 'logout',
-                langCode: widget.initialLanguage,
-              ),
-              type: CustomButtonType.elevated,
-              backgroundColor: AppTheme.errorShade400,
-              onPressed: () async {
-                Navigator.of(dialogContext).pop();
-                await AuthService().signOut();
-                if (mounted) {
-                  Navigator.pushReplacementNamed(context, AppRoutes.login);
-                }
-              },
-            )
-          ],
         );
       },
     );
@@ -177,12 +164,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   const BouncingDotsLoader(),
                   const SizedBox(height: 16),
                   Text(
-                    AppStrings.tr(
-                      context: context,
-                      screenKey: 'userHome',
-                      stringKey: 'loading_user',
-                      langCode: currentLangCode,
-                    ),
+                    AppLocalizations.of(context).get('userHome.loading_user'),
                     style: TextStyle(fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.greyColor),
                   ),
                 ],
@@ -204,7 +186,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             userAccount: currentUser!,
             initialLanguage: currentLangCode,
           ),
-          UserProfileScreen(
+          UserSettingsScreen(
             userAccount: currentUser!,
             initialLanguage: currentLangCode,
             onRefresh: _refresh,
@@ -247,12 +229,7 @@ class UserMenuScreen extends StatelessWidget {
   });
 
   String _tr(BuildContext context, String screenKey, String stringKey) =>
-      AppStrings.tr(
-        context: context,
-        screenKey: screenKey,
-        stringKey: stringKey,
-        langCode: initialLanguage,
-      );
+      AppLocalizations.of(context).get('$screenKey.$stringKey');
 
   @override
   Widget build(BuildContext context) {
@@ -264,12 +241,7 @@ class UserMenuScreen extends StatelessWidget {
       backgroundColor: AppTheme.whiteColor,
       appBar: CustomAppBar(
         title: LogoTitle(
-          text: AppStrings.tr(
-            context: context,
-            screenKey: 'splash',
-            stringKey: 'app_name',
-            langCode: initialLanguage,
-          ),
+          text: AppLocalizations.of(context).get('splash.app_name'),
         ),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
@@ -610,197 +582,3 @@ class UserMenuScreen extends StatelessWidget {
 }
 
 // User History Screen - now imported from history_screen.dart
-
-class UserProfileScreen extends StatelessWidget {
-  final UserAccount userAccount;
-  final VoidCallback onRefresh;
-  final VoidCallback onLogout;
-
-  final String initialLanguage;
-
-  const UserProfileScreen({
-    super.key,
-    required this.userAccount,
-    required this.onRefresh,
-    required this.onLogout,
-    required this.initialLanguage,
-  });
-
-  String _tr(BuildContext context, String screenKey, String stringKey) =>
-      AppStrings.tr(
-        context: context,
-        screenKey: screenKey,
-        stringKey: stringKey,
-        langCode: initialLanguage,
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final horizontalPadding = screenWidth * 0.04;
-    final verticalSpacing = screenWidth * 0.03;
-
-    return Scaffold(
-      backgroundColor: AppTheme.whiteColor,
-      appBar: CustomAppBar(
-        titleText: 'Setting',
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(horizontalPadding),
-        child: Column(
-          children: [
-            // Profile Picture Section
-            Center(
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: screenWidth * 0.15,
-                    backgroundColor: AppTheme.greyShade200,
-                    backgroundImage: userAccount.profileImageUrl != null
-                        ? _buildProfileImage(userAccount.profileImageUrl!, screenWidth)
-                        : null,
-                    child: userAccount.profileImageUrl == null
-                        ? Icon(Icons.person, size: screenWidth * 0.15, color: AppTheme.greyColor)
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: verticalSpacing),
-
-            // User Info
-            Text(
-              userAccount.name,
-              style: AppTheme.headingMedium(context),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: screenWidth * 0.02),
-            Text(
-              userAccount.email,
-              style: AppTheme.bodyMedium(context).copyWith(
-                color: AppTheme.greyShade600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: verticalSpacing * 2),
-
-            // Menu Items
-            _buildMenuItem(
-              context,
-              icon: Icons.edit,
-              title: _tr(context, 'userProfile', 'edit_profile'),
-              onTap: () {
-                LoggingService().info('Navigating to editAgentProfile with language: $initialLanguage');
-                Navigator.pushNamed(
-                  context,
-                  AppRoutes.editAgentProfile,
-                  arguments: {
-                    'username': userAccount.username,
-                    'currentName': userAccount.name,
-                    'currentEmail': userAccount.email,
-                    'currentProfileImageUrl': userAccount.profileImageUrl,
-                    'initialLanguage': initialLanguage, // Add this!
-                  },
-                ).then((result) {
-                  if (result == true) {
-                    onRefresh();
-                  }
-                });
-              },
-            ),
-
-            _buildMenuItem(
-              context,
-              icon: Icons.notifications_none_outlined,
-              title: _tr(context, 'userProfile', 'notifications'),
-              onTap: () {
-                Navigator.pushNamed(context, AppRoutes.userNotification);
-              },
-            ),
-
-            _buildMenuItem(
-              context,
-              icon: Icons.language,
-              title: _tr(context, 'userProfile', 'language'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const LanguageSelectionScreen(),
-                  ),
-                );
-              },
-            ),
-
-            _buildMenuItem(
-              context,
-              icon: Icons.lock_outline,
-              title: _tr(context, 'userProfile', 'privacy_security'),
-              onTap: () {
-                Navigator.pushNamed(context, AppRoutes.privacySecurity);
-              },
-            ),
-
-            _buildMenuItem(
-              context,
-              icon: Icons.password_outlined,
-              title: _tr(context, 'userProfile', 'change_password'),
-              onTap: () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => ChangePasswordScreen(
-                              initialLanguage: initialLanguage,
-                            )));
-              },
-            ),
-
-            _buildMenuItem(
-              context,
-              icon: Icons.logout,
-              title: _tr(context, 'userProfile', 'logout'),
-              textColor: AppTheme.errorColor,
-              onTap: onLogout,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    String? trailing,
-    Color? textColor,
-    required VoidCallback onTap,
-  }) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final iconSize = screenWidth * 0.06;
-    final fontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6);
-    final verticalPadding = screenWidth * 0.02;
-
-    return ListTile(
-      leading: Icon(icon, color: textColor ?? AppTheme.blackColor, size: iconSize),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: textColor ?? AppTheme.blackColor,
-          fontSize: fontSize,
-
-        ),
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: trailing != null
-          ? Text(trailing, style: TextStyle(color: AppTheme.greyShade600, fontSize: fontSize))
-          : Icon(Icons.arrow_forward_ios, size: iconSize * 0.6),
-      onTap: onTap,
-      contentPadding: EdgeInsets.symmetric(horizontal: 0, vertical: verticalPadding),
-    );
-  }
-}

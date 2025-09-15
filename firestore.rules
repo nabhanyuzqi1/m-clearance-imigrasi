@@ -15,7 +15,9 @@ service cloud.firestore {
     function isOfficerOrAdmin() {
       return isSignedIn() && (
         request.auth.token.role == 'officer' ||
-        request.auth.token.role == 'admin'
+        request.auth.token.role == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'officer' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
 
@@ -165,6 +167,18 @@ service cloud.firestore {
     match /officerReports/{reportId} {
       allow read: if isOfficerOrAdmin();
       allow write: if isOfficerOrAdmin();
+    }
+
+    // Reports collection
+    match /reports/{reportId} {
+      allow read, list: if isOfficerOrAdmin();
+      allow write: if isOfficerOrAdmin();
+    }
+
+    // Officer activities
+    match /officer_activities/{activityId} {
+      allow read, list: if isOfficerOrAdmin();
+      allow write: if false; // Only backend can write
     }
 
     // Default: deny everything else

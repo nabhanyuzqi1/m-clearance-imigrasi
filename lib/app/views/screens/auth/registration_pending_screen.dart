@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 // PERBAIKAN: Mengimpor widget loader dari file terpusat.
 import '../../widgets/bouncing_dots_loader.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/routes.dart';
@@ -19,7 +20,7 @@ class _RegistrationPendingScreenState extends State<RegistrationPendingScreen> {
   final AuthService _authService = AuthService();
 
   String _tr(String key) {
-    return AppStrings.tr(context: context, screenKey: 'registrationPending', stringKey: key, langCode: widget.initialLanguage);
+    return AppLocalizations.of(context).get('registrationPending.$key');
   }
 
   Future<void> _signOutAndGoToLogin() async {

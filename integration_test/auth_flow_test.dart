@@ -8,6 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:m_clearance_imigrasi/firebase_options.dart';
 import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/views/screens/auth/login_screen.dart';
+import 'package:m_clearance_imigrasi/app/providers/language_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:m_clearance_imigrasi/main.dart' as app;
 
 Future<void> pumpUntilFound(
@@ -66,7 +68,12 @@ void main() {
         const password = 'Passw0rd!';
 
         // 1) Launch app (AuthWrapper is home) -> navigate to Register -> submit -> land on EmailVerification
-        app.main();
+        await tester.pumpWidget(
+          ChangeNotifierProvider(
+            create: (_) => LanguageProvider(),
+            child: const app.MyApp(),
+          ),
+        );
         await tester.pumpAndSettle(const Duration(seconds: 2));
 
         // Expect we are on LoginScreen (AuthWrapper routes unauthenticated users to login)

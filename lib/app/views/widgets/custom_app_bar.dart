@@ -40,10 +40,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     LoggingService().debug('Building CustomAppBar with title: ${titleText ?? 'widget'}');
-    final screenWidth = MediaQuery.of(context).size.width;
-    final defaultTitleStyle = TextStyle(
-      fontWeight: FontWeight.bold,
-      fontSize: screenWidth * 0.045,
+    final defaultTitleStyle = AppTheme.headingSmall(context).copyWith(
       color: foregroundColor ?? AppTheme.onSurface,
     );
 
@@ -94,37 +91,36 @@ class NotificationIconWithBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     LoggingService().debug('Building NotificationIconWithBadge with count: $badgeCount');
-    final screenWidth = MediaQuery.of(context).size.width;
 
     return Stack(
       children: [
         IconButton(
           icon: Icon(
             Icons.notifications_none_outlined,
-            size: iconSize ?? screenWidth * 0.06,
+            size: iconSize ?? 24.0,
             color: iconColor ?? AppTheme.onSurface.withAlpha(138), // 0.54 * 255
           ),
           onPressed: onPressed,
         ),
         if (badgeCount > 0)
           Positioned(
-            right: screenWidth * 0.02,
-            top: screenWidth * 0.02,
+            right: 4.0,
+            top: 4.0,
             child: Container(
-              padding: EdgeInsets.all(screenWidth * 0.005),
+              padding: const EdgeInsets.all(2.0),
               decoration: const BoxDecoration(
                 color: Colors.red,
                 shape: BoxShape.circle,
               ),
-              constraints: BoxConstraints(
-                minWidth: screenWidth * 0.04,
-                minHeight: screenWidth * 0.04,
+              constraints: const BoxConstraints(
+                minWidth: 16.0,
+                minHeight: 16.0,
               ),
               child: Text(
                 badgeCount > 99 ? '99+' : '$badgeCount',
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
-                  fontSize: screenWidth * 0.025,
+                  fontSize: 10.0,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
@@ -154,26 +150,23 @@ class LogoTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     LoggingService().debug('Building LogoTitle with text: $text');
-    final screenWidth = MediaQuery.of(context).size.width;
 
     return Row(
       children: [
         Image.asset(
           'assets/images/logo.png',
-          height: logoSize ?? screenWidth * 0.08,
+          height: logoSize ?? 32.0,
           errorBuilder: (context, error, stackTrace) => Icon(
             Icons.directions_boat,
-            size: logoSize ?? screenWidth * 0.08,
+            size: logoSize ?? 32.0,
             color: AppTheme.primaryColor,
           ),
         ),
-        SizedBox(width: screenWidth * 0.02),
+        const SizedBox(width: 8.0),
         if (text != null)
           Text(
             text!,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: fontSize ?? screenWidth * 0.045,
+            style: AppTheme.headingSmall(context).copyWith(
               color: textColor ?? AppTheme.onSurface,
             ),
           ),

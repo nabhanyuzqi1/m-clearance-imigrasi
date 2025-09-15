@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:m_clearance_imigrasi/app/views/widgets/bouncing_dots_loader.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
@@ -23,7 +24,7 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   String _tr(String key) {
     final langCode = Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
-    return AppStrings.tr(context: context, screenKey: 'splash', stringKey: key, langCode: langCode.toUpperCase());
+    return AppLocalizations.of(context).get('splash.$key');
   }
 
   @override

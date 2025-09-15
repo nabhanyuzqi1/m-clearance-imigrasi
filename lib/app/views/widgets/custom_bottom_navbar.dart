@@ -55,13 +55,13 @@ class CustomBottomNavbar extends StatelessWidget {
   Widget build(BuildContext context) {
     LoggingService().debug('Building CustomBottomNavbar with currentIndex: $currentIndex');
     final screenWidth = MediaQuery.of(context).size.width;
-    final defaultIconSize = iconSize ?? screenWidth * 0.06;
+    final defaultIconSize = iconSize ?? (screenWidth > 600 ? 24.0 : screenWidth * 0.06);
     final defaultSelectedLabelStyle = TextStyle(
-      fontSize: screenWidth * 0.03,
+      fontSize: screenWidth > 600 ? 12.0 : screenWidth * 0.03,
       fontWeight: FontWeight.w500,
     );
     final defaultUnselectedLabelStyle = TextStyle(
-      fontSize: screenWidth * 0.03,
+      fontSize: screenWidth > 600 ? 12.0 : screenWidth * 0.03,
     );
 
     return BottomNavigationBar(
@@ -112,7 +112,6 @@ class CustomBottomNavbar extends StatelessWidget {
     final mapping = labelMap[label];
     if (mapping != null) {
       return AppStrings.tr(
-        context: context,
         screenKey: mapping['screenKey']!,
         stringKey: mapping['stringKey']!,
         langCode: languageCode,

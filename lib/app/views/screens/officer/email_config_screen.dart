@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../localization/app_strings.dart';
 import '../../../models/email_config.dart';
 import '../../../services/email_config_service.dart';
@@ -7,9 +8,7 @@ import '../../../config/theme.dart';
 import '../../widgets/custom_app_bar.dart';
 
 class EmailConfigScreen extends StatefulWidget {
-  final String initialLanguage;
-
-  const EmailConfigScreen({super.key, required this.initialLanguage});
+  const EmailConfigScreen({super.key});
 
   @override
   State<EmailConfigScreen> createState() => _EmailConfigScreenState();
@@ -20,8 +19,6 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
   EmailConfig? _emailConfig;
   bool _isLoading = true;
   bool _isSaving = false;
-
-  late String _selectedLanguage;
 
   // Controllers for form fields
   final TextEditingController _smtpHostController = TextEditingController();
@@ -45,18 +42,12 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
 
   bool _smtpUseTls = true;
 
-  String _tr(String screenKey, String stringKey) => AppStrings.tr(
-        context: context,
-        screenKey: screenKey,
-        stringKey: stringKey,
-        langCode: _selectedLanguage,
-      );
+  String _tr(String screenKey, String stringKey) => AppLocalizations.of(context).get('$screenKey.$stringKey');
 
   @override
   void initState() {
     super.initState();
-    LoggingService().info('EmailConfigScreen initialized with language: ${widget.initialLanguage}');
-    _selectedLanguage = widget.initialLanguage;
+    LoggingService().info('EmailConfigScreen initialized');
     _loadEmailConfig();
   }
 
@@ -78,12 +69,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppStrings.tr(
-              context: context,
-              screenKey: 'emailConfig',
-              stringKey: 'error_loading',
-              langCode: _selectedLanguage,
-            )),
+            content: Text(_tr('emailConfig', 'error_loading')),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -164,12 +150,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppStrings.tr(
-              context: context,
-              screenKey: 'emailConfig',
-              stringKey: 'error_saving',
-              langCode: _selectedLanguage,
-            )),
+            content: Text(_tr('emailConfig', 'error_saving')),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -184,14 +165,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
       appBar: CustomAppBar(
-        title: LogoTitle(
-          text: AppStrings.tr(
-            context: context,
-            screenKey: 'splash',
-            stringKey: 'app_name',
-            langCode: _selectedLanguage,
-          ),
-        ),
+        titleText: _tr('adminHome', 'email_configuration'),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
         elevation: 0,
@@ -223,7 +197,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
           : SingleChildScrollView(
-              padding: EdgeInsets.all(AppTheme.spacing16),
+              padding: EdgeInsets.all(AppTheme.responsivePadding(context)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

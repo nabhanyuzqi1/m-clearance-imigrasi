@@ -5,6 +5,7 @@ import 'arrival_detail_screen.dart';
 import 'departure_detail_screen.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
 import '../../../models/user_account.dart';
 import '../../../services/user_service.dart';
@@ -35,12 +36,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  String _tr(String key) => AppStrings.tr(
-        context: context,
-        screenKey: 'userHistory',
-        stringKey: key,
-        langCode: widget.initialLanguage,
-      );
+  String _tr(String key) => AppLocalizations.of(context).get('userHistory.$key');
 
   @override
   void initState() {

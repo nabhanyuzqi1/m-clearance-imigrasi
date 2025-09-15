@@ -1,29 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../localization/app_strings.dart';
-import '../../../config/routes.dart';
 import '../../../config/theme.dart';
-import '../auth/change_password_screen.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/officer_service.dart';
+import '../../../models/officer_activity.dart';
 import 'account_verification_list_screen.dart';
 import 'arrival_verification_screen.dart';
 import 'departure_verification_screen.dart';
-import 'edit_profile_screen.dart';
 import 'email_config_screen.dart';
 import 'officer_report_screen.dart';
 import 'notification_screen.dart';
+import 'officer_settings_screen.dart';
 import '../../../services/functions_service.dart';
 import '../../widgets/custom_bottom_navbar.dart';
 import '../../widgets/custom_app_bar.dart';
-import '../../widgets/custom_button.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final String adminName;
   final String adminUsername;
-  final String initialLanguage;
 
-  const AdminHomeScreen({super.key, required this.adminName, required this.adminUsername, this.initialLanguage = 'EN'});
+  const AdminHomeScreen({super.key, required this.adminName, required this.adminUsername});
 
   @override
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
@@ -31,18 +32,14 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _selectedIndex = 0;
-  late String _selectedLanguage;
-
 
   @override
   void initState() {
     super.initState();
     LoggingService().info('ProfileScreen initialized for admin: ${widget.adminName}');
-    _selectedLanguage = widget.initialLanguage;
     _loadSelectedIndex();
   }
 
-  void _changeLanguage(String langCode) => setState(() => _selectedLanguage = langCode);
 
   Future<void> _loadSelectedIndex() async {
     final prefs = await SharedPreferences.getInstance();
@@ -60,14 +57,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = <Widget>[
-      AdminMenuScreen(adminName: widget.adminName, initialLanguage: _selectedLanguage),
-      OfficerReportScreen(initialLanguage: _selectedLanguage),
-      ProfileScreen(
-        adminName: widget.adminName,
-        adminUsername: widget.adminUsername,
-        initialLanguage: _selectedLanguage,
-        onLanguageChange: _changeLanguage,
-      ),
+      AdminMenuScreen(adminName: widget.adminName),
+      const OfficerReportScreen(),
+      const OfficerSettingsScreen(),
     ];
 
     return Scaffold(
@@ -90,19 +82,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
 class AdminMenuScreen extends StatelessWidget {
   final String adminName;
-  final String initialLanguage;
-  const AdminMenuScreen({super.key, required this.adminName, required this.initialLanguage});
+  const AdminMenuScreen({super.key, required this.adminName});
 
   @override
   Widget build(BuildContext context) {
-    String tr(String stringKey) => AppStrings.tr(
-          context: context,
-          screenKey: 'adminHome',
-          stringKey: stringKey,
-          langCode: initialLanguage,
-        );
+    String tr(String stringKey) => AppLocalizations.of(context).get('adminHome.$stringKey');
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth * 0.06;
+    final verticalSpacing = screenWidth * 0.04;
 
     final functions = FunctionsService();
+    final authService = AuthService();
+    final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
@@ -116,107 +107,269 @@ class AdminMenuScreen extends StatelessWidget {
           NotificationIconWithBadge(
             badgeCount: 0, // You can implement notification count logic here
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => OfficerNotificationScreen(initialLanguage: initialLanguage)));
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const OfficerNotificationScreen()));
             },
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: EdgeInsets.all(AppTheme.responsivePadding(context)),
-        children: [
-          Row(
-            children: [
-              const CircleAvatar(
-                radius: 24,
-                backgroundColor: AppTheme.blackColor12,
-                child: Icon(Icons.person, size: 30, color: AppTheme.greyColor),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(tr('welcome'), style: const TextStyle(fontSize: AppTheme.fontSizeLarge, color: AppTheme.greyColor)),
-                  Text("$adminName - ${tr('officer')}", style: const TextStyle(fontSize: AppTheme.fontSizeXXLarge, fontWeight: FontWeight.bold)),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(horizontalPadding),
+        child: FutureBuilder(
+          future: currentUser != null ? authService.getUserData(currentUser.uid) : null,
+          builder: (context, userSnapshot) {
+            final userRole = userSnapshot.data?.role ?? 'officer'; // Default to officer if not loaded
+            LoggingService().info('Admin Home Screen: photoURL = ${userSnapshot.data?.photoURL}');
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: verticalSpacing),
+                // Welcome section
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: screenWidth * 0.08,
+                      backgroundColor: AppTheme.greyShade200,
+                      backgroundImage: (userSnapshot.data?.photoURL != null && userSnapshot.data!.photoURL!.isNotEmpty)
+                          ? NetworkImage(userSnapshot.data!.photoURL!)
+                          : null,
+                      child: (userSnapshot.data?.photoURL == null || userSnapshot.data!.photoURL!.isEmpty)
+                          ? Icon(Icons.person, size: screenWidth * 0.08, color: AppTheme.greyColor)
+                          : null,
+                    ),
+                    SizedBox(width: screenWidth * 0.04),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "${tr('welcome')},",
+                            style: AppTheme.bodyMedium(context).copyWith(color: AppTheme.greyColor),
+                          ),
+                          Text(
+                            adminName,
+                            style: AppTheme.headingSmall(context).copyWith(color: AppTheme.blackColor),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: verticalSpacing * 1.5),
+
+                // Service cards
+                Text(
+                  tr('services'),
+                  style: AppTheme.headingSmall(context).copyWith(color: AppTheme.blackColor),
+                ),
+                SizedBox(height: verticalSpacing),
+
+                FutureBuilder<Map<String, dynamic>>(
+                  future: functions.getOfficerDashboardStats(),
+                builder: (context, snapshot) {
+                  final stats = snapshot.data ?? const {};
+                  final pendingArrival = stats['pendingArrival']?.toString() ?? '';
+                  final subtitle = pendingArrival.isNotEmpty
+                      ? '${tr('agent_submissions')} ($pendingArrival)'
+                      : tr('agent_submissions');
+                  return _buildServiceCard(
+                    context,
+                    title: tr('arrival_verification'),
+                    subtitle: subtitle,
+                    iconData: Icons.anchor,
+                    color: AppTheme.infoColor,
+                    isPrimary: true,
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => ArrivalVerificationScreen(adminName: adminName)));
+                    },
+                  );
+                },
+                ),
+                SizedBox(height: verticalSpacing),
+                FutureBuilder<Map<String, dynamic>>(
+                  future: functions.getOfficerDashboardStats(),
+                  builder: (context, snapshot) {
+                    final stats = snapshot.data ?? const {};
+                    final pendingDeparture = stats['pendingDeparture']?.toString() ?? '';
+                    final subtitle = pendingDeparture.isNotEmpty
+                        ? '${tr('agent_submissions')} ($pendingDeparture)'
+                        : tr('agent_submissions');
+                    return _buildServiceCard(
+                      context,
+                      title: tr('departure_verification'),
+                      subtitle: subtitle,
+                      iconData: Icons.directions_boat,
+                      color: AppTheme.secondaryColor,
+                      isPrimary: false,
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => DepartureVerificationScreen(adminName: adminName)));
+                      },
+                    );
+                  },
+                ),
+                SizedBox(height: verticalSpacing),
+                FutureBuilder<Map<String, dynamic>>(
+                  future: functions.getOfficerDashboardStats(),
+                  builder: (context, snapshot) {
+                    final stats = snapshot.data ?? const {};
+                    final pendingAccounts = stats['pendingAccounts']?.toString() ?? '';
+                    final subtitle = pendingAccounts.isNotEmpty
+                        ? '${tr('agent_registrations')} ($pendingAccounts)'
+                        : tr('agent_registrations');
+                    return _buildServiceCard(
+                      context,
+                      title: tr('account_verification'),
+                      subtitle: subtitle,
+                      iconData: Icons.person_search,
+                      color: AppTheme.secondaryColor,
+                      isPrimary: false,
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const AccountVerificationListScreen()));
+                      },
+                    );
+                  },
+                ),
+                if (userRole == 'admin') ...[
+                  SizedBox(height: verticalSpacing),
+                  _buildServiceCard(
+                    context,
+                    title: tr('email_configuration'),
+                    subtitle: tr('manage_email_settings'),
+                    iconData: Icons.email_outlined,
+                    color: AppTheme.successColor,
+                    isPrimary: false,
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const EmailConfigScreen()));
+                    },
+                  ),
                 ],
+                SizedBox(height: verticalSpacing * 2),
+                Text(
+                  tr('recent_activities'),
+                  style: AppTheme.labelLarge(context).copyWith(color: AppTheme.blackColor),
+                ),
+                SizedBox(height: verticalSpacing),
+                StreamBuilder<List<OfficerActivity>>(
+                  stream: OfficerService().getOfficerActivities(limit: 3),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SkeletonListLoader(itemCount: 3);
+                  }
+
+                  if (snapshot.hasError) {
+                    LoggingService().error('Error loading officer activities', snapshot.error);
+                    return Center(
+                      child: Text(
+                        tr('error_loading_activities'),
+                        style: TextStyle(color: AppTheme.errorColor),
+                      ),
+                    );
+                  }
+
+                  final activities = snapshot.data ?? [];
+
+                  if (activities.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.history,
+                            size: 48,
+                            color: AppTheme.greyColor,
+                          ),
+                          SizedBox(height: AppTheme.spacing16),
+                          Text(
+                            tr('no_recent_activities'),
+                            style: AppTheme.bodyMedium(context).copyWith(
+                              color: AppTheme.greyColor,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: activities.map((activity) {
+                      final statusColor = _getActivityStatusColor(activity.status);
+                      final iconData = _getActivityIcon(activity.iconData);
+
+                      return Container(
+                        margin: EdgeInsets.only(bottom: verticalSpacing * 0.5),
+                        padding: EdgeInsets.all(verticalSpacing),
+                        decoration: BoxDecoration(
+                          color: AppTheme.whiteColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.greyShade200),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.greyColor.withAlpha(13),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              iconData,
+                              color: AppTheme.primaryColor,
+                              size: screenWidth * 0.06,
+                            ),
+                            SizedBox(width: horizontalPadding * 0.5),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    activity.title,
+                                    style: AppTheme.bodyMedium(context).copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.blackColor,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    _formatActivityDate(context, activity.date),
+                                    style: AppTheme.bodySmall(context).copyWith(
+                                      color: AppTheme.greyColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (activity.status != null)
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: screenWidth * 0.02,
+                                  vertical: screenWidth * 0.01,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withAlpha(25),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  activity.status!.toUpperCase(),
+                                  style: AppTheme.labelSmall(context).copyWith(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
               ),
-            ],
-          ),
-          SizedBox(height: AppTheme.spacing24),
-          FutureBuilder<Map<String, dynamic>>(
-            future: functions.getOfficerDashboardStats(),
-            builder: (context, snapshot) {
-              final stats = snapshot.data ?? const {};
-              final pendingArrival = stats['pendingArrival']?.toString() ?? '';
-              final subtitle = pendingArrival.isNotEmpty
-                  ? '${tr('agent_submissions')} ($pendingArrival)'
-                  : tr('agent_submissions');
-              return _buildServiceCard(context,
-            title: tr('arrival_verification'),
-            subtitle: subtitle,
-            iconData: Icons.anchor,
-            color: AppTheme.infoColor,
-            isPrimary: true,
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => ArrivalVerificationScreen(adminName: adminName, initialLanguage: initialLanguage)));
-            },
-              );
-            },
-          ),
-          SizedBox(height: AppTheme.spacing16),
-          FutureBuilder<Map<String, dynamic>>(
-            future: functions.getOfficerDashboardStats(),
-            builder: (context, snapshot) {
-              final stats = snapshot.data ?? const {};
-              final pendingDeparture = stats['pendingDeparture']?.toString() ?? '';
-              final subtitle = pendingDeparture.isNotEmpty
-                  ? '${tr('agent_submissions')} ($pendingDeparture)'
-                  : tr('agent_submissions');
-              return _buildServiceCard(context,
-            title: tr('departure_verification'),
-            subtitle: subtitle,
-            iconData: Icons.directions_boat,
-            color: AppTheme.blackColor87,
-            isPrimary: false,
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => DepartureVerificationScreen(adminName: adminName, initialLanguage: initialLanguage)));
-            },
-              );
-            },
-          ),
-          SizedBox(height: AppTheme.spacing16),
-          FutureBuilder<Map<String, dynamic>>(
-            future: functions.getOfficerDashboardStats(),
-            builder: (context, snapshot) {
-              final stats = snapshot.data ?? const {};
-              final pendingAccounts = stats['pendingAccounts']?.toString() ?? '';
-              final subtitle = pendingAccounts.isNotEmpty
-                  ? '${tr('agent_registrations')} ($pendingAccounts)'
-                  : tr('agent_registrations');
-              return _buildServiceCard(context,
-            title: tr('account_verification'),
-            subtitle: subtitle,
-            iconData: Icons.person_search,
-            color: AppTheme.blackColor87,
-            isPrimary: false,
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => AccountVerificationListScreen(initialLanguage: initialLanguage)));
-            },
-              );
-            },
-          ),
-          SizedBox(height: AppTheme.spacing16),
-          _buildServiceCard(context,
-            title: tr('email_configuration'),
-            subtitle: tr('manage_email_settings'),
-            iconData: Icons.email_outlined,
-            color: AppTheme.successColor,
-            isPrimary: false,
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => EmailConfigScreen(initialLanguage: initialLanguage)));
-            },
-          ),
-        ],
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -230,17 +383,27 @@ class AdminMenuScreen extends StatelessWidget {
     required bool isPrimary,
     required VoidCallback onTap,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardPadding = screenWidth * 0.05;
+    final iconSize = screenWidth * 0.08;
+    final titleFontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeH6, tablet: AppTheme.fontSizeH5, desktop: AppTheme.fontSizeH4);
+    final subtitleFontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody2, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1);
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: EdgeInsets.all(AppTheme.responsivePadding(context, mobile: AppTheme.paddingLarge, tablet: AppTheme.paddingLarge)),
+        padding: EdgeInsets.all(cardPadding),
         decoration: BoxDecoration(
           color: isPrimary ? color : AppTheme.whiteColor,
           borderRadius: BorderRadius.circular(16),
           border: isPrimary ? null : Border.all(color: AppTheme.greyShade300),
           boxShadow: [
-            BoxShadow(color: AppTheme.greyColor.withAlpha(25), blurRadius: 10, offset: const Offset(0, 5)),
+            BoxShadow(
+              color: AppTheme.greyColor.withAlpha(25),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
           ],
         ),
         child: Row(
@@ -250,249 +413,87 @@ class AdminMenuScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(fontSize: AppTheme.fontSizeXXLarge, fontWeight: FontWeight.bold, color: isPrimary ? AppTheme.whiteColor : color)),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(fontSize: AppTheme.fontSizeLarge, color: isPrimary ? AppTheme.whiteColor70 : AppTheme.greyColor)),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.bold,
+                      color: isPrimary ? Colors.white : color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: screenWidth * 0.01),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: subtitleFontSize,
+                      color: isPrimary ? AppTheme.whiteColor70 : AppTheme.greyColor,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
-            Icon(iconData, size: 32, color: isPrimary ? AppTheme.whiteColor : color),
+            SizedBox(width: screenWidth * 0.02),
+            Icon(iconData, size: iconSize, color: isPrimary ? Colors.white : color),
           ],
         ),
       ),
     );
   }
-}
 
-class ProfileScreen extends StatefulWidget {
-  final String adminName;
-  final String adminUsername;
-  final String initialLanguage;
-  final Function(String) onLanguageChange;
-
-  const ProfileScreen({
-    super.key,
-    required this.adminName,
-    required this.adminUsername,
-    required this.initialLanguage,
-    required this.onLanguageChange,
-  });
-
-  @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends State<ProfileScreen> {
-  late String _selectedLanguage;
-
-  @override
-  void initState() {
-    super.initState();
-    LoggingService().info('AdminHomeScreen initialized for admin: ${widget.adminName}');
-    _selectedLanguage = widget.initialLanguage;
+  Color _getActivityStatusColor(String? status) {
+    if (status == null) return AppTheme.greyColor;
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return AppTheme.successColor;
+      case 'declined':
+      case 'rejected':
+        return AppTheme.errorColor;
+      case 'revision':
+        return AppTheme.warningColor;
+      case 'waiting':
+        return AppTheme.primaryColor;
+      case 'completed':
+        return AppTheme.successColor;
+      default:
+        return AppTheme.greyColor;
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    String tr(String stringKey) => AppStrings.tr(
-          context: context,
-          screenKey: 'adminProfile',
-          stringKey: stringKey,
-          langCode: _selectedLanguage,
-        );
+  IconData _getActivityIcon(String? iconData) {
+    if (iconData == null) return Icons.history;
+    switch (iconData) {
+      case 'anchor':
+        return Icons.anchor;
+      case 'directions_boat':
+        return Icons.directions_boat;
+      case 'person_search':
+        return Icons.person_search;
+      case 'description':
+        return Icons.description;
+      default:
+        return Icons.history;
+    }
+  }
 
-    void showLogoutDialog() {
-      showDialog(
-        context: context,
-        builder: (BuildContext dialogContext) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Center(child: Text(tr('logout_confirm_title'), style: const TextStyle(fontWeight: FontWeight.bold))),
-            content: Text(tr('logout_confirm_body'), textAlign: TextAlign.center),
-            actionsAlignment: MainAxisAlignment.center,
-            actions: <Widget>[
-              CustomButton(
-                text: tr('cancel'),
-                type: CustomButtonType.outlined,
-                borderColor: AppTheme.errorShade200,
-                foregroundColor: AppTheme.errorColor,
-                onPressed: () => Navigator.of(dialogContext).pop(),
-              ),
-              const SizedBox(width: 8),
-              CustomButton(
-                text: tr('logout'),
-                type: CustomButtonType.elevated,
-                backgroundColor: AppTheme.errorShade400,
-                onPressed: () async {
-                  // Ensure true logout from Firebase
-                  try {
-                    await AuthService().signOut();
-                  } catch (_) {}
-                  if (context.mounted) {
-                    Navigator.of(dialogContext).pop();
-                    Navigator.pushReplacementNamed(context, AppRoutes.login);
-                  }
-                },
-              )
-            ],
-          );
-        },
-      );
+  String _formatActivityDate(BuildContext context, DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    String tr(String key) {
+      return AppLocalizations.of(context).get('adminHome.$key');
     }
 
-    return Scaffold(
-      backgroundColor: AppTheme.whiteColor,
-      appBar: CustomAppBar(
-        title: LogoTitle(
-          text: AppStrings.tr(
-            context: context,
-            screenKey: 'splash',
-            stringKey: 'app_name',
-            langCode: _selectedLanguage,
-          ),
-        ),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-      ),
-      body: ListView(
-        children: [
-          const SizedBox(height: 20),
-          Center(
-            child: Stack(
-              children: [
-                const CircleAvatar(
-                  radius: 50,
-                  backgroundColor: AppTheme.greyShade50,
-                  child: Icon(Icons.person, size: 60, color: AppTheme.primaryColor),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: InkWell(
-                    onTap: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EditProfileScreen(
-                            initialLanguage: _selectedLanguage,
-                          ),
-                        ),
-                      );
-                      if (result == true) {
-                        setState(() {});
-                      }
-                    },
-                    child: Container(
-                      padding: EdgeInsets.all(AppTheme.paddingSmall),
-                      decoration: BoxDecoration(
-                        color: AppTheme.infoColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.whiteColor, width: 2),
-                      ),
-                      child: const Icon(Icons.edit, color: AppTheme.whiteColor, size: 18),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: Text(widget.adminName, style: const TextStyle(fontSize: AppTheme.fontSizeXXXXLarge, fontWeight: FontWeight.bold, color: AppTheme.blackColor)),
-          ),
-          Center(
-            child: Text('@${widget.adminUsername}', style: const TextStyle(fontSize: AppTheme.fontSizeSmall, color: AppTheme.greyColor)),
-          ),
-          const SizedBox(height: 30),
-          _buildSettingsMenuItem(context, title: tr('notifications'), icon: Icons.notifications_none_outlined, onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => OfficerNotificationScreen(initialLanguage: _selectedLanguage)));
-          }),
-          const Divider(height: 1, indent: 20, endIndent: 20),
-          _buildLanguageSection(tr('language'), tr),
-          const Divider(height: 1, indent: 20, endIndent: 20),
-          _buildSettingsMenuItem(context, title: tr('privacy_security'), icon: Icons.lock_outline, onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("'${tr('privacy_security')}' ${tr('page_not_available')}")));
-          }),
-          const Divider(height: 1, indent: 20, endIndent: 20),
-          _buildSettingsMenuItem(
-            context,
-            title: tr('change_password'),
-            icon: Icons.password_outlined,
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => ChangePasswordScreen(initialLanguage: _selectedLanguage)));
-            },
-          ),
-          const Divider(height: 1, indent: 20, endIndent: 20),
-          _buildLogoutMenuItem(context, title: tr('logout'), onTap: showLogoutDialog),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLanguageSection(String title, String Function(String) tr) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppTheme.responsivePadding(context, mobile: AppTheme.paddingLarge, tablet: AppTheme.paddingLarge),
-        vertical: AppTheme.paddingSmall,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: AppTheme.fontSizeLarge,
-            ),
-          ),
-          DropdownButton<String>(
-            value: _selectedLanguage,
-            icon: const Icon(Icons.arrow_drop_down),
-            items: ['EN', 'ID'].map((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(tr(value == 'EN' ? 'english' : 'indonesian')),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              if (newValue != null) {
-                setState(() => _selectedLanguage = newValue);
-                widget.onLanguageChange(newValue);
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingsMenuItem(BuildContext context, {required String title, required IconData icon, VoidCallback? onTap}) {
-    return ListTile(
-      leading: Icon(icon, color: AppTheme.blackColor87),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: AppTheme.fontSizeLarge)),
-      trailing: const Icon(Icons.chevron_right, color: AppTheme.greyColor),
-      onTap: onTap,
-      contentPadding: EdgeInsets.symmetric(horizontal: AppTheme.responsivePadding(context, mobile: AppTheme.paddingLarge, tablet: AppTheme.paddingLarge)),
-    );
-  }
-
-  Widget _buildLogoutMenuItem(BuildContext context, {required String title, VoidCallback? onTap}) {
-    return ListTile(
-      leading: Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: AppTheme.errorShade100,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.logout, color: AppTheme.errorColor, size: 16),
-      ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: AppTheme.fontSizeLarge, color: AppTheme.errorColor)),
-      onTap: onTap,
-      contentPadding: EdgeInsets.symmetric(horizontal: AppTheme.responsivePadding(context, mobile: AppTheme.paddingLarge, tablet: AppTheme.paddingLarge)),
-    );
+    if (difference.inDays == 0) {
+      return tr('today');
+    } else if (difference.inDays == 1) {
+      return tr('yesterday');
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} ${tr('days_ago')}';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 }
+

@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart' as shimmer;
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 import '../../widgets/custom_button.dart';
@@ -29,8 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   String _tr(String key) {
-    final langCode = Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
-    return AppStrings.tr(context: context, screenKey: 'login', stringKey: key, langCode: langCode.toUpperCase());
+    return AppLocalizations.of(context)!.get('login.$key');
   }
 
   @override
@@ -114,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         } else {
           LoggingService().warning('Login failed: Invalid credentials for email: ${_emailController.text}');
-          _showErrorSnackbar('Invalid username or password.');
+          _showErrorSnackbar(_tr('invalid_credentials'));
         }
       } on FirebaseAuthException catch (e) {
         LoggingService().error('Login failed with FirebaseAuthException: ${e.message}', e);
@@ -213,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                     child: Text(
-                      'Sign In',
+                      _tr('sign_in'),
                       style: TextStyle(
                         color: AppTheme.blackColor,
                         fontSize: AppTheme.fontSizeBody2,
@@ -230,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Change Language',
+                        _tr('change_language'),
                         style: TextStyle(
                           color: AppTheme.whiteColor,
                           fontSize: AppTheme.fontSizeBody2,

@@ -8,6 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:m_clearance_imigrasi/firebase_options.dart';
 import 'package:m_clearance_imigrasi/app/views/screens/auth/login_screen.dart';
 import 'package:m_clearance_imigrasi/app/views/screens/officer/admin_home_screen.dart';
+import 'package:m_clearance_imigrasi/app/providers/language_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:m_clearance_imigrasi/main.dart' as app;
 
 Future<void> pumpUntilFound(
@@ -86,7 +88,12 @@ void main() {
         }
 
         // 1) Launch app
-        await tester.pumpWidget(const app.MyApp());
+        await tester.pumpWidget(
+          ChangeNotifierProvider(
+            create: (_) => LanguageProvider(),
+            child: const app.MyApp(),
+          ),
+        );
         await tester.pumpAndSettle(const Duration(seconds: 3));
 
         // Expect LoginScreen
@@ -153,7 +160,12 @@ void main() {
         await FirebaseAuth.instance.signOut();
 
         // 1) Launch app and login as officer
-        await tester.pumpWidget(const app.MyApp());
+        await tester.pumpWidget(
+          ChangeNotifierProvider(
+            create: (_) => LanguageProvider(),
+            child: const app.MyApp(),
+          ),
+        );
         await tester.pumpAndSettle(const Duration(seconds: 3));
 
         expect(find.byType(LoginScreen), findsOneWidget);
@@ -176,7 +188,12 @@ void main() {
         await tester.pumpAndSettle();
 
         // 3) Simulate app restart by recreating the app
-        await tester.pumpWidget(const app.MyApp());
+        await tester.pumpWidget(
+          ChangeNotifierProvider(
+            create: (_) => LanguageProvider(),
+            child: const app.MyApp(),
+          ),
+        );
         await tester.pumpAndSettle(const Duration(seconds: 3));
 
         // 4) Verify app doesn't show blank loading and restores properly
@@ -202,7 +219,12 @@ void main() {
         await FirebaseAuth.instance.signOut();
 
         // 1) Launch app
-        await tester.pumpWidget(const app.MyApp());
+        await tester.pumpWidget(
+          ChangeNotifierProvider(
+            create: (_) => LanguageProvider(),
+            child: const app.MyApp(),
+          ),
+        );
         await tester.pumpAndSettle(const Duration(seconds: 3));
 
         expect(find.byType(LoginScreen), findsOneWidget);

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
@@ -37,7 +38,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
 
   // Helper untuk mendapatkan string terjemahan
   String _tr(String key) {
-    return AppStrings.tr(context: context, screenKey: 'confirmation', stringKey: key, langCode: _selectedLanguage);
+    return AppLocalizations.of(context).get('confirmation.$key');
   }
 
   @override

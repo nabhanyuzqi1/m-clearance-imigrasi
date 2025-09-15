@@ -22,12 +22,15 @@ import '../views/screens/user/clearance_result_screen.dart';
 import '../views/screens/user/edit_agent_profile_screen.dart';
 import '../views/screens/user/notification_screen.dart' as user_notif;
 import '../views/screens/user/user_home_screen.dart';
+import '../views/screens/user/user_settings_screen.dart';
 import '../views/screens/user/verification_loading_screen.dart';
 import '../views/screens/user/submission_sent_screen.dart';
 import '../views/screens/user/submission_waiting_screen.dart';
 import '../views/screens/officer/email_config_screen.dart';
 import '../views/screens/user/privacy_security_screen.dart';
 
+import '../views/screens/user/language_selection_screen.dart';
+import '../views/screens/user/notification_settings_screen.dart';
 /// AppRoutes Class
 ///
 /// Mengelola semua rute navigasi aplikasi secara terpusat.
@@ -55,6 +58,9 @@ class AppRoutes {
   static const String submissionSent = '/submission-sent';
   static const String submissionWaiting = '/submission-waiting';
   static const String privacySecurity = '/privacy-security';
+  static const String languageSelection = '/language-selection';
+  static const String notificationSettings = '/notification-settings';
+  static const String userSettings = '/user-settings';
 
   static const String adminHome = '/admin-home';
   static const String adminNotification = '/admin-notification';
@@ -78,11 +84,9 @@ class AppRoutes {
       case login:
         return FadeRoute(page: const auth.LoginScreen());
       case register:
-        final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: RegisterScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: const RegisterScreen());
       case forgotPassword:
-         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: ForgotPasswordScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: const ForgotPasswordScreen());
       case changePassword:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: ChangePasswordScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
@@ -126,42 +130,58 @@ class AppRoutes {
         return FadeRoute(page: SubmissionWaitingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case privacySecurity:
         return FadeRoute(page: const PrivacySecurityScreen());
+      case languageSelection:
+        return FadeRoute(page: const LanguageSelectionScreen());
+      case notificationSettings:
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return FadeRoute(page: NotificationSettingsScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+      case userSettings:
+        final arguments = args as Map<String, dynamic>? ?? {};
+        return FadeRoute(
+          page: UserSettingsScreen(
+            userAccount: arguments['userAccount'],
+            onRefresh: arguments['onRefresh'],
+            onLogout: arguments['onLogout'],
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
 
       case adminHome:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: AdminHomeScreen(adminName: arguments['adminName'] ?? '', adminUsername: arguments['adminUsername'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: AdminHomeScreen(adminName: arguments['adminName'] ?? '', adminUsername: arguments['adminUsername'] ?? ''));
       case adminNotification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: OfficerNotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: const OfficerNotificationScreen());
       case editOfficerProfile:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: EditProfileScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: const EditProfileScreen());
       case officerReport:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: OfficerReportScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: const OfficerReportScreen());
       case accountVerificationList:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: AccountVerificationListScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: const AccountVerificationListScreen());
       case accountDetail:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(
           page: AccountDetailScreen(
             uid: arguments['uid'] ?? '',
-            initialLanguage: arguments['initialLanguage'] ?? 'EN',
           ),
         );
       case arrivalVerification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: ArrivalVerificationScreen(adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: ArrivalVerificationScreen(adminName: arguments['adminName'] ?? ''));
       case departureVerification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: DepartureVerificationScreen(adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: DepartureVerificationScreen(adminName: arguments['adminName'] ?? ''));
       case submissionDetail:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: SubmissionDetailScreen(application: arguments['application'], adminName: arguments['adminName'] ?? '', initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(page: SubmissionDetailScreen(application: arguments['application'], adminName: arguments['adminName'] ?? ''));
       case emailConfig:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: EmailConfigScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        // Check if user is admin - officers should not access email config
+        // This will be handled by the navigation guard in the calling screen
+        return FadeRoute(page: const EmailConfigScreen());
 
       default:
         // Halaman default jika rute tidak ditemukan

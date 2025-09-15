@@ -5,6 +5,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 // Import your app's main entry point
+import 'package:m_clearance_imigrasi/app/providers/language_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:m_clearance_imigrasi/main.dart' as app;
 import 'package:m_clearance_imigrasi/firebase_options.dart';
 
@@ -23,7 +25,12 @@ void main() {
     testWidgets('Full App Flow: Register, Add Note, and Sign Out',
         (WidgetTester tester) async {
       // 1. Launch the app.
-      app.main();
+      await tester.pumpWidget(
+        ChangeNotifierProvider(
+          create: (_) => LanguageProvider(),
+          child: const app.MyApp(),
+        ),
+      );
       
       // Allow the app to settle on the initial loading screen.
       await tester.pumpAndSettle();

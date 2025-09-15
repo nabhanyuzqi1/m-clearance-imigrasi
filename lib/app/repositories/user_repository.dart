@@ -12,5 +12,24 @@ class UserRepository {
     if (limit != null) query = query.limit(limit);
     return query.snapshots().map((snap) => snap.docs.map((d) => UserModel.fromFirestore(d)).toList());
   }
+
+  /// Streams all users.
+  Stream<List<UserModel>> streamAllUsers({int? limit}) {
+    Query query = _db.collection('users');
+    if (limit != null) query = query.limit(limit);
+    return query.snapshots().map((snap) => snap.docs.map((d) => UserModel.fromFirestore(d)).toList());
+  }
+  /// Fetches a single user by their UID.
+  Future<UserModel?> getUser(String uid) async {
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      if (doc.exists) {
+        return UserModel.fromFirestore(doc);
+      }
+    } catch (e) {
+      // Consider logging the error
+    }
+    return null;
+  }
 }
 
