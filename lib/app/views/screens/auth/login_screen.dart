@@ -69,11 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
               if (userModel.role == 'admin' || userModel.role == 'officer') {
                 if (mounted) {
                   LoggingService().info('Navigating to admin home for officer/admin: ${userModel.email}');
-                  Navigator.pushReplacementNamed(context, AppRoutes.adminHome, arguments: {
-                    'adminName': userModel.username,
-                    'adminUsername': userModel.email,
-                    'photoURL': userModel.photoURL,
-                  });
+                  Navigator.pushReplacementNamed(context, AppRoutes.accountVerificationList);
                 }
               } else {
                 if (mounted) {

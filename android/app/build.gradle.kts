@@ -41,10 +41,6 @@ android {
             dimension = "role"
             applicationId = "com.mclearance.isam.m_clearance_imigrasi"
         }
-        create("admin") {
-            dimension = "role"
-            applicationId = "com.mclearance.isam.m_clearance_imigrasi.admin"
-        }
     }
 
     buildTypes {

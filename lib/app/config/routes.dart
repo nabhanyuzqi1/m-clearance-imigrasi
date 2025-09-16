@@ -10,7 +10,6 @@ import '../views/screens/auth/splash_screen.dart';
 import '../views/screens/auth/upload_documents_screen.dart';
 import '../views/screens/officer/account_detail_screen.dart';
 import '../views/screens/officer/account_verification_list_screen.dart';
-import '../views/screens/officer/admin_home_screen.dart';
 import '../views/screens/officer/arrival_verification_screen.dart';
 import '../views/screens/officer/departure_verification_screen.dart';
 import '../views/screens/officer/edit_profile_screen.dart';
@@ -62,7 +61,6 @@ class AppRoutes {
   static const String notificationSettings = '/notification-settings';
   static const String userSettings = '/user-settings';
 
-  static const String adminHome = '/admin-home';
   static const String adminNotification = '/admin-notification';
   static const String editOfficerProfile = '/edit-officer-profile';
   static const String officerReport = '/officer-report';
@@ -146,9 +144,6 @@ class AppRoutes {
           ),
         );
 
-      case adminHome:
-        final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: AdminHomeScreen(adminName: arguments['adminName'] ?? '', adminUsername: arguments['adminUsername'] ?? '', photoURL: arguments['photoURL']));
       case adminNotification:
         return FadeRoute(page: const OfficerNotificationScreen());
       case editOfficerProfile:
