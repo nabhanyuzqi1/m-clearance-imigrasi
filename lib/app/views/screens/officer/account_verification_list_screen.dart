@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../localization/app_strings.dart';
 import '../../../repositories/user_repository.dart';
 import '../../../models/user_model.dart';
 import '../../../services/logging_service.dart';
@@ -72,59 +71,67 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
   Widget _buildFilterButton(String filter, String label) {
     final isSelected = _selectedFilter == filter;
     return Expanded(
-      child: ElevatedButton(
-        onPressed: () {
-          setState(() => _selectedFilter = filter);
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isSelected ? AppTheme.primaryColor : AppTheme.greyShade200,
-          foregroundColor: isSelected ? AppTheme.whiteColor : AppTheme.blackColor87,
-          elevation: isSelected ? 2 : 0,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+      child: OutlinedButton(
+        onPressed: () => setState(() => _selectedFilter = filter),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: isSelected ? AppTheme.primaryColor.withAlpha(25) : Colors.transparent,
+          foregroundColor: isSelected ? AppTheme.primaryColor : AppTheme.greyColor,
+          side: BorderSide(
+            color: isSelected ? AppTheme.primaryColor : AppTheme.greyShade300,
+            width: 1.5,
           ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
         ),
         child: Text(
           label,
           style: TextStyle(
-            fontSize: AppTheme.fontSizeSmall,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            fontSize: AppTheme.fontSizeSmall,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStatusChip(BuildContext context, String status) {
-    Color chipColor;
-    String chipLabel;
-
+  // Helper to get status properties
+  Map<String, dynamic> _getStatusProperties(BuildContext context, String status) {
     switch (status) {
-      case 'pending_approval':
-        chipColor = Colors.orange;
-        chipLabel = _tr('status_pending');
-        break;
       case 'verified':
-        chipColor = Colors.green;
-        chipLabel = _tr('status_verified');
-        break;
+        return {'color': AppTheme.successColor, 'label': _tr('status_verified')};
+      case 'pending_approval':
+        return {'color': AppTheme.warningColor, 'label': _tr('status_pending')};
       case 'rejected':
-        chipColor = Colors.red;
-        chipLabel = _tr('status_rejected');
-        break;
+        return {'color': AppTheme.errorColor, 'label': _tr('status_rejected')};
+      case 'pending_email_verification':
+        return {'color': AppTheme.infoColor, 'label': _tr('status_pending_email')};
+      case 'pending_upload_documents':
+        return {'color': AppTheme.infoColor, 'label': _tr('status_pending_documents')};
       default:
-        chipColor = Colors.grey;
-        chipLabel = status;
+        return {'color': AppTheme.greyColor, 'label': status};
     }
+  }
 
-    return Chip(
-      label: Text(
-        chipLabel,
-        style: const TextStyle(color: Colors.white, fontSize: 12),
+  Widget _buildStatusChip(BuildContext context, String status) {
+    final statusProps = _getStatusProperties(context, status);
+    final chipColor = statusProps['color'] as Color;
+    final chipLabel = statusProps['label'] as String;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+      decoration: BoxDecoration(
+        color: chipColor.withAlpha(25),
+        borderRadius: BorderRadius.circular(20.0),
+        border: Border.all(color: chipColor, width: 1.5),
       ),
-      backgroundColor: chipColor,
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
+      child: Text(
+        chipLabel,
+        style: TextStyle(
+          color: chipColor,
+          fontWeight: FontWeight.bold,
+          fontSize: AppTheme.fontSizeSmall,
+        ),
+      ),
     );
   }
 
@@ -154,16 +161,17 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: AppLocalizations.of(context).get('userHistory.search_hint'),
-                prefixIcon: const Icon(Icons.search),
+                hintText: _tr('search_hint'),
+                prefixIcon: const Icon(Icons.search, color: AppTheme.greyColor),
+                filled: true,
+                fillColor: AppTheme.greyShade100,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(30.0),
+                  borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
               ),
-              onChanged: (value) {
-                setState(() {});
-              },
+              onChanged: (value) => setState(() {}),
             ),
           ),
           // Filter buttons
@@ -212,43 +220,65 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
                     itemCount: users.length,
                     itemBuilder: (context, index) {
                       final user = users[index];
-                      return Card(
-                        elevation: 2.0,
-                        margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.all(16.0),
-                          leading: CircleAvatar(
-                            backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
-                            child: const Icon(Icons.person_outline, color: AppTheme.primaryColor),
+                      return InkWell(
+                        onTap: () async {
+                          final result = await Navigator.pushNamed(
+                            context,
+                            '/account-detail',
+                            arguments: {'uid': user.uid},
+                          );
+                          if (result == true) _refreshList();
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                          padding: const EdgeInsets.all(16.0),
+                          decoration: BoxDecoration(
+                            color: AppTheme.whiteColor,
+                            borderRadius: BorderRadius.circular(12.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.greyShade200.withAlpha(128),
+                                spreadRadius: 1,
+                                blurRadius: 5,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
-                          title: Text(
-                            user.username.isNotEmpty ? user.username : user.email,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              Text(user.email),
-                              const SizedBox(height: 4),
+                              CircleAvatar(
+                                backgroundColor: AppTheme.primaryColor.withAlpha(25),
+                                child: const Icon(Icons.person_outline, color: AppTheme.primaryColor),
+                              ),
+                              const SizedBox(width: 16.0),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      user.username.isNotEmpty ? user.username : user.email,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: AppTheme.fontSizeMedium,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4.0),
+                                    Text(
+                                      user.email,
+                                      style: const TextStyle(
+                                        color: AppTheme.greyColor,
+                                        fontSize: AppTheme.fontSizeSmall,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16.0),
                               _buildStatusChip(context, user.status),
                             ],
                           ),
-                          trailing: const Icon(Icons.arrow_forward_ios, size: 16.0),
-                          onTap: () async {
-                            final result = await Navigator.pushNamed(
-                              context,
-                              '/account-detail',
-                              arguments: {
-                                'uid': user.uid,
-                              },
-                            );
-                            if (result == true) {
-                              _refreshList();
-                            }
-                          },
                         ),
                       );
                     },

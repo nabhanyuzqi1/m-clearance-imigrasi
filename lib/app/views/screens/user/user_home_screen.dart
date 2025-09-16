@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../localization/app_strings.dart';
 import '../../../providers/language_provider.dart';
 import '../../../models/clearance_application.dart';
 import '../../../models/user_account.dart';
@@ -16,9 +15,7 @@ import '../../widgets/custom_bottom_navbar.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/bouncing_dots_loader.dart';
 import '../../widgets/skeleton_loader.dart';
-import '../auth/change_password_screen.dart';
 import 'history_screen.dart';
-import 'language_selection_screen.dart';
 import 'user_settings_screen.dart';
 
 ImageProvider<Object> _buildProfileImage(String imageUrl, double screenWidth) {

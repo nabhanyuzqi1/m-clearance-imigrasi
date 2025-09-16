@@ -2,12 +2,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:provider/provider.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/user_model.dart';
-import '../../../providers/language_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 
@@ -31,7 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isConfirmPasswordVisible = false;
   bool _agreeToTerms = false;
   String _tr(String key) {
-    return AppLocalizations.of(context)!.get('register.$key');
+    return AppLocalizations.of(context).get('register.$key');
   }
 
   @override

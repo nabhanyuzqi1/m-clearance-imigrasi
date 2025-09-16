@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -433,6 +432,37 @@ class AuthService {
     }
   }
 
+  Future<bool> changePassword(String currentPassword, String newPassword) async {
+    bool success = false;
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) {
+        throw Exception('No user is currently signed in.');
+      }
+
+      // Re-authenticate the user with their current password
+      final cred = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      await user.reauthenticateWithCredential(cred);
+
+      // If re-authentication is successful, update the password
+      await user.updatePassword(newPassword);
+      
+      LoggingService().info('Password updated successfully for user: ${user.uid}');
+      success = true;
+    } on FirebaseAuthException catch (e) {
+      LoggingService().error('Error changing password: ${e.message}', e);
+      // Consider mapping specific error codes to user-friendly messages
+      rethrow; 
+    } catch (e) {
+      LoggingService().error('An unexpected error occurred while changing password', e);
+      rethrow;
+    }
+    return success;
+  }
  Future<void> updateUserEmail(String newEmail) async {
    final user = _firebaseAuth.currentUser;
    if (user != null && user.email != newEmail) {

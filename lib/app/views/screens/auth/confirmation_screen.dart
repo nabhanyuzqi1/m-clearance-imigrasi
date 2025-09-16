@@ -6,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
 import '../../../models/user_model.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/auth_service.dart';

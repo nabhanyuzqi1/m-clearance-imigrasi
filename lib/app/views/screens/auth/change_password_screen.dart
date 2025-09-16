@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_strings.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/auth_service.dart';
 
 /// ChangePasswordScreen
 ///
@@ -42,19 +43,35 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   // Memvalidasi form dan (disimulasikan) menyimpan password baru
-  void _submitChangePassword() {
+  void _submitChangePassword() async {
     LoggingService().info('Password change attempt initiated');
     if (_formKey.currentState!.validate()) {
       LoggingService().info('Password change form validation successful');
-      // TODO: Implementasi logika ganti password sesungguhnya
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('password_updated')),
-            backgroundColor: AppTheme.successColor,
-          ),
+      try {
+        final authService = AuthService();
+        final success = await authService.changePassword(
+          _currentPasswordController.text,
+          _newPasswordController.text,
         );
-        Navigator.pop(context);
+
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_tr('password_updated')),
+              backgroundColor: AppTheme.successColor,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: AppTheme.errorColor,
+            ),
+          );
+        }
       }
     } else {
       LoggingService().warning('Password change form validation failed');

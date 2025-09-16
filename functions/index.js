@@ -104,6 +104,14 @@ async function resolveUserName(uid, fallbackEmail) {
 
 async function callerRole(context) {
   try {
+    // First, check custom claims for the role
+    const claims = context.auth.token || {};
+    const claimsRole = claims.role;
+    if (claimsRole && ['user', 'officer', 'admin'].includes(claimsRole)) {
+      return claimsRole;
+    }
+
+    // Fallback to checking Firestore
     const uid = context.auth.uid;
     const userRef = db.collection('users').doc(uid);
     const userSnap = await userRef.get();
@@ -115,9 +123,9 @@ async function callerRole(context) {
       }
     }
   } catch (error) {
-    console.error('[callerRole] Error fetching role from Firestore:', error);
+    console.error('[callerRole] Error fetching role:', error);
   }
-  return 'user';
+  return 'user'; // Default to 'user' if no role is found
 }
 
 async function ensureOfficerOrAdmin(context) {
@@ -1472,5 +1480,52 @@ exports.generateMonthlyReport = functions.https.onCall(async (data, context) => 
   } catch (error) {
     logger.error("Error generating monthly report", error);
     throw new functions.https.HttpsError('internal', 'Failed to generate monthly report.');
+  }
+});
+
+/**
+ * Updates the status of a user account.
+ * @param {object} data - The data object containing the UID, status, and rejection reason.
+ * @param {object} context - The context object containing authentication information.
+ * @returns {object} - An object indicating the success of the operation.
+ */
+exports.updateUserAccountStatus = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  await ensureOfficerOrAdmin(context);
+
+  const { uid, status, rejectionReason } = data;
+
+  if (!uid || !status) {
+    throw new functions.https.HttpsError('invalid-argument', 'UID and status are required.');
+  }
+
+  const userRef = db.collection('users').doc(uid);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'User not found.');
+      }
+
+      const updates = {
+        status,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (status === 'rejected') {
+        updates.rejectionReason = rejectionReason;
+      } else {
+        updates.rejectionReason = FieldValue.delete();
+      }
+
+      transaction.update(userRef, updates);
+    });
+
+    return { success: true };
+  } catch (error) {
+    logger.error('Error updating user account status', error);
+    throw new functions.https.HttpsError('internal', 'Failed to update user account status.');
   }
 });

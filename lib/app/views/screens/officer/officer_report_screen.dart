@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../localization/app_strings.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
 import '../../../services/functions_service.dart';

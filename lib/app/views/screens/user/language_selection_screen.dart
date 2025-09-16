@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/language_provider.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../localization/app_strings.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
 

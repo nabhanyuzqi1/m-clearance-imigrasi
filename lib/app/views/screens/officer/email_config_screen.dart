@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../localization/app_strings.dart';
 import '../../../models/email_config.dart';
 import '../../../services/email_config_service.dart';
 import '../../../services/logging_service.dart';

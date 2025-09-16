@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../localization/app_strings.dart';
 import '../../../config/theme.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
@@ -23,8 +22,9 @@ import '../../widgets/skeleton_loader.dart';
 class AdminHomeScreen extends StatefulWidget {
   final String adminName;
   final String adminUsername;
+  final String? photoURL;
 
-  const AdminHomeScreen({super.key, required this.adminName, required this.adminUsername});
+  const AdminHomeScreen({super.key, required this.adminName, required this.adminUsername, this.photoURL});
 
   @override
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
@@ -57,7 +57,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = <Widget>[
-      AdminMenuScreen(adminName: widget.adminName),
+      AdminMenuScreen(adminName: widget.adminName, photoURL: widget.photoURL),
       const OfficerReportScreen(),
       const OfficerSettingsScreen(),
     ];
@@ -82,7 +82,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
 class AdminMenuScreen extends StatelessWidget {
   final String adminName;
-  const AdminMenuScreen({super.key, required this.adminName});
+  final String? photoURL;
+  const AdminMenuScreen({super.key, required this.adminName, this.photoURL});
 
   @override
   Widget build(BuildContext context) {
@@ -130,10 +131,10 @@ class AdminMenuScreen extends StatelessWidget {
                     CircleAvatar(
                       radius: screenWidth * 0.08,
                       backgroundColor: AppTheme.greyShade200,
-                      backgroundImage: (userSnapshot.data?.photoURL != null && userSnapshot.data!.photoURL!.isNotEmpty)
-                          ? NetworkImage(userSnapshot.data!.photoURL!)
+                      backgroundImage: (photoURL != null && photoURL!.isNotEmpty)
+                          ? NetworkImage(photoURL!)
                           : null,
-                      child: (userSnapshot.data?.photoURL == null || userSnapshot.data!.photoURL!.isEmpty)
+                      child: (photoURL == null || photoURL!.isEmpty)
                           ? Icon(Icons.person, size: screenWidth * 0.08, color: AppTheme.greyColor)
                           : null,
                     ),

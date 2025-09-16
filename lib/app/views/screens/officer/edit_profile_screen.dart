@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../localization/app_strings.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
 import '../../../services/auth_service.dart';
@@ -361,14 +360,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           CircleAvatar(
                             radius: avatarRadius,
                             backgroundColor: Colors.grey.shade200,
-                            backgroundImage: UserService.currentProfileImagePath != null
-                                ? FileImage(File(UserService.currentProfileImagePath!))
+                            child: UserService.currentProfileImagePath != null
+                                ? ClipOval(
+                                    child: Image.file(
+                                      File(UserService.currentProfileImagePath!),
+                                      fit: BoxFit.cover,
+                                      width: avatarRadius * 2,
+                                      height: avatarRadius * 2,
+                                    ),
+                                  )
                                 : (_currentProfileImageUrl != null
-                                    ? NetworkImage(_currentProfileImageUrl!)
-                                    : null),
-                            child: (UserService.currentProfileImagePath == null && _currentProfileImageUrl == null)
-                                ? Icon(Icons.person, size: avatarRadius, color: Colors.grey)
-                                : null,
+                                    ? ClipOval(
+                                        child: Image.network(
+                                          _currentProfileImageUrl!,
+                                          fit: BoxFit.cover,
+                                          width: avatarRadius * 2,
+                                          height: avatarRadius * 2,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Icon(Icons.person,
+                                                size: avatarRadius,
+                                                color: Colors.grey);
+                                          },
+                                        ),
+                                      )
+                                    : Icon(Icons.person,
+                                        size: avatarRadius, color: Colors.grey)),
                           ),
                           InkWell(
                             onTap: _showImageSourceDialog,

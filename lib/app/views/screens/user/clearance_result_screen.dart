@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
 import '../../../services/logging_service.dart';
@@ -372,10 +371,7 @@ class ClearanceResultScreen extends StatelessWidget {
                             ),
                             child: ElevatedButton(
                               onPressed: () {
-                                // TODO: Navigate to reports screen
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Reports feature coming soon')),
-                                );
+                                Navigator.pushNamed(context, '/officer-report');
                               },
                               style: ElevatedButton.styleFrom(
                                 padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),

@@ -10,7 +10,6 @@ import 'dart:io';
 import 'package:shimmer/shimmer.dart' as shimmer;
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
 import '../../../services/user_service.dart';
@@ -93,7 +92,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   void initState() {
     super.initState();
     LoggingService().info('ClearanceFormScreen initialized for ${widget.type}');
-    _cacheTranslations();
 
     if (widget.existingApplication != null) {
       final app = widget.existingApplication!;
@@ -114,8 +112,16 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       LoggingService().debug('Creating new application form');
       _agentNameController.text = widget.agentName;
       _selectedLocation = _locations.first;
-      _selectedFlag = _tr('indonesia');
       _dateController.text = DateFormat('dd MMMM yyyy').format(DateTime.now());
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cacheTranslations();
+    if (widget.existingApplication == null) {
+      _selectedFlag = _tr('indonesia');
     }
   }
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../localization/app_strings.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';

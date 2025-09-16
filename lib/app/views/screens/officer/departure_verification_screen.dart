@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../localization/app_strings.dart';
 import '../../../repositories/application_repository.dart';
 import '../../../models/clearance_application.dart';
 import '../../../services/logging_service.dart';

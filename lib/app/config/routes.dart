@@ -148,18 +148,14 @@ class AppRoutes {
 
       case adminHome:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: AdminHomeScreen(adminName: arguments['adminName'] ?? '', adminUsername: arguments['adminUsername'] ?? ''));
+        return FadeRoute(page: AdminHomeScreen(adminName: arguments['adminName'] ?? '', adminUsername: arguments['adminUsername'] ?? '', photoURL: arguments['photoURL']));
       case adminNotification:
-        final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: const OfficerNotificationScreen());
       case editOfficerProfile:
-        final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: const EditProfileScreen());
       case officerReport:
-        final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: const OfficerReportScreen());
       case accountVerificationList:
-        final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: const AccountVerificationListScreen());
       case accountDetail:
         final arguments = args as Map<String, dynamic>? ?? {};
@@ -178,7 +174,6 @@ class AppRoutes {
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: SubmissionDetailScreen(application: arguments['application'], adminName: arguments['adminName'] ?? ''));
       case emailConfig:
-        final arguments = args as Map<String, dynamic>? ?? {};
         // Check if user is admin - officers should not access email config
         // This will be handled by the navigation guard in the calling screen
         return FadeRoute(page: const EmailConfigScreen());

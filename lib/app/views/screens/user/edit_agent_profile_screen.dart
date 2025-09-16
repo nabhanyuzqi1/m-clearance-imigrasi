@@ -9,7 +9,6 @@ import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/routes.dart';
 import '../../../providers/language_provider.dart';
-import '../../../localization/app_strings.dart';
 import '../../../localization/app_localizations.dart';
 
 class EditAgentProfileScreen extends StatefulWidget {
@@ -440,14 +439,31 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                     CircleAvatar(
                       radius: avatarRadius,
                       backgroundColor: Colors.grey.shade200,
-                      backgroundImage: UserService.currentProfileImagePath != null
-                          ? FileImage(File(UserService.currentProfileImagePath!))
+                      child: UserService.currentProfileImagePath != null
+                          ? ClipOval(
+                              child: Image.file(
+                                File(UserService.currentProfileImagePath!),
+                                fit: BoxFit.cover,
+                                width: avatarRadius * 2,
+                                height: avatarRadius * 2,
+                              ),
+                            )
                           : (widget.currentProfileImageUrl != null
-                              ? NetworkImage(widget.currentProfileImageUrl!)
-                              : null),
-                      child: (UserService.currentProfileImagePath == null && widget.currentProfileImageUrl == null)
-                          ? Icon(Icons.person, size: avatarRadius, color: Colors.grey)
-                          : null,
+                              ? ClipOval(
+                                  child: Image.network(
+                                    widget.currentProfileImageUrl!,
+                                    fit: BoxFit.cover,
+                                    width: avatarRadius * 2,
+                                    height: avatarRadius * 2,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Icon(Icons.person,
+                                          size: avatarRadius,
+                                          color: Colors.grey);
+                                    },
+                                  ),
+                                )
+                              : Icon(Icons.person,
+                                  size: avatarRadius, color: Colors.grey)),
                     ),
                     InkWell(
                       onTap: _showImageSourceDialog,

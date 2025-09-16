@@ -6,7 +6,6 @@ import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
-import 'package:m_clearance_imigrasi/app/localization/app_strings.dart';
 
 class RegistrationPendingScreen extends StatefulWidget {
   final String initialLanguage;

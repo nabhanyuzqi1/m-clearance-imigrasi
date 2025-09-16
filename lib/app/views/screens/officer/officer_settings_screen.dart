@@ -8,7 +8,6 @@ import '../../../config/theme.dart';
 import '../../../services/auth_service.dart';
 import '../../../config/routes.dart';
 import '../../../providers/language_provider.dart';
-import '../../../localization/app_strings.dart';
 import '../../../localization/app_localizations.dart';
 import '../auth/change_password_screen.dart';
 import '../../widgets/custom_app_bar.dart';
@@ -77,15 +76,23 @@ class OfficerSettingsScreen extends StatelessWidget {
                       child: CircleAvatar(
                         radius: screenWidth * 0.12,
                         backgroundColor: AppTheme.greyShade200,
-                        backgroundImage:
-                            (photoURL != null && photoURL.isNotEmpty)
-                                ? NetworkImage(photoURL)
-                                : null,
-                        child: (photoURL == null || photoURL.isEmpty)
-                            ? Icon(Icons.person,
+                        child: (photoURL != null && photoURL.isNotEmpty)
+                            ? ClipOval(
+                                child: Image.network(
+                                  photoURL,
+                                  fit: BoxFit.cover,
+                                  width: screenWidth * 0.24,
+                                  height: screenWidth * 0.24,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Icon(Icons.person,
+                                        size: screenWidth * 0.12,
+                                        color: AppTheme.greyColor);
+                                  },
+                                ),
+                              )
+                            : Icon(Icons.person,
                                 size: screenWidth * 0.12,
-                                color: AppTheme.greyColor)
-                            : null,
+                                color: AppTheme.greyColor),
                       ),
                     ),
                     SizedBox(height: verticalSpacing),

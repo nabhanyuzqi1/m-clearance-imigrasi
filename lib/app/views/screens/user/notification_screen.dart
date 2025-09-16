@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/notification_item.dart';
 import '../../../services/notification_service.dart';

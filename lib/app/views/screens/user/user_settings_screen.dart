@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/user_account.dart';
 import '../../../services/logging_service.dart';
@@ -9,14 +8,6 @@ import '../auth/change_password_screen.dart';
 import 'language_selection_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 
-ImageProvider<Object> _buildProfileImage(String imageUrl, double screenWidth) {
-  try {
-    return NetworkImage(imageUrl);
-  } catch (e) {
-    LoggingService().error('Error loading profile image: $e');
-    return const AssetImage('assets/images/logo.png'); // Fallback image
-  }
-}
 
 class UserSettingsScreen extends StatelessWidget {
   final UserAccount userAccount;
@@ -60,12 +51,23 @@ class UserSettingsScreen extends StatelessWidget {
                   CircleAvatar(
                     radius: screenWidth * 0.12,
                     backgroundColor: AppTheme.greyShade200,
-                    backgroundImage: userAccount.profileImageUrl != null
-                        ? _buildProfileImage(userAccount.profileImageUrl!, screenWidth)
-                        : null,
-                    child: userAccount.profileImageUrl == null
-                        ? Icon(Icons.person, size: screenWidth * 0.12, color: AppTheme.greyColor)
-                        : null,
+                    child: userAccount.profileImageUrl != null
+                        ? ClipOval(
+                            child: Image.network(
+                              userAccount.profileImageUrl!,
+                              fit: BoxFit.cover,
+                              width: screenWidth * 0.24,
+                              height: screenWidth * 0.24,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Icon(Icons.person,
+                                    size: screenWidth * 0.12,
+                                    color: AppTheme.greyColor);
+                              },
+                            ),
+                          )
+                        : Icon(Icons.person,
+                            size: screenWidth * 0.12,
+                            color: AppTheme.greyColor),
                   ),
                 ],
               ),

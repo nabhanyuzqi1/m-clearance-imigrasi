@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:provider/provider.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../providers/language_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 
@@ -17,7 +15,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
   final AuthService _authService = AuthService();
   String _tr(String key) {
-    return AppLocalizations.of(context)!.get('forgotPassword.$key');
+    return AppLocalizations.of(context).get('forgotPassword.$key');
   }
 
   @override

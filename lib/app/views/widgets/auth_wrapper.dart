@@ -141,6 +141,7 @@ class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
           args = {
             'adminName': userModel.username,
             'adminUsername': userModel.email,
+            'photoURL': userModel.photoURL,
             'initialLanguage': 'EN',
           };
         } else {

@@ -11,7 +11,6 @@ import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
 import '../../../localization/app_localizations.dart';
 import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
-import 'package:m_clearance_imigrasi/app/localization/app_strings.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 

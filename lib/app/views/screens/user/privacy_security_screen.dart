@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../localization/app_strings.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../providers/language_provider.dart';
 import '../../../services/logging_service.dart';
@@ -15,7 +14,7 @@ class PrivacySecurityScreen extends StatefulWidget {
 
 class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   String _tr(String key) {
-    final langCode = Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
+    Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
     return AppLocalizations.of(context).get('privacySecurity.$key');
   }
 

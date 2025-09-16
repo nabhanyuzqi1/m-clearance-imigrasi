@@ -34,6 +34,8 @@ class AppStrings {
         'english': 'English',
         'another_key': 'Another Key',
         'indonesian': 'Bahasa Indonesia',
+        'sign_in': 'Sign In',
+        'change_language': 'Change Language',
       },
       'register': {
         'sign_up': 'Sign up',
@@ -47,6 +49,7 @@ class AppStrings {
         'full_name': 'Full Name',
         'full_name_hint': 'Enter your full name',
         'full_name_req': 'Full Name is required',
+        'nationality': 'Nationality',
         'registration_failed': 'Registration failed. Please try again.',
         'email': 'Email Address',
         'email_hint': 'name@email.com',
@@ -488,8 +491,10 @@ class AppStrings {
         'reviewed_decline': 'REVIEWED - DECLINE',
         'reviewed_fixing': 'REVIEWED - REQUIRE FIXING',
         'review_submission': 'REVIEW SUBMISSION',
-        'search_applications': 'Search applications...',
         'error_loading': 'Error loading applications',
+        'revision': 'Revision',
+        'approved': 'Approved',
+        'declined': 'Declined',
       },
       'accountVerificationList': {
         'title': 'Account Verification',
@@ -504,6 +509,9 @@ class AppStrings {
         'status_pending': 'Pending',
         'status_verified': 'Verified',
         'status_rejected': 'Rejected',
+        'error_loading': 'Error loading data',
+        'search_hint': 'Search by name, email, etc...',
+        'status_pending_email': 'Pending Email',
       },
       'accountDetail': {
         'viewing_doc': 'Viewing Document:',
@@ -533,6 +541,7 @@ class AppStrings {
         'corporate_name': 'Corporate Name',
         'approve': 'Approve',
         'reason_hint': 'Enter reason here...',
+        'N/A': 'N/A',
       },
       'submissionDetail': {
         'title': 'Verification Details',
@@ -624,31 +633,6 @@ class AppStrings {
         'error_generating_report': 'Error generating report',
         'statistics_overview': 'Statistics Overview',
       },
-      'officerReport': {
-        'title': 'Officer Report',
-        'daily_monthly_report': 'Daily & Monthly Report',
-        'today': 'Today',
-        'this_month': 'This Month',
-        'arrival': 'Arrival',
-        'departure': 'Departure',
-        'registration': 'Registration',
-        'daily_report': 'Daily Report',
-        'create_new_report': 'Create New Report',
-        'generating_pdf': 'Generating .pdf',
-        'pdf_generation_simulation': 'Creating PDF report... (simulation)',
-        'report_history': 'Report History',
-        'created_by': 'Created by',
-        'see_details': 'SEE DETAILS',
-        'daily_report_type': 'Daily Report',
-        'monthly_report_type': 'Monthly Report',
-        'no_reports_found': 'No reports found',
-        'report_downloaded_successfully': 'Report downloaded successfully',
-        'error_downloading_report': 'Error downloading report',
-        'pdf_not_available': 'PDF not available',
-        'report_generated_successfully': 'Report generated successfully',
-        'error_generating_report': 'Error generating report',
-        'statistics_overview': 'Statistics Overview',
-      },
       'editOfficerProfile': {
         'title': 'Edit Profile',
         'pick_image_source': 'Select Image Source',
@@ -701,6 +685,7 @@ class AppStrings {
         'logout_confirm_body': 'Are you sure you want to logout?',
         'yes': 'Yes',
         'no': 'No',
+        'N/A': 'N/A',
       },
       //endregion
     },
@@ -729,6 +714,8 @@ class AppStrings {
         'english': 'English',
         'indonesian': 'Bahasa Indonesia',
         'another_key': 'Kunci Lain',
+        'sign_in': 'Masuk',
+        'change_language': 'Ubah Bahasa',
       },
       'register': {
         'sign_up': 'Daftar',
@@ -742,6 +729,7 @@ class AppStrings {
         'full_name': 'Nama Lengkap',
         'full_name_hint': 'Masukkan nama lengkap Anda',
         'full_name_req': 'Nama Lengkap harus diisi',
+        'nationality': 'Kebangsaan',
         'registration_failed': 'Pendaftaran gagal. Silakan coba lagi.',
         'email': 'Alamat Email',
         'email_hint': 'nama@email.com',
@@ -1183,6 +1171,10 @@ class AppStrings {
         'reviewed_decline': 'DITINJAU - DITOLAK',
         'reviewed_fixing': 'DITINJAU - PERLU PERBAIKAN',
         'review_submission': 'TINJAU PENGAJUAN',
+        'search_applications': 'Cari aplikasi...',
+        'revision': 'Revisi',
+        'approved': 'Disetujui',
+        'declined': 'Ditolak',
       },
       'accountVerificationList': {
         'title': 'Verifikasi Akun',
@@ -1197,6 +1189,9 @@ class AppStrings {
         'status_pending': 'Menunggu',
         'status_verified': 'Terverifikasi',
         'status_rejected': 'Ditolak',
+        'error_loading': 'Gagal memuat data',
+        'search_hint': 'Cari berdasarkan nama, email, dll...',
+        'status_pending_email': 'Email Tertunda',
       },
       'accountDetail': {
         'viewing_doc': 'Melihat Dokumen:',
@@ -1312,31 +1307,6 @@ class AppStrings {
         'error_generating_report': 'Error membuat laporan',
         'statistics_overview': 'Ringkasan Statistik',
       },
-      'officerReport': {
-        'title': 'Laporan Petugas',
-        'daily_monthly_report': 'Laporan Harian & Bulanan',
-        'today': 'Hari Ini',
-        'this_month': 'Bulan Ini',
-        'arrival': 'Kedatangan',
-        'departure': 'Keberangkatan',
-        'registration': 'Pendaftaran',
-        'daily_report': 'Laporan Harian',
-        'create_new_report': 'Buat Laporan Baru',
-        'generating_pdf': 'Membuat .pdf',
-        'pdf_generation_simulation': 'Membuat laporan PDF... (simulasi)',
-        'report_history': 'Riwayat Laporan',
-        'created_by': 'Dibuat oleh',
-        'see_details': 'LIHAT DETAIL',
-        'daily_report_type': 'Laporan Harian',
-        'monthly_report_type': 'Laporan Bulanan',
-        'no_reports_found': 'Tidak ada laporan ditemukan',
-        'report_downloaded_successfully': 'Laporan berhasil diunduh',
-        'error_downloading_report': 'Error mengunduh laporan',
-        'pdf_not_available': 'PDF tidak tersedia',
-        'report_generated_successfully': 'Laporan berhasil dibuat',
-        'error_generating_report': 'Error membuat laporan',
-        'statistics_overview': 'Ringkasan Statistik',
-      },
       'editOfficerProfile': {
         'title': 'Ubah Profil',
         'pick_image_source': 'Pilih Sumber Gambar',
@@ -1409,6 +1379,7 @@ class AppStrings {
         'notification_threshold_desc': 'Jumlah item tertunda minimum untuk memicu notifikasi',
         'detailed_logging': 'Pencatatan Detail',
         'detailed_logging_desc': 'Aktifkan pencatatan aktivitas detail',
+        'N/A': 'N/A',
       },
       //endregion
     },
@@ -1436,7 +1407,6 @@ class AppStrings {
     final id = _localizedStrings['ID']?[screenKey]?[stringKey];
     if (id != null) return id;
     // Not found
-    // TODO: Add missing localization keys
     // For now, return a detailed error message to help with debugging.
     debugPrint('Localization key not found: $screenKey.$stringKey for language $code');
     return '[$screenKey.$stringKey]';

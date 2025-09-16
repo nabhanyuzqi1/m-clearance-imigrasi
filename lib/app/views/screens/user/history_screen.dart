@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'arrival_detail_screen.dart';
 import 'departure_detail_screen.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
 import '../../../models/user_account.dart';

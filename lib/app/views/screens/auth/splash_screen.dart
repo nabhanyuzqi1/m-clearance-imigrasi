@@ -5,7 +5,6 @@ import 'package:m_clearance_imigrasi/app/views/widgets/bouncing_dots_loader.dart
 import '../../../localization/app_localizations.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
-import '../../../localization/app_strings.dart';
 import '../../../providers/language_provider.dart';
 import '../../../services/logging_service.dart';
 
@@ -23,7 +22,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   String _tr(String key) {
-    final langCode = Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
+    Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
     return AppLocalizations.of(context).get('splash.$key');
   }
 

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:m_clearance_imigrasi/app/views/screens/user/document_view_screen.dart';
 import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
 import '../../../repositories/user_repository.dart';
 import '../../../localization/app_localizations.dart';
-import '../../../localization/app_strings.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
 import '../../../models/user_model.dart';
@@ -66,56 +65,151 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     final documentName = (document['documentName'] ?? 'Document').toString();
     final storagePath = (document['storagePath'] ?? '').toString();
 
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: Text(AppLocalizations.of(context).get('accountDetail.viewing_doc')),
-          content: SingleChildScrollView(
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DocumentViewScreen(
+          storagePath: storagePath,
+          fileName: documentName,
+        ),
+      ),
+    );
+  }
+
+  String _tr(String key) => AppLocalizations.of(context).get('accountDetail.$key');
+
+  Widget _buildInfoTile(IconData icon, String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppTheme.primaryColor, size: 24),
+          const SizedBox(width: 16.0),
+          Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  documentName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                Text(AppLocalizations.of(context).get('accountDetail.simulation_text')),
-                Text(
-                  '${AppLocalizations.of(context).get('accountDetail.file_path')}: $storagePath',
-                  style: const TextStyle(fontStyle: FontStyle.italic),
-                ),
-                const SizedBox(height: 16),
-                // Placeholder for document content
-                Container(
-                  height: 200,
-                  width: double.maxFinite,
-                  decoration: BoxDecoration(
-                    color: AppTheme.greyShade100,
-                    border: Border.all(color: AppTheme.greyColor),
-                    borderRadius: BorderRadius.circular(8),
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.blackColor87,
+                    fontSize: AppTheme.fontSizeMedium,
                   ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.description,
-                      size: 64,
-                      color: AppTheme.greyColor,
-                    ),
+                ),
+                const SizedBox(height: 4.0),
+                Text(
+                  subtitle.isNotEmpty ? subtitle : _tr('N/A'),
+                  style: const TextStyle(
+                    color: AppTheme.blackColor54,
+                    fontSize: AppTheme.fontSizeMedium,
                   ),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(AppLocalizations.of(context).get('accountDetail.close')),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
+  }
+
+  Widget _buildSectionCard(String title, List<Widget> children) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: AppTheme.whiteColor,
+        borderRadius: BorderRadius.circular(12.0),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.greyShade200.withAlpha(128),
+            spreadRadius: 1,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.primaryColor,
+                ),
+          ),
+          const Divider(height: 24.0, thickness: 1.0, color: AppTheme.greyShade200),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentTile(Map<String, dynamic> doc) {
+    return InkWell(
+      onTap: () => _showDocumentPreview(context, doc),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Row(
+          children: [
+            const Icon(Icons.description_outlined, color: AppTheme.primaryColor, size: 24),
+            const SizedBox(width: 16.0),
+            Expanded(
+              child: Text(
+                (doc['documentName'] ?? 'document').toString(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: AppTheme.fontSizeMedium,
+                ),
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 16.0, color: AppTheme.greyColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDecisionButtons() {
+    return _loadingAction
+        ? const Center(child: CircularProgressIndicator())
+        : Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: Text(_tr('approve')),
+                  onPressed: () => _decide('approved'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.successColor,
+                    foregroundColor: AppTheme.whiteColor,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.0)),
+                    elevation: 2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: Text(_tr('reject')),
+                  onPressed: () => _decide('rejected'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.errorColor,
+                    foregroundColor: AppTheme.whiteColor,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.0)),
+                    elevation: 2,
+                  ),
+                ),
+              ),
+            ],
+          );
   }
 
   @override
@@ -124,7 +218,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: CustomAppBar(
-        titleText: AppLocalizations.of(context).get('accountDetail.user_details'),
+        titleText: _tr('user_details'),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
         elevation: 0,
@@ -137,128 +231,52 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
           }
           final user = snapshot.data;
           if (user == null) {
-            return Center(child: Text(AppLocalizations.of(context).get('accountDetail.user_not_found')));
+            return Center(child: Text(_tr('user_not_found')));
           }
           return SingleChildScrollView(
             padding: EdgeInsets.all(AppTheme.responsivePadding(context)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Card(
-                  elevation: 2.0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          AppLocalizations.of(context).get('accountDetail.user_information'),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const Divider(height: 24.0),
-                        ListTile(
-                          leading: const Icon(Icons.person_outline, color: AppTheme.primaryColor),
-                          title: Text(AppLocalizations.of(context).get('accountDetail.username')),
-                          subtitle: Text(user.username.isNotEmpty ? user.username : 'N/A'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.email_outlined, color: AppTheme.primaryColor),
-                          title: Text(AppLocalizations.of(context).get('accountDetail.email')),
-                          subtitle: Text(user.email),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.business_outlined, color: AppTheme.primaryColor),
-                          title: Text(AppLocalizations.of(context).get('accountDetail.corporate_name')),
-                          subtitle: Text(user.corporateName.isNotEmpty ? user.corporateName : 'N/A'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.flag_outlined, color: AppTheme.primaryColor),
-                          title: Text(AppLocalizations.of(context).get('accountDetail.nationality')),
-                          subtitle: Text(user.nationality.isNotEmpty ? user.nationality : 'N/A'),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.person_pin_outlined, color: AppTheme.primaryColor),
-                          title: Text(AppLocalizations.of(context).get('accountDetail.role')),
-                          subtitle: Text(user.role),
-                        ),
-                      ],
-                    ),
-                  ),
+                _buildSectionCard(_tr('user_information'), [
+                  _buildInfoTile(Icons.person_outline, _tr('username'), user.username),
+                  _buildInfoTile(Icons.email_outlined, _tr('email'), user.email),
+                  _buildInfoTile(Icons.business_outlined, _tr('corporate_name'), user.corporateName),
+                  _buildInfoTile(Icons.flag_outlined, _tr('nationality'), user.nationality),
+                  _buildInfoTile(Icons.person_pin_outlined, _tr('role'), user.role),
+                ]),
+                _buildSectionCard(
+                  _tr('registration_docs'),
+                  user.documents.map((d) => _buildDocumentTile(d)).toList(),
                 ),
                 const SizedBox(height: 16),
-                Card(
-                  elevation: 2.0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          AppLocalizations.of(context).get('accountDetail.registration_docs'),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const Divider(height: 24.0),
-                        ...user.documents.map((d) => ListTile(
-                              leading: const Icon(Icons.description_outlined, color: AppTheme.primaryColor),
-                              title: Text((d['documentName'] ?? 'document').toString()),
-                              trailing: ElevatedButton(
-                                onPressed: () => _showDocumentPreview(context, d),
-                                child: Text(AppLocalizations.of(context).get('accountDetail.view')),
-                              ),
-                            )),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                TextFormField(
-                  decoration: InputDecoration(
-                    labelText: AppLocalizations.of(context).get('accountDetail.reason_label'),
-                    hintText: AppLocalizations.of(context).get('accountDetail.reason_hint'),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.greyShade50,
-                  ),
-                  maxLines: 3,
-                  onChanged: (value) {
-                    setState(() {
-                      _rejectionReason = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 24),
-                if (_loadingAction)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _decide('approved'),
-                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.successColor, padding: const EdgeInsets.symmetric(vertical: 16)),
-                          child: Text(
-                            AppLocalizations.of(context).get('accountDetail.approve'),
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _decide('rejected'),
-                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor, padding: const EdgeInsets.symmetric(vertical: 16)),
-                          child: Text(
-                            AppLocalizations.of(context).get('accountDetail.reject'),
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  decoration: BoxDecoration(
+                    color: AppTheme.whiteColor,
+                    borderRadius: BorderRadius.circular(12.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.greyShade200.withAlpha(128),
+                        spreadRadius: 1,
+                        blurRadius: 5,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
+                  child: TextFormField(
+                    decoration: InputDecoration(
+                      labelText: _tr('reason_label'),
+                      hintText: _tr('reason_hint'),
+                      border: InputBorder.none,
+                      filled: false,
+                    ),
+                    maxLines: 3,
+                    onChanged: (value) => setState(() => _rejectionReason = value),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildDecisionButtons(),
               ],
             ),
           );

@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/officer_activity.dart';
-import '../models/clearance_application.dart';
-import '../models/report_model.dart';
 import 'logging_service.dart';
 
 class OfficerService {

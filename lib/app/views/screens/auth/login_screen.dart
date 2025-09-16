@@ -29,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   String _tr(String key) {
-    return AppLocalizations.of(context)!.get('login.$key');
+    return AppLocalizations.of(context).get('login.$key');
   }
 
   @override
@@ -72,6 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Navigator.pushReplacementNamed(context, AppRoutes.adminHome, arguments: {
                     'adminName': userModel.username,
                     'adminUsername': userModel.email,
+                    'photoURL': userModel.photoURL,
                   });
                 }
               } else {
