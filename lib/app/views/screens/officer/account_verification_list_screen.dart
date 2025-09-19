@@ -115,28 +115,6 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
     }
   }
 
-  Widget _buildStatusChip(BuildContext context, String status) {
-    final statusProps = _getStatusProperties(context, status);
-    final chipColor = statusProps['color'] as Color;
-    final chipLabel = statusProps['label'] as String;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-      decoration: BoxDecoration(
-        color: chipColor.withAlpha(25),
-        borderRadius: BorderRadius.circular(20.0),
-        border: Border.all(color: chipColor, width: 1.5),
-      ),
-      child: Text(
-        chipLabel,
-        style: TextStyle(
-          color: chipColor,
-          fontWeight: FontWeight.bold,
-          fontSize: AppTheme.fontSizeSmall,
-        ),
-      ),
-    );
-  }
 
   Widget _buildUserCard(UserModel user) {
     final screenWidth = MediaQuery.of(context).size.width;
