@@ -512,6 +512,11 @@ class AppStrings {
         'error_loading': 'Error loading data',
         'search_hint': 'Search by name, email, etc...',
         'status_pending_email': 'Pending Email',
+        'status_approved': 'Approved',
+        'status_pending_documents': 'Pending Documents',
+        'status_pending_officer': 'Pending Officer Verification',
+        'pending_email_verification': 'Pending Email Verification',
+        'pending_approval': 'Pending Approval',
       },
       'accountDetail': {
         'viewing_doc': 'Viewing Document:',
@@ -1192,6 +1197,11 @@ class AppStrings {
         'error_loading': 'Gagal memuat data',
         'search_hint': 'Cari berdasarkan nama, email, dll...',
         'status_pending_email': 'Email Tertunda',
+        'status_approved': 'Disetujui',
+        'status_pending_documents': 'Dokumen Tertunda',
+        'status_pending_officer': 'Verifikasi Petugas Tertunda',
+        'pending_email_verification': 'Verifikasi Email Tertunda',
+        'pending_approval': 'Persetujuan Tertunda',
       },
       'accountDetail': {
         'viewing_doc': 'Melihat Dokumen:',

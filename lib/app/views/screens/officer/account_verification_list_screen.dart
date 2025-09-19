@@ -103,11 +103,11 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
       case 'pending':
         return {'color': AppTheme.warningColor, 'label': _tr('status_pending')};
       case 'pending_email':
-        return {'color': AppTheme.infoColor, 'label': _tr('status_pending_email')};
+        return {'color': AppTheme.infoColor, 'label': _tr('pending_email_verification')};
       case 'pending_upload_docs':
         return {'color': AppTheme.infoColor, 'label': _tr('status_pending_documents')};
       case 'pending_verification_officer':
-        return {'color': AppTheme.accentColor, 'label': _tr('status_pending_officer')};
+        return {'color': AppTheme.accentColor, 'label': _tr('pending_approval')};
       case 'rejected':
         return {'color': AppTheme.errorColor, 'label': _tr('status_rejected')};
       default:
