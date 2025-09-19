@@ -14,6 +14,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool centerTitle;
   final double? toolbarHeight;
   final bool automaticallyImplyLeading;
+  final bool showBackButton;
   final PreferredSizeWidget? bottom;
   final IconThemeData? iconTheme;
   final TextStyle? titleTextStyle;
@@ -31,6 +32,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.centerTitle = true,
     this.toolbarHeight,
     this.automaticallyImplyLeading = true,
+    this.showBackButton = false,
     this.bottom,
     this.iconTheme,
     this.titleTextStyle,
@@ -53,7 +55,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     return AppBar(
       title: appBarTitle,
-      leading: leading,
+      leading: showBackButton
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.of(context).pop(),
+            )
+          : leading,
       actions: actions,
       backgroundColor: backgroundColor ?? AppTheme.surfaceColor,
       foregroundColor: foregroundColor ?? AppTheme.onSurface,

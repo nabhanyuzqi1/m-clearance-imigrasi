@@ -137,7 +137,12 @@ class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
         break;
       case 'approved':
         if (userModel.role == 'admin' || userModel.role == 'officer') {
-          routeName = AppRoutes.accountVerificationList;
+          routeName = AppRoutes.adminHome;
+          args = {
+            'adminName': userModel.username,
+            'adminUsername': userModel.username,
+            'photoURL': userModel.photoURL,
+          };
         } else {
           routeName = AppRoutes.userHome;
         }

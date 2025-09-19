@@ -145,6 +145,7 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
         elevation: 0,
+        showBackButton: true,
         actions: [
           IconButton(
             icon: Icon(Icons.refresh, color: AppTheme.onSurface),
