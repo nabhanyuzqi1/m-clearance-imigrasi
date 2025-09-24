@@ -13,14 +13,16 @@ import '../../../localization/app_localizations.dart';
 
 class EditAgentProfileScreen extends StatefulWidget {
   final String username;
-  final String currentName;
+  final String currentCorporateName;
+  final String currentFullName;
   final String currentEmail;
   final String? currentProfileImageUrl;
 
   const EditAgentProfileScreen({
     super.key,
     required this.username,
-    required this.currentName,
+    required this.currentCorporateName,
+    required this.currentFullName,
     required this.currentEmail,
     this.currentProfileImageUrl,
   });
@@ -32,7 +34,8 @@ class EditAgentProfileScreen extends StatefulWidget {
 class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _userService = UserService();
-  final _nameController = TextEditingController();
+  final _corporateNameController = TextEditingController();
+  final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
 
   bool _isLoading = false;
@@ -45,14 +48,16 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
   void initState() {
     super.initState();
     LoggingService().info('EditAgentProfileScreen initialized for user: ${widget.username}');
-    _nameController.text = widget.currentName;
+    _corporateNameController.text = widget.currentCorporateName;
+    _fullNameController.text = widget.currentFullName;
     _emailController.text = widget.currentEmail;
   }
 
   @override
   void dispose() {
     LoggingService().debug('Disposing EditAgentProfileScreen');
-    _nameController.dispose();
+    _corporateNameController.dispose();
+    _fullNameController.dispose();
     _emailController.dispose();
     super.dispose();
   }
@@ -295,9 +300,14 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
       final newEmail = _emailController.text.trim();
       final emailChanged = originalEmail != newEmail;
 
+      final corporateName = _corporateNameController.text.trim();
+      final fullName = _fullNameController.text.trim().isNotEmpty
+          ? _fullNameController.text.trim()
+          : corporateName;
       final updatedUser = await _userService.updateUserProfile(
-        _nameController.text.trim(),
-        newEmail,
+        corporateName: corporateName,
+        fullName: fullName,
+        email: newEmail,
         imagePath: UserService.currentProfileImagePath,
       );
 
@@ -501,10 +511,17 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
 
               // Form Fields
               _buildTextField(
-                _tr(context,'full_name'),
-                _nameController,
+                _tr(context, 'corporate_name'),
+                _corporateNameController,
                 validator: (value) =>
-                    value?.isEmpty ?? true ? _tr(context,'full_name_empty') : null,
+                    value?.trim().isNotEmpty ?? false ? null : _tr(context, 'corporate_name_req'),
+              ),
+
+              _buildTextField(
+                _tr(context, 'full_name'),
+                _fullNameController,
+                validator: (value) =>
+                    value?.trim().isNotEmpty ?? false ? null : _tr(context, 'full_name_empty'),
               ),
 
               _buildTextField(

@@ -1,11 +1,13 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../../localization/app_localizations.dart';
-import '../../../services/logging_service.dart';
+
 import '../../../config/theme.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/logging_service.dart';
 import '../../../services/user_service.dart';
 import '../../widgets/custom_app_bar.dart';
 
@@ -19,11 +21,13 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _userService = UserService();
-  final _nameController = TextEditingController();
+  final _corporateNameController = TextEditingController();
+  final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
 
   bool _isLoading = false;
   String? _currentProfileImageUrl;
+  String _initialEmail = '';
 
   String _tr(String key) => AppLocalizations.of(context).get('editOfficerProfile.$key');
 
@@ -34,19 +38,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _loadCurrentUserData();
   }
 
+  @override
+  void dispose() {
+    LoggingService().debug('Disposing EditProfileScreen resources');
+    _corporateNameController.dispose();
+    _fullNameController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadCurrentUserData() async {
     setState(() => _isLoading = true);
     try {
       final currentUser = await _userService.getCurrentUserAccount();
       if (currentUser != null) {
-        _nameController.text = currentUser.name;
+        final corporateName = currentUser.corporateName;
+        final fullName = currentUser.fullName;
+        _corporateNameController.text =
+            corporateName.isNotEmpty ? corporateName : fullName;
+        _fullNameController.text = fullName;
         _emailController.text = currentUser.email;
+        _initialEmail = currentUser.email;
         _currentProfileImageUrl = currentUser.profileImageUrl;
       }
     } catch (e) {
       LoggingService().error('Error loading current user data: $e', e);
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -54,16 +72,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       bool hasPermission = false;
       if (source == ImageSource.camera) {
-        final cameraStatus = await Permission.camera.request();
-        hasPermission = cameraStatus.isGranted;
-        if (cameraStatus.isPermanentlyDenied && mounted) {
+        final status = await Permission.camera.request();
+        hasPermission = status.isGranted;
+        if (status.isPermanentlyDenied && mounted) {
           _showPermissionDialog('camera_permission_message');
           return;
         }
       } else {
-        final storageStatus = await Permission.photos.request();
-        hasPermission = storageStatus.isGranted;
-        if (storageStatus.isPermanentlyDenied && mounted) {
+        final status = await Permission.photos.request();
+        hasPermission = status.isGranted;
+        if (status.isPermanentlyDenied && mounted) {
           _showPermissionDialog('storage_permission_message');
           return;
         }
@@ -79,11 +97,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         setState(() {});
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${_tr('failed_to_pick_image')}: $e')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_tr('failed_to_pick_image')}: $e')),
+      );
     }
   }
 
@@ -198,7 +215,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Text(
                   _tr('cancel'),
                   style: TextStyle(
-                    color: AppTheme.greyColor,
+                    color: AppTheme.primaryColor,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -216,84 +233,49 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final originalEmail = _emailController.text.trim();
+      final corporateName = _corporateNameController.text.trim();
+      final fullName = _fullNameController.text.trim();
       final newEmail = _emailController.text.trim();
-      final emailChanged = originalEmail != newEmail;
+      final emailChanged = _initialEmail.trim().toLowerCase() != newEmail.toLowerCase();
 
       final updatedUser = await _userService.updateUserProfile(
-        _nameController.text.trim(),
-        newEmail,
+        corporateName: corporateName,
+        fullName: fullName,
+        email: newEmail,
         imagePath: UserService.currentProfileImagePath,
       );
 
-      if (updatedUser != null && mounted) {
+      if (!mounted) return;
+
+      if (updatedUser != null) {
         UserService.currentProfileImagePath = null;
 
         if (emailChanged) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          final isTablet = screenWidth > 600;
-          final maxWidth = isTablet ? 400.0 : double.infinity;
-
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => Container(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: Text(
-                  _tr('email_changed_title'),
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.045,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.onSurface,
-                  ),
-                ),
-                content: Text(
-                  _tr('email_changed_body'),
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.04,
-                    color: AppTheme.onSurface.withAlpha(179),
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () async {
-                      await AuthService().signOut();
-                      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-                    },
-                    child: Text(
-                      _tr('ok'),
-                      style: TextStyle(
-                        color: AppTheme.primaryColor,
-                        fontSize: screenWidth * 0.04,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        } else {
-          setState(() {
-            _currentProfileImageUrl = updatedUser.profileImageUrl;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_tr('profile_updated')),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.of(context).pop(updatedUser);
+          await _showEmailChangedDialog();
+          return;
         }
+
+        setState(() {
+          _currentProfileImageUrl = updatedUser.profileImageUrl;
+          _initialEmail = updatedUser.email;
+          _corporateNameController.text = updatedUser.corporateName;
+          _fullNameController.text = updatedUser.fullName;
+        });
+
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(_tr('profile_updated')),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop(updatedUser);
       } else {
         throw Exception('Update failed');
       }
     } catch (e) {
       LoggingService().error('Error updating profile: $e', e);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
             content: Text(_tr('error')),
             backgroundColor: Colors.red,
@@ -305,6 +287,101 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _showEmailChangedDialog() async {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final maxWidth = isTablet ? 400.0 : double.infinity;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Container(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            _tr('email_changed_title'),
+            style: TextStyle(
+              fontSize: screenWidth * 0.045,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.onSurface,
+            ),
+          ),
+          content: Text(
+            _tr('email_changed_body'),
+            style: TextStyle(
+              fontSize: screenWidth * 0.04,
+              color: AppTheme.onSurface.withAlpha(179),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await AuthService().signOut();
+                if (!mounted) return;
+                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              },
+              child: Text(
+                _tr('ok'),
+                style: TextStyle(
+                  color: AppTheme.primaryColor,
+                  fontSize: screenWidth * 0.04,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller, {
+    TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+  }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bottomPadding =
+        screenWidth > 600 ? AppTheme.spacing24 : AppTheme.spacing16;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
+            fontSize: AppTheme.responsiveFontSize(
+              context,
+              mobile: AppTheme.fontSizeBody2,
+              tablet: AppTheme.fontSizeBody1,
+              desktop: AppTheme.fontSizeBody1,
+            ),
+            fontFamily: 'Poppins',
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          ),
+          filled: true,
+          fillColor: AppTheme.greyShade50,
+        ),
+        style: TextStyle(
+          fontSize: AppTheme.responsiveFontSize(
+            context,
+            mobile: AppTheme.fontSizeBody1,
+            tablet: AppTheme.fontSizeH6,
+            desktop: AppTheme.fontSizeH6,
+          ),
+          fontFamily: 'Poppins',
+        ),
+        validator: validator,
+      ),
+    );
   }
 
   @override
@@ -330,16 +407,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ? SizedBox(
                     width: iconSize,
                     height: iconSize,
-                    child: CircularProgressIndicator(
+                    child: const CircularProgressIndicator(
                       strokeWidth: 2,
                       color: Colors.blue,
                     ),
                   )
-                : Icon(
-                    Icons.save,
-                    color: Colors.blue,
-                    size: iconSize,
-                  ),
+                : Icon(Icons.save, color: Colors.blue, size: iconSize),
             tooltip: _tr('save_changes'),
           ),
         ],
@@ -347,12 +420,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: verticalPadding,
+              ),
               child: Form(
                 key: _formKey,
                 child: Column(
                   children: [
-                    // Profile Picture Section
                     Center(
                       child: Stack(
                         alignment: Alignment.bottomRight,
@@ -378,8 +453,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                           height: avatarRadius * 2,
                                           errorBuilder: (context, error, stackTrace) {
                                             return Icon(Icons.person,
-                                                size: avatarRadius,
-                                                color: Colors.grey);
+                                                size: avatarRadius, color: Colors.grey);
                                           },
                                         ),
                                       )
@@ -395,11 +469,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 border: Border.all(color: Colors.white, width: 2),
                               ),
                               padding: EdgeInsets.all(screenWidth > 600 ? 10 : 8),
-                              child: Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: iconSize,
-                              ),
+                              child: Icon(Icons.camera_alt, color: Colors.white, size: iconSize),
                             ),
                           ),
                         ],
@@ -412,37 +482,44 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         _tr('change_profile_photo'),
                         style: TextStyle(
                           color: Colors.blue,
-                          fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6),
+                          fontSize: AppTheme.responsiveFontSize(
+                            context,
+                            mobile: AppTheme.fontSizeBody1,
+                            tablet: AppTheme.fontSizeH6,
+                            desktop: AppTheme.fontSizeH6,
+                          ),
                           fontFamily: 'Poppins',
                         ),
                       ),
                     ),
-
                     SizedBox(height: verticalPadding * 2),
-
-                    // Form Fields
+                    _buildTextField(
+                      _tr('corporate_name'),
+                      _corporateNameController,
+                      validator: (value) => value?.trim().isNotEmpty == true
+                          ? null
+                          : _tr('corporate_name_empty'),
+                    ),
                     _buildTextField(
                       _tr('full_name'),
-                      _nameController,
-                      validator: (value) =>
-                          value?.isEmpty ?? true ? _tr('full_name_empty') : null,
+                      _fullNameController,
+                      validator: (value) => value?.trim().isNotEmpty == true
+                          ? null
+                          : _tr('full_name_empty'),
                     ),
-
                     _buildTextField(
                       _tr('email_address'),
                       _emailController,
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
-                        if (value?.isEmpty ?? true) return _tr('email_empty');
+                        final trimmed = value?.trim() ?? '';
+                        if (trimmed.isEmpty) return _tr('email_empty');
                         final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                        if (!emailRegex.hasMatch(value!)) return _tr('email_invalid');
+                        if (!emailRegex.hasMatch(trimmed)) return _tr('email_invalid');
                         return null;
                       },
                     ),
-
                     SizedBox(height: verticalPadding * 2),
-
-                    // Save Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -460,7 +537,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   SizedBox(
                                     width: iconSize,
                                     height: iconSize,
-                                    child: CircularProgressIndicator(
+                                    child: const CircularProgressIndicator(
                                       strokeWidth: 2,
                                       color: Colors.white,
                                     ),
@@ -469,7 +546,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   Text(
                                     _tr('saving'),
                                     style: TextStyle(
-                                      fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeButton, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1),
+                                      fontSize: AppTheme.responsiveFontSize(
+                                        context,
+                                        mobile: AppTheme.fontSizeButton,
+                                        tablet: AppTheme.fontSizeBody1,
+                                        desktop: AppTheme.fontSizeBody1,
+                                      ),
                                       fontFamily: 'Poppins',
                                     ),
                                   ),
@@ -478,61 +560,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             : Text(
                                 _tr('save_changes'),
                                 style: TextStyle(
-                                  fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeButton, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1),
+                                  fontSize: AppTheme.responsiveFontSize(
+                                    context,
+                                    mobile: AppTheme.fontSizeButton,
+                                    tablet: AppTheme.fontSizeBody1,
+                                    desktop: AppTheme.fontSizeBody1,
+                                  ),
                                   fontFamily: 'Poppins',
                                 ),
                               ),
                       ),
                     ),
-
                     SizedBox(height: verticalPadding),
                   ],
                 ),
               ),
             ),
     );
-  }
-
-  Widget _buildTextField(
-    String label,
-    TextEditingController controller, {
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-  }) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final bottomPadding = screenWidth > 600 ? AppTheme.spacing24 : AppTheme.spacing16;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomPadding),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(
-            fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody2, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1),
-            fontFamily: 'Poppins',
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          ),
-          filled: true,
-          fillColor: AppTheme.greyShade50,
-        ),
-        style: TextStyle(
-          fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6),
-          fontFamily: 'Poppins',
-        ),
-        validator: validator,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    LoggingService().debug('Disposing EditProfileScreen resources');
-    _nameController.dispose();
-    _emailController.dispose();
-    super.dispose();
   }
 }

@@ -84,7 +84,12 @@ class UserService {
   }
 
   // Update user profile
-  Future<UserAccount?> updateUserProfile(String name, String email, {String? imagePath}) async {
+  Future<UserAccount?> updateUserProfile({
+    required String corporateName,
+    required String fullName,
+    required String email,
+    String? imagePath,
+  }) async {
     try {
       final user = _auth.currentUser;
       if (user == null) {
@@ -92,8 +97,14 @@ class UserService {
         return null;
       }
 
+      final normalizedCorporateName = corporateName.trim();
+      final normalizedFullName =
+          fullName.trim().isNotEmpty ? fullName.trim() : normalizedCorporateName;
+
       final updateData = {
-        'name': name,
+        'corporateName': normalizedCorporateName,
+        'fullName': normalizedFullName,
+        'name': normalizedCorporateName,
         'email': email,
         'updatedAt': Timestamp.now(),
       };
@@ -121,6 +132,11 @@ class UserService {
       LoggingService().debug('User UID: ${user.uid}');
 
       await _firestore.collection('users').doc(user.uid).update(updateData);
+
+      if (normalizedFullName.isNotEmpty &&
+          normalizedFullName != (user.displayName ?? '')) {
+        await user.updateDisplayName(normalizedFullName);
+      }
 
       if (email != user.email) {
         await user.verifyBeforeUpdateEmail(email);

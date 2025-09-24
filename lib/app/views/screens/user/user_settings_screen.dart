@@ -102,7 +102,8 @@ class UserSettingsScreen extends StatelessWidget {
                   AppRoutes.editAgentProfile,
                   arguments: {
                     'username': userAccount.username,
-                    'currentName': userAccount.name,
+                    'currentCorporateName': userAccount.corporateName,
+                    'currentFullName': userAccount.fullName,
                     'currentEmail': userAccount.email,
                     'currentProfileImageUrl': userAccount.profileImageUrl,
                     'initialLanguage': initialLanguage, // Add this!

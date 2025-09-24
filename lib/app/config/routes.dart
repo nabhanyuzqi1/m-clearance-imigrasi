@@ -112,7 +112,15 @@ class AppRoutes {
         return FadeRoute(page: user_notif.NotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case editAgentProfile:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: EditAgentProfileScreen(username: arguments['username'] ?? '', currentName: arguments['currentName'] ?? '', currentEmail: arguments['currentEmail'] ?? '', currentProfileImageUrl: arguments['currentProfileImageUrl']));
+        return FadeRoute(
+          page: EditAgentProfileScreen(
+            username: arguments['username'] ?? '',
+            currentCorporateName: arguments['currentCorporateName'] ?? '',
+            currentFullName: arguments['currentFullName'] ?? '',
+            currentEmail: arguments['currentEmail'] ?? '',
+            currentProfileImageUrl: arguments['currentProfileImageUrl'],
+          ),
+        );
       case clearanceForm:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(page: ClearanceFormScreen(type: arguments['type'], agentName: arguments['agentName'], existingApplication: arguments['existingApplication'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
@@ -152,6 +160,7 @@ class AppRoutes {
           page: AdminHomeScreen(
             adminName: arguments['adminName'] ?? '',
             adminUsername: arguments['adminUsername'] ?? '',
+            adminCorporateName: arguments['adminCorporateName'] ?? '',
             photoURL: arguments['photoURL'],
           ),
         );

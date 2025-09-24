@@ -181,6 +181,12 @@ service cloud.firestore {
       allow write: if false; // Only backend can write
     }
 
+    // Cached counters (dashboard metrics)
+    match /counters/{counterId} {
+      allow read, list: if isOfficerOrAdmin();
+      allow write: if false;
+    }
+
     // Default: deny everything else
     match /{document=**} {
       allow read, write: if false;

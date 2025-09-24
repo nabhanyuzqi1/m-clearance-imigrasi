@@ -65,6 +65,15 @@ class OfficerSettingsScreen extends StatelessWidget {
 
               final userAccount = userSnapshot.data!;
               final photoURL = userAccount.photoURL;
+              final corporateName = userAccount.corporateName.trim();
+              final fullName = userAccount.fullName.trim();
+              final primaryName = corporateName.isNotEmpty
+                  ? corporateName
+                  : fullName.isNotEmpty
+                      ? fullName
+                      : userAccount.email;
+              final secondaryName =
+                  corporateName.isNotEmpty && fullName.isNotEmpty ? fullName : null;
               LoggingService().info('Officer Settings Screen: photoURL = $photoURL');
               return SingleChildScrollView(
                 padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -99,10 +108,21 @@ class OfficerSettingsScreen extends StatelessWidget {
 
                     // User Info
                     Text(
-                      userAccount.fullName,
+                      primaryName,
                       style: AppTheme.headingSmall(context),
                       textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    if (secondaryName != null) ...[
+                      SizedBox(height: screenWidth * 0.01),
+                      Text(
+                        secondaryName,
+                        style: AppTheme.bodyMedium(context)
+                            .copyWith(color: AppTheme.greyShade600),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                     SizedBox(height: screenWidth * 0.01),
                     Text(
                       userAccount.email,

@@ -69,7 +69,22 @@ class _LoginScreenState extends State<LoginScreen> {
               if (userModel.role == 'admin' || userModel.role == 'officer') {
                 if (mounted) {
                   LoggingService().info('Navigating to admin home for officer/admin: ${userModel.email}');
-                  Navigator.pushReplacementNamed(context, AppRoutes.accountVerificationList);
+                  final corporateName = userModel.corporateName.trim();
+                  final fullName = userModel.fullName.trim();
+                  final displayName = fullName.isNotEmpty
+                      ? fullName
+                      : (corporateName.isNotEmpty ? corporateName : userModel.username);
+
+                  Navigator.pushReplacementNamed(
+                    context,
+                    AppRoutes.adminHome,
+                    arguments: {
+                      'adminName': displayName,
+                      'adminUsername': userModel.username,
+                      'adminCorporateName': corporateName,
+                      'photoURL': userModel.photoURL,
+                    },
+                  );
                 }
               } else {
                 if (mounted) {
@@ -422,4 +437,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

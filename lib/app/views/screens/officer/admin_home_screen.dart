@@ -1,30 +1,42 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../../localization/app_localizations.dart';
+
 import '../../../config/theme.dart';
+import '../../../localization/app_localizations.dart';
+import '../../../models/officer_activity.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/functions_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/officer_service.dart';
-import '../../../models/officer_activity.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../widgets/custom_bottom_navbar.dart';
+import '../../widgets/skeleton_loader.dart';
+import 'package:intl/intl.dart';
 import 'account_verification_list_screen.dart';
 import 'arrival_verification_screen.dart';
 import 'departure_verification_screen.dart';
 import 'email_config_screen.dart';
-import 'officer_report_screen.dart';
 import 'notification_screen.dart';
+import 'officer_report_screen.dart';
 import 'officer_settings_screen.dart';
-import '../../../services/functions_service.dart';
-import '../../widgets/custom_bottom_navbar.dart';
-import '../../widgets/custom_app_bar.dart';
-import '../../widgets/skeleton_loader.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final String adminName;
   final String adminUsername;
+  final String adminCorporateName;
   final String? photoURL;
 
-  const AdminHomeScreen({super.key, required this.adminName, required this.adminUsername, this.photoURL});
+  const AdminHomeScreen({
+    super.key,
+    required this.adminName,
+    required this.adminUsername,
+    this.adminCorporateName = '',
+    this.photoURL,
+  });
 
   @override
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
@@ -39,7 +51,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     LoggingService().info('ProfileScreen initialized for admin: ${widget.adminName}');
     _loadSelectedIndex();
   }
-
 
   Future<void> _loadSelectedIndex() async {
     final prefs = await SharedPreferences.getInstance();
@@ -56,8 +67,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> pages = <Widget>[
-      AdminMenuScreen(adminName: widget.adminName, photoURL: widget.photoURL),
+    final pages = <Widget>[
+      AdminMenuScreen(
+        adminName: widget.adminName,
+        adminCorporateName: widget.adminCorporateName,
+        photoURL: widget.photoURL,
+      ),
       const OfficerReportScreen(),
       const OfficerSettingsScreen(),
     ];
@@ -80,35 +95,120 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 }
 
-class AdminMenuScreen extends StatelessWidget {
+class AdminMenuScreen extends StatefulWidget {
   final String adminName;
+  final String adminCorporateName;
   final String? photoURL;
-  const AdminMenuScreen({super.key, required this.adminName, this.photoURL});
+
+  const AdminMenuScreen({
+    super.key,
+    required this.adminName,
+    required this.adminCorporateName,
+    this.photoURL,
+  });
+
+  @override
+  State<AdminMenuScreen> createState() => _AdminMenuScreenState();
+}
+
+class _AdminMenuScreenState extends State<AdminMenuScreen> {
+  final FunctionsService _functionsService = FunctionsService();
+  final AuthService _authService = AuthService();
+
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _dashboardSubscription;
+  Map<String, dynamic>? _stats;
+  bool _isLoadingStats = true;
+
+  bool get _showSkeleton => _isLoadingStats && (_stats == null || _stats!.isEmpty);
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchInitialStats();
+    _listenToRealtimeCounters();
+  }
+
+  @override
+  void dispose() {
+    _dashboardSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchInitialStats() async {
+    try {
+      final data = await _functionsService.getOfficerDashboardStats();
+      if (!mounted) return;
+      setState(() {
+        _stats = data;
+        _isLoadingStats = false;
+      });
+    } catch (e) {
+      LoggingService().error('Failed to load officer dashboard stats', e);
+      if (!mounted) return;
+      setState(() {
+        _isLoadingStats = false;
+      });
+    }
+  }
+
+  void _listenToRealtimeCounters() {
+    _dashboardSubscription = FirebaseFirestore.instance
+        .collection('counters')
+        .doc('dashboard')
+        .snapshots()
+        .listen((snapshot) {
+      final data = snapshot.data();
+      if (!mounted || data == null) return;
+      setState(() {
+        _stats = {
+          ...?_stats,
+          if (data.containsKey('pendingAccounts'))
+            'pendingAccounts': (data['pendingAccounts'] as num?)?.toInt() ?? 0,
+          if (data.containsKey('pendingArrival'))
+            'pendingArrival': (data['pendingArrival'] as num?)?.toInt() ?? 0,
+          if (data.containsKey('pendingDeparture'))
+            'pendingDeparture': (data['pendingDeparture'] as num?)?.toInt() ?? 0,
+        };
+      });
+    }, onError: (error) {
+      LoggingService().error('Error listening to dashboard counters', error);
+    });
+  }
+
+  int _statValue(String key) {
+    final value = _stats?[key];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return 0;
+  }
 
   @override
   Widget build(BuildContext context) {
-    String tr(String stringKey) => AppLocalizations.of(context).get('adminHome.$stringKey');
+    String tr(String key) => AppLocalizations.of(context).get('adminHome.$key');
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.06;
     final verticalSpacing = screenWidth * 0.04;
 
-    final functions = FunctionsService();
-    final authService = AuthService();
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
       appBar: CustomAppBar(
-        title: LogoTitle(text: "M-Clearance ISam"),
+        title: LogoTitle(text: 'M-Clearance ISam'),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
           NotificationIconWithBadge(
-            badgeCount: 0, // You can implement notification count logic here
+            badgeCount: 0,
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const OfficerNotificationScreen()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const OfficerNotificationScreen(),
+                ),
+              );
             },
           ),
           const SizedBox(width: 8),
@@ -117,24 +217,50 @@ class AdminMenuScreen extends StatelessWidget {
       body: SingleChildScrollView(
         padding: EdgeInsets.all(horizontalPadding),
         child: FutureBuilder(
-          future: currentUser != null ? authService.getUserData(currentUser.uid) : null,
+          future: currentUser != null
+              ? _authService.getUserData(currentUser.uid)
+              : null,
           builder: (context, userSnapshot) {
-            final userRole = userSnapshot.data?.role ?? 'officer'; // Default to officer if not loaded
-            LoggingService().info('Admin Home Screen: photoURL = ${userSnapshot.data?.photoURL}');
+            final userRole = userSnapshot.data?.role ?? 'officer';
+            final userAccount = userSnapshot.data;
+            final fetchedCorporateName = userAccount?.corporateName.trim() ?? '';
+            final fetchedFullName = userAccount?.fullName.trim() ?? '';
+            final fallbackCorporateName = widget.adminCorporateName.trim();
+            final fallbackFullName = widget.adminName.trim();
+
+            final primaryName = fetchedCorporateName.isNotEmpty
+                ? fetchedCorporateName
+                : fetchedFullName.isNotEmpty
+                    ? fetchedFullName
+                    : fallbackCorporateName.isNotEmpty
+                        ? fallbackCorporateName
+                        : fallbackFullName;
+
+            final secondaryName = fetchedCorporateName.isNotEmpty && fetchedFullName.isNotEmpty
+                ? fetchedFullName
+                : '';
+
+            final officerFullName = fetchedFullName.isNotEmpty
+                ? fetchedFullName
+                : fallbackFullName;
+
+            final displayPhotoUrl = userAccount?.photoURL ?? widget.photoURL;
+
+            LoggingService().info('Admin Home Screen: photoURL = $displayPhotoUrl');
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(height: verticalSpacing),
-                // Welcome section
                 Row(
                   children: [
                     CircleAvatar(
                       radius: screenWidth * 0.08,
                       backgroundColor: AppTheme.greyShade200,
-                      backgroundImage: (photoURL != null && photoURL!.isNotEmpty)
-                          ? NetworkImage(photoURL!)
+                      backgroundImage: (displayPhotoUrl != null && displayPhotoUrl.isNotEmpty)
+                          ? NetworkImage(displayPhotoUrl)
                           : null,
-                      child: (photoURL == null || photoURL!.isEmpty)
+                      child: (displayPhotoUrl == null || displayPhotoUrl.isEmpty)
                           ? Icon(Icons.person, size: screenWidth * 0.08, color: AppTheme.greyColor)
                           : null,
                     ),
@@ -144,90 +270,85 @@ class AdminMenuScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "${tr('welcome')},",
+                            '${tr('welcome')},',
                             style: AppTheme.bodyMedium(context).copyWith(color: AppTheme.greyColor),
                           ),
                           Text(
-                            adminName,
+                            primaryName,
                             style: AppTheme.headingSmall(context).copyWith(color: AppTheme.blackColor),
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (secondaryName.isNotEmpty)
+                            Padding(
+                              padding: EdgeInsets.only(top: screenWidth * 0.01),
+                              child: Text(
+                                secondaryName,
+                                style: AppTheme.bodyMedium(context)
+                                    .copyWith(color: AppTheme.greyShade600),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                         ],
                       ),
                     ),
                   ],
                 ),
                 SizedBox(height: verticalSpacing * 1.5),
-
-                // Service cards
                 Text(
                   tr('services'),
                   style: AppTheme.headingSmall(context).copyWith(color: AppTheme.blackColor),
                 ),
                 SizedBox(height: verticalSpacing),
-
-                FutureBuilder<Map<String, dynamic>>(
-                  future: functions.getOfficerDashboardStats(),
-                builder: (context, snapshot) {
-                  final stats = snapshot.data ?? const {};
-                  final pendingArrival = stats['pendingArrival']?.toString() ?? '';
-                  final subtitle = pendingArrival.isNotEmpty
-                      ? '${tr('agent_submissions')} ($pendingArrival)'
-                      : tr('agent_submissions');
-                  return _buildServiceCard(
-                    context,
-                    title: tr('arrival_verification'),
-                    subtitle: subtitle,
-                    iconData: Icons.anchor,
-                    color: AppTheme.infoColor,
-                    isPrimary: true,
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => ArrivalVerificationScreen(adminName: adminName)));
-                    },
-                  );
-                },
-                ),
-                SizedBox(height: verticalSpacing),
-                FutureBuilder<Map<String, dynamic>>(
-                  future: functions.getOfficerDashboardStats(),
-                  builder: (context, snapshot) {
-                    final stats = snapshot.data ?? const {};
-                    final pendingDeparture = stats['pendingDeparture']?.toString() ?? '';
-                    final subtitle = pendingDeparture.isNotEmpty
-                        ? '${tr('agent_submissions')} ($pendingDeparture)'
-                        : tr('agent_submissions');
-                    return _buildServiceCard(
+                _buildStatsAwareCard(
+                  context,
+                  isPrimary: true,
+                  title: tr('arrival_verification'),
+                  baseSubtitle: tr('agent_submissions'),
+                  iconData: Icons.anchor,
+                  color: AppTheme.infoColor,
+                  badgeCount: _statValue('pendingArrival'),
+                  onTap: () {
+                    Navigator.push(
                       context,
-                      title: tr('departure_verification'),
-                      subtitle: subtitle,
-                      iconData: Icons.directions_boat,
-                      color: AppTheme.secondaryColor,
-                      isPrimary: false,
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => DepartureVerificationScreen(adminName: adminName)));
-                      },
+                      MaterialPageRoute(
+                        builder: (context) => ArrivalVerificationScreen(adminName: officerFullName),
+                      ),
                     );
                   },
                 ),
                 SizedBox(height: verticalSpacing),
-                FutureBuilder<Map<String, dynamic>>(
-                  future: functions.getOfficerDashboardStats(),
-                  builder: (context, snapshot) {
-                    final stats = snapshot.data ?? const {};
-                    final pendingAccounts = stats['pendingAccounts']?.toString() ?? '';
-                    final subtitle = pendingAccounts.isNotEmpty
-                        ? '${tr('agent_registrations')} ($pendingAccounts)'
-                        : tr('agent_registrations');
-                    return _buildServiceCard(
+                _buildStatsAwareCard(
+                  context,
+                  isPrimary: false,
+                  title: tr('departure_verification'),
+                  baseSubtitle: tr('agent_submissions'),
+                  iconData: Icons.directions_boat,
+                  color: AppTheme.secondaryColor,
+                  badgeCount: _statValue('pendingDeparture'),
+                  onTap: () {
+                    Navigator.push(
                       context,
-                      title: tr('account_verification'),
-                      subtitle: subtitle,
-                      iconData: Icons.person_search,
-                      color: AppTheme.secondaryColor,
-                      isPrimary: false,
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const AccountVerificationListScreen()));
-                      },
+                      MaterialPageRoute(
+                        builder: (context) => DepartureVerificationScreen(adminName: officerFullName),
+                      ),
+                    );
+                  },
+                ),
+                SizedBox(height: verticalSpacing),
+                _buildStatsAwareCard(
+                  context,
+                  isPrimary: false,
+                  title: tr('account_verification'),
+                  baseSubtitle: tr('agent_registrations'),
+                  iconData: Icons.person_search,
+                  color: AppTheme.secondaryColor,
+                  badgeCount: _statValue('pendingAccounts'),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AccountVerificationListScreen(),
+                      ),
                     );
                   },
                 ),
@@ -241,7 +362,12 @@ class AdminMenuScreen extends StatelessWidget {
                     color: AppTheme.successColor,
                     isPrimary: false,
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const EmailConfigScreen()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const EmailConfigScreen(),
+                        ),
+                      );
                     },
                   ),
                 ],
@@ -253,125 +379,154 @@ class AdminMenuScreen extends StatelessWidget {
                 SizedBox(height: verticalSpacing),
                 StreamBuilder<List<OfficerActivity>>(
                   stream: OfficerService().getOfficerActivities(limit: 3),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const SkeletonListLoader(itemCount: 3);
-                  }
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const SkeletonListLoader(itemCount: 3);
+                    }
 
-                  if (snapshot.hasError) {
-                    LoggingService().error('Error loading officer activities', snapshot.error);
-                    return Center(
-                      child: Text(
-                        tr('error_loading_activities'),
-                        style: TextStyle(color: AppTheme.errorColor),
-                      ),
-                    );
-                  }
-
-                  final activities = snapshot.data ?? [];
-
-                  if (activities.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.history,
-                            size: 48,
-                            color: AppTheme.greyColor,
-                          ),
-                          SizedBox(height: AppTheme.spacing16),
-                          Text(
-                            tr('no_recent_activities'),
-                            style: AppTheme.bodyMedium(context).copyWith(
-                              color: AppTheme.greyColor,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return Column(
-                    children: activities.map((activity) {
-                      final statusColor = _getActivityStatusColor(activity.status);
-                      final iconData = _getActivityIcon(activity.iconData);
-
-                      return Container(
-                        margin: EdgeInsets.only(bottom: verticalSpacing * 0.5),
-                        padding: EdgeInsets.all(verticalSpacing),
-                        decoration: BoxDecoration(
-                          color: AppTheme.whiteColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.greyShade200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.greyColor.withAlpha(13),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                    if (snapshot.hasError) {
+                      LoggingService().error('Error loading officer activities', snapshot.error);
+                      return Center(
+                        child: Text(
+                          tr('error_loading_activities'),
+                          style: TextStyle(color: AppTheme.errorColor),
                         ),
-                        child: Row(
+                      );
+                    }
+
+                    final activities = snapshot.data ?? [];
+
+                    if (activities.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              iconData,
-                              color: AppTheme.primaryColor,
-                              size: screenWidth * 0.06,
+                              Icons.history,
+                              size: 48,
+                              color: AppTheme.greyColor,
                             ),
-                            SizedBox(width: horizontalPadding * 0.5),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    activity.title,
-                                    style: AppTheme.bodyMedium(context).copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.blackColor,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    _formatActivityDate(context, activity.date),
-                                    style: AppTheme.bodySmall(context).copyWith(
-                                      color: AppTheme.greyColor,
-                                    ),
-                                  ),
-                                ],
+                            SizedBox(height: AppTheme.spacing16),
+                            Text(
+                              tr('no_recent_activities'),
+                              style: AppTheme.bodyMedium(context).copyWith(
+                                color: AppTheme.greyColor,
                               ),
+                              textAlign: TextAlign.center,
                             ),
-                            if (activity.status != null)
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: screenWidth * 0.02,
-                                  vertical: screenWidth * 0.01,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withAlpha(25),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  activity.status!.toUpperCase(),
-                                  style: AppTheme.labelSmall(context).copyWith(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
                       );
-                    }).toList(),
-                  );
-                },
-              ),
+                    }
+
+                    return Column(
+                      children: activities.map((activity) {
+                        final statusColor = _getActivityStatusColor(activity.status);
+                        final iconData = _getActivityIcon(activity.iconData);
+
+                        return Container(
+                          margin: EdgeInsets.only(bottom: verticalSpacing * 0.5),
+                          padding: EdgeInsets.all(verticalSpacing),
+                          decoration: BoxDecoration(
+                            color: AppTheme.whiteColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.greyShade200),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.greyColor.withAlpha(13),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                iconData,
+                                color: AppTheme.primaryColor,
+                                size: screenWidth * 0.06,
+                              ),
+                              SizedBox(width: horizontalPadding * 0.5),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      activity.title,
+                                      style: AppTheme.bodyMedium(context)
+                                          .copyWith(fontWeight: FontWeight.bold, color: AppTheme.blackColor),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      _formatActivityDate(context, activity.date),
+                                      style: AppTheme.bodySmall(context).copyWith(color: AppTheme.greyColor),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (activity.status != null)
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: screenWidth * 0.02,
+                                    vertical: screenWidth * 0.01,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withAlpha(25),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    activity.status!.toUpperCase(),
+                                    style: AppTheme.labelSmall(context).copyWith(
+                                      color: statusColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
               ],
             );
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildStatsAwareCard(
+    BuildContext context, {
+    required String title,
+    required String baseSubtitle,
+    required IconData iconData,
+    required Color color,
+    required bool isPrimary,
+    required int badgeCount,
+    required VoidCallback onTap,
+  }) {
+    if (_showSkeleton) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final cardHeight = screenWidth * 0.32;
+      return SkeletonLoader(
+        width: double.infinity,
+        height: cardHeight,
+        borderRadius: BorderRadius.circular(16),
+      );
+    }
+
+    final subtitle = badgeCount > 0 ? '$baseSubtitle ($badgeCount)' : baseSubtitle;
+    return _buildServiceCard(
+      context,
+      title: title,
+      subtitle: subtitle,
+      iconData: iconData,
+      color: color,
+      isPrimary: isPrimary,
+      badgeCount: badgeCount,
+      onTap: onTap,
     );
   }
 
@@ -383,14 +538,25 @@ class AdminMenuScreen extends StatelessWidget {
     required Color color,
     required bool isPrimary,
     required VoidCallback onTap,
+    int badgeCount = 0,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final cardPadding = screenWidth * 0.05;
     final iconSize = screenWidth * 0.08;
-    final titleFontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeH6, tablet: AppTheme.fontSizeH5, desktop: AppTheme.fontSizeH4);
-    final subtitleFontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody2, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1);
+    final titleFontSize = AppTheme.responsiveFontSize(
+      context,
+      mobile: AppTheme.fontSizeH6,
+      tablet: AppTheme.fontSizeH5,
+      desktop: AppTheme.fontSizeH4,
+    );
+    final subtitleFontSize = AppTheme.responsiveFontSize(
+      context,
+      mobile: AppTheme.fontSizeBody2,
+      tablet: AppTheme.fontSizeBody1,
+      desktop: AppTheme.fontSizeBody1,
+    );
 
-    return InkWell(
+    final card = InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
@@ -441,6 +607,45 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       ),
     );
+
+    if (badgeCount <= 0) {
+      return card;
+    }
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        card,
+        Positioned(
+          top: -8,
+          right: -8,
+          child: _buildBadge(context, badgeCount, isPrimary),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBadge(BuildContext context, int count, bool isPrimary) {
+    final displayCount = count > 99 ? '99+' : count.toString();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.errorColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isPrimary ? Colors.white : AppTheme.whiteColor,
+          width: 2,
+        ),
+      ),
+      child: Text(
+        displayCount,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: AppTheme.fontSizeBody2,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 
   Color _getActivityStatusColor(String? status) {
@@ -463,38 +668,26 @@ class AdminMenuScreen extends StatelessWidget {
   }
 
   IconData _getActivityIcon(String? iconData) {
-    if (iconData == null) return Icons.history;
     switch (iconData) {
-      case 'anchor':
-        return Icons.anchor;
-      case 'directions_boat':
-        return Icons.directions_boat;
-      case 'person_search':
-        return Icons.person_search;
-      case 'description':
-        return Icons.description;
+      case 'document':
+        return Icons.description_outlined;
+      case 'analytics':
+        return Icons.analytics_outlined;
+      case 'person':
+        return Icons.person_outline;
       default:
-        return Icons.history;
+        return Icons.task_alt_outlined;
     }
   }
 
   String _formatActivityDate(BuildContext context, DateTime date) {
     final now = DateTime.now();
-    final difference = now.difference(date);
-
-    String tr(String key) {
-      return AppLocalizations.of(context).get('adminHome.$key');
+    final localDate = date.toLocal();
+    if (localDate.year == now.year &&
+        localDate.month == now.month &&
+        localDate.day == now.day) {
+      return DateFormat.Hm().format(localDate);
     }
-
-    if (difference.inDays == 0) {
-      return tr('today');
-    } else if (difference.inDays == 1) {
-      return tr('yesterday');
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} ${tr('days_ago')}';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
-    }
+    return DateFormat('dd MMM yyyy • HH:mm').format(localDate);
   }
 }
-

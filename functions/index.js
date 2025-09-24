@@ -102,30 +102,47 @@ async function resolveUserName(uid, fallbackEmail) {
   return 'User';
 }
 
-async function callerRole(context) {
-  try {
-    // First, check custom claims for the role
-    const claims = context.auth.token || {};
-    const claimsRole = claims.role;
-    if (claimsRole && ['user', 'officer', 'admin'].includes(claimsRole)) {
-      return claimsRole;
-    }
+function normalizeRole(role) {
+  if (!role || typeof role !== 'string') {
+    return null;
+  }
+  const normalized = role.toLowerCase();
+  return ['user', 'officer', 'admin'].includes(normalized) ? normalized : null;
+}
 
-    // Fallback to checking Firestore
-    const uid = context.auth.uid;
-    const userRef = db.collection('users').doc(uid);
-    const userSnap = await userRef.get();
+async function callerRole(context) {
+  if (!context.auth) {
+    return 'unauthenticated';
+  }
+
+  const uid = context.auth.uid;
+  const tokenRole = normalizeRole(context.auth.token && context.auth.token.role);
+
+  try {
+    const userSnap = await db.collection('users').doc(uid).get();
     if (userSnap.exists) {
-      const userData = userSnap.data() || {};
-      const firestoreRole = userData.role;
-      if (firestoreRole && ['user', 'officer', 'admin'].includes(firestoreRole)) {
+      const firestoreRole = normalizeRole((userSnap.data() || {}).role);
+      if (firestoreRole) {
+        if (firestoreRole !== tokenRole && firestoreRole !== 'user') {
+          try {
+            await admin.auth().setCustomUserClaims(uid, { role: firestoreRole });
+            console.log(`[callerRole] Synced custom claims for ${uid} to role '${firestoreRole}'`);
+          } catch (syncError) {
+            console.error('[callerRole] Failed to sync custom claims role:', syncError);
+          }
+        }
         return firestoreRole;
       }
     }
   } catch (error) {
     console.error('[callerRole] Error fetching role:', error);
   }
-  return 'user'; // Default to 'user' if no role is found
+
+  if (tokenRole) {
+    return tokenRole;
+  }
+
+  return 'user';
 }
 
 async function ensureOfficerOrAdmin(context) {
@@ -1357,16 +1374,66 @@ exports.onApplicationUpdate = functions.firestore
 
       const becameApproved = before.status !== 'approved' && after.status === 'approved';
       const becameDeclined = before.status !== 'declined' && after.status === 'declined';
-      if (!(becameApproved || becameDeclined)) return;
+      const becameRevision = before.status !== 'revision' && after.status === 'revision';
+      if (!(becameApproved || becameDeclined || becameRevision)) return;
 
+      const status = becameApproved ? 'approved' : becameDeclined ? 'declined' : 'revision';
       const type = after.type || before.type || 'arrival';
-      const message = becameApproved
-        ? `Your ${type} application has been approved.`
-        : `Your ${type} application has been declined.`;
-      const createdAt = Timestamp.now();
-      const notifId = `${type}_${becameApproved ? 'approved' : 'declined'}_${createdAt.toMillis()}`;
+      const shipName = after.shipName || before.shipName || type;
+      const officerName = after.officerName || before.officerName;
+      const note = after.notes || before.notes;
+
+      const titleMap = {
+        approved: 'Application Approved',
+        declined: 'Application Declined',
+        revision: 'Application Requires Revision',
+      };
+
+      let body = '';
+      switch (status) {
+        case 'approved':
+          body = `Your ${type} application for ${shipName} has been approved.`;
+          break;
+        case 'declined':
+          body = `Your ${type} application for ${shipName} has been declined.`;
+          break;
+        case 'revision':
+          body = `Your ${type} application for ${shipName} requires additional information.`;
+          break;
+        default:
+          body = `Your ${type} application for ${shipName} has been updated.`;
+          break;
+      }
+
+      if (note) {
+        body = `${body} Officer notes: ${note}`;
+      }
+
+      const timestamp = Timestamp.now();
+      const notifId = `${context.params.appId}_${status}_${timestamp.toMillis()}`;
       const notifRef = db.collection('notifications').doc(userUid).collection('items').doc(notifId);
-      await notifRef.set({ type: 'application', message, createdAt });
+      const notificationData = {
+        title: titleMap[status] || 'Application Update',
+        body,
+        date: timestamp,
+        createdAt: timestamp,
+        type: status === 'approved' ? 1 : status === 'revision' ? 2 : 0,
+        userId: userUid,
+        isRead: false,
+        applicationId: context.params.appId,
+        applicationType: type,
+        status,
+      };
+
+      if (officerName) {
+        notificationData.officerName = officerName;
+      }
+      if (note) {
+        notificationData.officerNote = note;
+      }
+
+      await notifRef.set(notificationData);
+      console.log('[onApplicationUpdate] Notification created:', notifId, notificationData);
     } catch (e) {
       console.error('[onApplicationUpdate] Error:', e);
     }
