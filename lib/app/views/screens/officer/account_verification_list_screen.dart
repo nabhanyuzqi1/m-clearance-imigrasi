@@ -10,10 +10,12 @@ class AccountVerificationListScreen extends StatefulWidget {
   const AccountVerificationListScreen({super.key});
 
   @override
-  State<AccountVerificationListScreen> createState() => _AccountVerificationListScreenState();
+  State<AccountVerificationListScreen> createState() =>
+      _AccountVerificationListScreenState();
 }
 
-class _AccountVerificationListScreenState extends State<AccountVerificationListScreen> {
+class _AccountVerificationListScreenState
+    extends State<AccountVerificationListScreen> {
   late final UserRepository repo;
   String _selectedFilter = 'all'; // 'all', 'waiting', 'reviewed'
   final TextEditingController _searchController = TextEditingController();
@@ -36,17 +38,22 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
     setState(() {});
   }
 
-  String _tr(String key) => AppLocalizations.of(context).get('accountVerificationList.$key');
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('accountVerificationList.$key');
 
   List<UserModel> _filterUsers(List<UserModel> users, String searchQuery) {
     // First filter by status
     List<UserModel> filtered = users;
     switch (_selectedFilter) {
       case 'waiting':
-        filtered = users.where((user) => user.status.startsWith('pending')).toList();
+        filtered = users
+            .where((user) => user.status.startsWith('pending'))
+            .toList();
         break;
       case 'reviewed':
-        filtered = users.where((user) => !user.status.startsWith('pending')).toList();
+        filtered = users
+            .where((user) => !user.status.startsWith('pending'))
+            .toList();
         break;
       case 'all':
       default:
@@ -59,9 +66,9 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
       final query = searchQuery.toLowerCase();
       filtered = filtered.where((user) {
         return user.username.toLowerCase().contains(query) ||
-               user.email.toLowerCase().contains(query) ||
-               user.corporateName.toLowerCase().contains(query) ||
-               user.nationality.toLowerCase().contains(query);
+            user.email.toLowerCase().contains(query) ||
+            user.corporateName.toLowerCase().contains(query) ||
+            user.nationality.toLowerCase().contains(query);
       }).toList();
     }
 
@@ -76,13 +83,15 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
           setState(() => _selectedFilter = filter);
         },
         style: ElevatedButton.styleFrom(
-          backgroundColor: isSelected ? AppTheme.primaryColor : AppTheme.greyShade200,
-          foregroundColor: isSelected ? AppTheme.whiteColor : AppTheme.blackColor87,
+          backgroundColor: isSelected
+              ? AppTheme.primaryColor
+              : AppTheme.greyShade200,
+          foregroundColor: isSelected
+              ? AppTheme.whiteColor
+              : AppTheme.blackColor87,
           elevation: isSelected ? 2 : 0,
           padding: const EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: Text(
           label,
@@ -96,37 +105,47 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
   }
 
   // Helper to get status properties
-  Map<String, dynamic> _getStatusProperties(BuildContext context, String status) {
+  Map<String, dynamic> _getStatusProperties(String status) {
     switch (status) {
       case 'approved':
-        return {'color': AppTheme.successColor, 'label': _tr('status_approved')};
-      case 'pending':
-        return {'color': AppTheme.warningColor, 'label': _tr('status_pending')};
-      case 'pending_email':
-        return {'color': AppTheme.infoColor, 'label': _tr('pending_email_verification')};
-      case 'pending_upload_docs':
-        return {'color': AppTheme.infoColor, 'label': _tr('status_pending_documents')};
-      case 'pending_verification_officer':
-        return {'color': AppTheme.accentColor, 'label': _tr('pending_approval')};
+        return {
+          'color': AppTheme.successColor,
+          'label': _tr('status_approved'),
+        };
       case 'rejected':
         return {'color': AppTheme.errorColor, 'label': _tr('status_rejected')};
+      case 'pending_documents':
+      case 'pending_upload_docs':
+        return {
+          'color': AppTheme.infoColor,
+          'label': _tr('status_pending_documents'),
+        };
+      case 'pending_email_verification':
+      case 'pending_email':
+        return {
+          'color': AppTheme.infoColor,
+          'label': _tr('status_pending_email_verification'),
+        };
+      case 'pending_verification_officer':
+      case 'pending_approval':
+        return {
+          'color': AppTheme.accentColor,
+          'label': _tr('status_pending_approval'),
+        };
       default:
-        return {'color': AppTheme.greyColor, 'label': status};
+        return {'color': AppTheme.warningColor, 'label': _tr('status_pending')};
     }
   }
 
-
-  Widget _buildUserCard(UserModel user) {
+  Widget _buildUserCard(UserModel user, double horizontalInset) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final horizontalPadding = screenWidth * 0.06;
-    final statusProps = _getStatusProperties(context, user.status);
+    final statusProps = _getStatusProperties(user.status);
     final statusColor = statusProps['color'] as Color;
     final statusLabel = statusProps['label'] as String;
 
     return Container(
-      margin: EdgeInsets.symmetric(
-          horizontal: horizontalPadding, vertical: screenWidth * 0.015),
-      padding: EdgeInsets.all(horizontalPadding),
+      margin: EdgeInsets.only(bottom: screenWidth * 0.02),
+      padding: EdgeInsets.all(horizontalInset * 0.75),
       decoration: BoxDecoration(
         color: AppTheme.whiteColor,
         borderRadius: BorderRadius.circular(12),
@@ -156,7 +175,7 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
               color: AppTheme.primaryColor,
               size: screenWidth * 0.08,
             ),
-            SizedBox(width: horizontalPadding * 0.5),
+            SizedBox(width: horizontalInset * 0.5),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,9 +192,30 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
                     user.corporateName.isNotEmpty
                         ? user.corporateName
                         : user.email,
-                    style: AppTheme.bodySmall(context)
-                        .copyWith(color: AppTheme.greyColor),
+                    style: AppTheme.bodySmall(
+                      context,
+                    ).copyWith(color: AppTheme.greyColor),
                     overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.alternate_email,
+                        size: screenWidth * 0.04,
+                        color: AppTheme.greyColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          user.email,
+                          style: AppTheme.bodySmall(
+                            context,
+                          ).copyWith(color: AppTheme.greyShade600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -191,10 +231,9 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
               ),
               child: Text(
                 statusLabel,
-                style: AppTheme.labelSmall(context).copyWith(
-                  color: statusColor,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: AppTheme.labelSmall(
+                  context,
+                ).copyWith(color: statusColor, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -206,11 +245,13 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
   @override
   Widget build(BuildContext context) {
     LoggingService().debug('Building AccountVerificationListScreen');
+    final horizontalInset = AppTheme.responsivePadding(context);
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: CustomAppBar(
-        titleText:
-            AppLocalizations.of(context).get('accountVerificationList.title'),
+        titleText: AppLocalizations.of(
+          context,
+        ).get('accountVerificationList.title'),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
         elevation: 0,
@@ -226,7 +267,14 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
         children: [
           // Search bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            margin: EdgeInsets.symmetric(
+              horizontal: horizontalInset,
+              vertical: 12,
+            ),
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalInset * 0.75,
+              vertical: 12,
+            ),
             color: AppTheme.whiteColor,
             child: TextField(
               controller: _searchController,
@@ -244,19 +292,31 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: AppTheme.primaryColor, width: 2),
+                  borderSide: const BorderSide(
+                    color: AppTheme.primaryColor,
+                    width: 2,
+                  ),
                 ),
                 filled: true,
                 fillColor: AppTheme.greyShade50,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
               ),
             ),
           ),
           // Filter buttons
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            margin: EdgeInsets.only(
+              left: horizontalInset,
+              right: horizontalInset,
+              bottom: 8,
+            ),
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalInset * 0.75,
+              vertical: 8,
+            ),
             color: AppTheme.whiteColor,
             child: Row(
               children: [
@@ -278,21 +338,25 @@ class _AccountVerificationListScreenState extends State<AccountVerificationListS
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
-                    LoggingService()
-                        .error('Error fetching users: ${snapshot.error}');
+                    LoggingService().error(
+                      'Error fetching users: ${snapshot.error}',
+                    );
                     return Center(child: Text(_tr('error_loading')));
                   }
                   final allUsers = snapshot.data ?? const [];
-                  final users =
-                      _filterUsers(allUsers, _searchController.text);
+                  final users = _filterUsers(allUsers, _searchController.text);
 
                   if (users.isEmpty) {
                     return Center(child: Text(_tr('no_data')));
                   }
                   return ListView.builder(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalInset,
+                      vertical: horizontalInset,
+                    ),
                     itemCount: users.length,
                     itemBuilder: (context, index) {
-                      return _buildUserCard(users[index]);
+                      return _buildUserCard(users[index], horizontalInset);
                     },
                   );
                 },

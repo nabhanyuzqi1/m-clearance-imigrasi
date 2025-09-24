@@ -8,7 +8,8 @@ import 'package:flutter/material.dart';
 class AppStrings {
   /// Map privat yang menyimpan semua terjemahan.
   /// Strukturnya adalah: Bahasa -> NamaLayar -> KunciString -> Teks
-  static final Map<String, Map<String, Map<String, String>>> _localizedStrings = {
+  static final Map<String, Map<String, Map<String, String>>>
+  _localizedStrings = {
     'EN': {
       //region Auth Screens
       'login': {
@@ -28,7 +29,8 @@ class AppStrings {
         'account_pending': 'Your account is pending verification.',
         'account_rejected': 'Your account registration was rejected.',
         'logging_in': 'Logging in...',
-        'account_rejected_full': 'Your account has been rejected. Please contact support for more information.',
+        'account_rejected_full':
+            'Your account has been rejected. Please contact support for more information.',
         'unknown_user_status': 'Unknown user status.',
         'unknown_error': 'An unknown error occurred.',
         'english': 'English',
@@ -67,13 +69,16 @@ class AppStrings {
         'terms_and_conditions': 'Terms and Conditions',
         'and': ' and the ',
         'privacy_policy': 'Privacy Policy',
-        'terms_req': 'You must agree to the Terms & Conditions and Privacy Policy.',
+        'terms_req':
+            'You must agree to the Terms & Conditions and Privacy Policy.',
         'continue': 'Continue',
         'already_have_account': 'Already have an account? ',
         'login': 'Login',
-        'email_already_in_use': 'The email address is already in use by another account.',
+        'email_already_in_use':
+            'The email address is already in use by another account.',
         'weak_password': 'The password provided is too weak.',
-        'registration_error': 'An unexpected error occurred during registration.',
+        'registration_error':
+            'An unexpected error occurred during registration.',
       },
       'confirmation': {
         'title': 'Email Verification',
@@ -85,7 +90,8 @@ class AppStrings {
         'resend_success': 'A new code has been sent.',
         'continue': 'Continue',
         'sent_to': 'Sent to ',
-        'please_wait_cooldown': 'Please wait {seconds}s before requesting a new code.',
+        'please_wait_cooldown':
+            'Please wait {seconds}s before requesting a new code.',
         'verification_failed': 'Verification failed',
         'failed_to_resend_code': 'Failed to resend code',
         'internal_error': 'Internal error',
@@ -104,8 +110,10 @@ class AppStrings {
         'change': 'Change',
         'upload': 'Upload',
         'permission_required': 'Permission Required',
-        'camera_permission_message': 'Camera permission is required to take photos. Please enable it in app settings.',
-        'storage_permission_message': 'Storage permission is required to access photos. Please enable it in app settings.',
+        'camera_permission_message':
+            'Camera permission is required to take photos. Please enable it in app settings.',
+        'storage_permission_message':
+            'Storage permission is required to access photos. Please enable it in app settings.',
         'cancel': 'Cancel',
         'open_settings': 'Open Settings',
         'gallery': 'Gallery',
@@ -117,27 +125,32 @@ class AppStrings {
         'no_docs_uploaded': 'No documents were uploaded.',
         'select_at_least_one': 'Please select at least one document to upload.',
         'failed_upload': 'Failed to upload documents. Please try again.',
-        'partial_upload_success': 'Some documents failed to upload, but proceeding with uploaded ones.',
+        'partial_upload_success':
+            'Some documents failed to upload, but proceeding with uploaded ones.',
       },
       'registrationPending': {
         'title': 'Waiting for Verification',
-        'message': 'You have successfully registered, please wait for verification. Check your email regularly.',
+        'message':
+            'You have successfully registered, please wait for verification. Check your email regularly.',
         'done_button': 'Done',
       },
       'forgotPassword': {
         'title': 'Forgot Password',
-        'instruction': 'Enter your account email to receive a password recovery link.',
+        'instruction':
+            'Enter your account email to receive a password recovery link.',
         'email_label': 'Email Address',
         'send_link_button': 'Send Reset Link',
         'success_dialog_title': 'Success',
-        'success_dialog_content': 'A link to reset your password has been sent to the email:\n',
+        'success_dialog_content':
+            'A link to reset your password has been sent to the email:\n',
         'ok_button': 'OK',
         'invalid_email_message': 'Please enter a valid email address.',
         'error_occurred': 'An error occurred',
       },
       'changePassword': {
         'title': 'Change Password',
-        'instruction': 'For security, please enter your old password and create a new one.',
+        'instruction':
+            'For security, please enter your old password and create a new one.',
         'current_password': 'Current Password',
         'current_password_empty': 'Current password cannot be empty',
         'new_password': 'New Password',
@@ -149,9 +162,7 @@ class AppStrings {
         'save_new_password': 'Save New Password',
         'password_updated': 'Password updated successfully!',
       },
-      'splash': {
-        'app_name': 'M-Clearance ISam',
-      },
+      'splash': {'app_name': 'M-Clearance ISam'},
       //endregion
 
       //region User Screens
@@ -186,7 +197,8 @@ class AppStrings {
         'all': 'All',
         'search_hint': 'Search by ship name or port...',
         'empty_title': 'Nothing here. For now.',
-        'empty_subtitle': "This is where you'll find your\nfinished application.",
+        'empty_subtitle':
+            "This is where you'll find your\nfinished application.",
         'waiting': 'WAITING FOR VERIFICATION',
         'revision': 'REQUIRES FIXING',
         'approved': 'ACCEPTED',
@@ -225,9 +237,7 @@ class AppStrings {
         'title': 'Privacy & Security',
         'content': 'Privacy & Security Screen',
       },
-      'languageSelection': {
-        'title': 'Select Language',
-      },
+      'languageSelection': {'title': 'Select Language'},
       'editAgentProfile': {
         'title': 'Edit Agent Profile',
         'select_image_source': 'Select Image Source',
@@ -246,12 +256,15 @@ class AppStrings {
         'error': 'Failed to update profile',
         'profile_updated': 'Profile updated successfully!',
         'permission_required': 'Permission Required',
-        'camera_permission_message': 'Camera permission is required to take photos. Please enable it in app settings.',
-        'storage_permission_message': 'Storage permission is required to access photos. Please enable it in app settings.',
+        'camera_permission_message':
+            'Camera permission is required to take photos. Please enable it in app settings.',
+        'storage_permission_message':
+            'Storage permission is required to access photos. Please enable it in app settings.',
         'cancel': 'Cancel',
         'open_settings': 'Open Settings',
         'email_changed_title': 'Email Changed',
-        'email_changed_body': 'Your email has been changed. Please log in again with your new email.',
+        'email_changed_body':
+            'Your email has been changed. Please log in again with your new email.',
         'ok': 'OK',
       },
       'clearanceForm': {
@@ -295,15 +308,18 @@ class AppStrings {
         'not_uploaded': 'Not uploaded',
         'submit_application': 'Submit Application',
         'submit_dialog_title': 'Submit',
-        'submit_dialog_content': 'Are you sure your application data is correct? Send to Proceed. We will review your application immediately.',
+        'submit_dialog_content':
+            'Are you sure your application data is correct? Send to Proceed. We will review your application immediately.',
         'cancel': 'Cancel',
         'send': 'Send',
         'gallery': 'Choose from Gallery',
         'camera': 'Take a Picture',
         'file_picker': 'Choose from Files',
         'permission_required': 'Permission Required',
-        'camera_permission_message': 'Camera permission is required to take photos. Please enable it in app settings.',
-        'storage_permission_message': 'Storage permission is required to access photos. Please enable it in app settings.',
+        'camera_permission_message':
+            'Camera permission is required to take photos. Please enable it in app settings.',
+        'storage_permission_message':
+            'Storage permission is required to access photos. Please enable it in app settings.',
         'open_settings': 'Open Settings',
         'arrival_form': 'Arrival Clearance Form',
         'departure_form': 'Departure Clearance Form',
@@ -341,10 +357,13 @@ class AppStrings {
       },
       'submissionSent': {
         'title': 'Verifying Documents',
-        'message': 'Your submission is being processed. The status will be updated on the history page after verification by the officer.',
+        'message':
+            'Your submission is being processed. The status will be updated on the history page after verification by the officer.',
         'thank_you': 'Thank you for your submission!',
-        'submission_received': 'Your application has been received and is being processed.',
-        'tracking_info': 'You can track the status of your application in the History section.',
+        'submission_received':
+            'Your application has been received and is being processed.',
+        'tracking_info':
+            'You can track the status of your application in the History section.',
         'back_to_home': 'Back to Home',
         'view_history': 'View History',
         'support_info': 'Need help? Contact our support team.',
@@ -352,8 +371,10 @@ class AppStrings {
       'submissionWaiting': {
         'submission_received': 'Application Received',
         'processing': 'We are processing your application',
-        'review_time': 'Our team will review your application within 1-2 business days.',
-        'notification_info': 'You will receive a notification once your application is reviewed.',
+        'review_time':
+            'Our team will review your application within 1-2 business days.',
+        'notification_info':
+            'You will receive a notification once your application is reviewed.',
         'check_status': 'Check Status',
         'back_to_home': 'Back to Home',
         'estimated_time': 'Estimated processing time: 1-2 business days',
@@ -389,8 +410,10 @@ class AppStrings {
         'spb_title': 'Sailing Approval Letter',
         'immigration_office': 'Immigration Office Class II TPI Sampit',
         'approved_status': 'APPROVED',
-        'approved_subtitle_arrival': 'The arrival clearance application has been approved.',
-        'approved_subtitle_departure': 'The departure clearance application has been approved.',
+        'approved_subtitle_arrival':
+            'The arrival clearance application has been approved.',
+        'approved_subtitle_departure':
+            'The departure clearance application has been approved.',
         'ship_details': 'Ship Details',
         'ship_name': 'Ship Name',
         'flag': 'Flag',
@@ -430,7 +453,8 @@ class AppStrings {
         'mark_all_read': 'Mark all as read',
         'load_error': 'Error loading notifications',
         'no_notifications': 'No notifications yet',
-        'no_notifications_desc': 'When you have notifications, they will appear here',
+        'no_notifications_desc':
+            'When you have notifications, they will appear here',
         'delete_success': 'Notification deleted',
         'unread': 'Unread',
       },
@@ -528,6 +552,7 @@ class AppStrings {
         'username': 'Username',
         'email': 'Email',
         'registration_docs': 'Registration Documents',
+        'documents_empty': 'No documents uploaded yet.',
         'view_nib': 'View NIB File',
         'view_ktp': 'View KTP File',
         'reject': 'Reject',
@@ -544,6 +569,14 @@ class AppStrings {
         'nationality': 'Nationality',
         'role': 'Role',
         'corporate_name': 'Corporate Name',
+        'status': 'Status',
+        'account_metadata': 'Account Metadata',
+        'created_at': 'Created At',
+        'updated_at': 'Updated At',
+        'email_verified': 'Email verified',
+        'email_not_verified': 'Email not verified',
+        'documents_uploaded': 'Documents uploaded',
+        'documents_missing': 'Documents missing',
         'approve': 'Approve',
         'reason_hint': 'Enter reason here...',
         'N/A': 'N/A',
@@ -577,7 +610,8 @@ class AppStrings {
         'cancel': 'Cancel',
         'save': 'Save',
         'doc_preview_title': 'Document Preview',
-        'doc_preview_content': 'This is a simulation preview for the document:\n',
+        'doc_preview_content':
+            'This is a simulation preview for the document:\n',
         'close': 'Close',
         'status_pending': 'Pending',
         'status_approved': 'Approved',
@@ -653,12 +687,15 @@ class AppStrings {
         'saving': 'Saving...',
         'profile_updated': 'Profile updated successfully!',
         'permission_required': 'Permission Required',
-        'camera_permission_message': 'Camera permission is required to take photos. Please enable it in app settings.',
-        'storage_permission_message': 'Storage permission is required to access photos. Please enable it in app settings.',
+        'camera_permission_message':
+            'Camera permission is required to take photos. Please enable it in app settings.',
+        'storage_permission_message':
+            'Storage permission is required to access photos. Please enable it in app settings.',
         'cancel': 'Cancel',
         'open_settings': 'Open Settings',
         'email_changed_title': 'Email Changed',
-        'email_changed_body': 'Your email has been changed. Please log in again with your new email.',
+        'email_changed_body':
+            'Your email has been changed. Please log in again with your new email.',
         'ok': 'OK',
         'error': 'Failed to update profile',
         'failed_to_pick_image': 'Failed to pick image',
@@ -666,15 +703,19 @@ class AppStrings {
       'officerNotifications': {
         'title': 'Notifications',
         'mark_all_read_tooltip': 'Mark all as read',
-        'mark_all_read_message': 'All notifications marked as read (simulation).',
+        'mark_all_read_message':
+            'All notifications marked as read (simulation).',
         'empty_title': 'Nothing here. For now.',
         'empty_subtitle': "This is where you'll find what is\ngoing on",
         'new_agent_reg_title': 'New Agent Registration',
-        'new_agent_reg_body': 'PT. Bintang Samudera has submitted a registration. Please review the documents.',
+        'new_agent_reg_body':
+            'PT. Bintang Samudera has submitted a registration. Please review the documents.',
         'submission_needs_review_title': 'Submission Needs Review',
-        'submission_needs_review_body': 'KM. Egon has submitted an arrival application that needs your review.',
+        'submission_needs_review_body':
+            'KM. Egon has submitted an arrival application that needs your review.',
         'system_notice_title': 'System Notice',
-        'system_notice_body': 'A scheduled system update will occur tonight at 02:00 WIB.',
+        'system_notice_body':
+            'A scheduled system update will occur tonight at 02:00 WIB.',
       },
       'officerSettings': {
         'title': 'Settings',
@@ -713,7 +754,8 @@ class AppStrings {
         'account_pending': 'Akun Anda sedang menunggu verifikasi.',
         'account_rejected': 'Pendaftaran akun Anda ditolak.',
         'logging_in': 'Masuk...',
-        'account_rejected_full': 'Akun Anda telah ditolak. Silakan hubungi dukungan untuk informasi lebih lanjut.',
+        'account_rejected_full':
+            'Akun Anda telah ditolak. Silakan hubungi dukungan untuk informasi lebih lanjut.',
         'unknown_user_status': 'Status pengguna tidak diketahui.',
         'unknown_error': 'Terjadi kesalahan yang tidak diketahui.',
         'english': 'English',
@@ -752,7 +794,8 @@ class AppStrings {
         'terms_and_conditions': 'Syarat & Ketentuan',
         'and': ' dan ',
         'privacy_policy': 'Kebijakan Privasi',
-        'terms_req': 'Anda harus menyetujui Syarat & Ketentuan serta Kebijakan Privasi.',
+        'terms_req':
+            'Anda harus menyetujui Syarat & Ketentuan serta Kebijakan Privasi.',
         'continue': 'Lanjutkan',
         'already_have_account': 'Sudah punya akun? ',
         'login': 'Masuk',
@@ -770,7 +813,8 @@ class AppStrings {
         'resend_success': 'Kode baru telah dikirim.',
         'continue': 'Lanjutkan',
         'sent_to': 'Dikirim ke ',
-        'please_wait_cooldown': 'Mohon tunggu {seconds} detik sebelum meminta kode baru.',
+        'please_wait_cooldown':
+            'Mohon tunggu {seconds} detik sebelum meminta kode baru.',
         'verification_failed': 'Verifikasi gagal',
         'failed_to_resend_code': 'Gagal mengirim ulang kode',
         'internal_error': 'Kesalahan internal',
@@ -789,8 +833,10 @@ class AppStrings {
         'change': 'Ganti',
         'upload': 'Unggah',
         'permission_required': 'Izin Diperlukan',
-        'camera_permission_message': 'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
-        'storage_permission_message': 'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
+        'camera_permission_message':
+            'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
+        'storage_permission_message':
+            'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
         'cancel': 'Batal',
         'open_settings': 'Buka Pengaturan',
         'gallery': 'Galeri',
@@ -802,27 +848,32 @@ class AppStrings {
         'no_docs_uploaded': 'Tidak ada dokumen yang diunggah.',
         'select_at_least_one': 'Pilih minimal satu dokumen untuk diunggah.',
         'failed_upload': 'Gagal mengunggah dokumen. Coba lagi.',
-        'partial_upload_success': 'Beberapa dokumen gagal diunggah, tetapi melanjutkan dengan dokumen yang berhasil.',
+        'partial_upload_success':
+            'Beberapa dokumen gagal diunggah, tetapi melanjutkan dengan dokumen yang berhasil.',
       },
       'registrationPending': {
         'title': 'Menunggu Verifikasi',
-        'message': 'Anda telah berhasil mendaftar, mohon tunggu verifikasi. Periksa email Anda secara berkala.',
+        'message':
+            'Anda telah berhasil mendaftar, mohon tunggu verifikasi. Periksa email Anda secara berkala.',
         'done_button': 'Selesai',
       },
       'forgotPassword': {
         'title': 'Lupa Kata Sandi',
-        'instruction': 'Masukkan email akun Anda untuk menerima link pemulihan kata sandi.',
+        'instruction':
+            'Masukkan email akun Anda untuk menerima link pemulihan kata sandi.',
         'email_label': 'Alamat Email',
         'send_link_button': 'Kirim Link Reset',
         'success_dialog_title': 'Berhasil',
-        'success_dialog_content': 'Link untuk mereset kata sandi telah dikirim ke email:\n',
+        'success_dialog_content':
+            'Link untuk mereset kata sandi telah dikirim ke email:\n',
         'ok_button': 'OK',
         'invalid_email_message': 'Mohon masukkan alamat email yang valid.',
         'error_occurred': 'Terjadi kesalahan',
       },
       'changePassword': {
         'title': 'Ubah Password',
-        'instruction': 'Untuk keamanan, silakan masukkan password lama Anda dan buat password baru.',
+        'instruction':
+            'Untuk keamanan, silakan masukkan password lama Anda dan buat password baru.',
         'current_password': 'Password Saat Ini',
         'current_password_empty': 'Password saat ini tidak boleh kosong',
         'new_password': 'Password Baru',
@@ -834,9 +885,7 @@ class AppStrings {
         'save_new_password': 'Simpan Password Baru',
         'password_updated': 'Password berhasil diperbarui!',
       },
-      'splash': {
-        'app_name': 'M-Clearance ISam',
-      },
+      'splash': {'app_name': 'M-Clearance ISam'},
       //endregion
 
       //region User Screens
@@ -871,7 +920,8 @@ class AppStrings {
         'all': 'Semua',
         'search_hint': 'Cari berdasarkan nama kapal atau pelabuhan...',
         'empty_title': 'Tidak ada apa-apa. Untuk saat ini.',
-        'empty_subtitle': 'Di sinilah Anda akan menemukan\nriwayat pengajuan Anda.',
+        'empty_subtitle':
+            'Di sinilah Anda akan menemukan\nriwayat pengajuan Anda.',
         'waiting': 'MENUNGGU VERIFIKASI',
         'revision': 'PERLU DIPERBAIKI',
         'approved': 'DITERIMA',
@@ -910,9 +960,7 @@ class AppStrings {
         'title': 'Privasi & Keamanan',
         'content': 'Layar Privasi & Keamanan',
       },
-      'languageSelection': {
-        'title': 'Pilih Bahasa',
-      },
+      'languageSelection': {'title': 'Pilih Bahasa'},
       'editAgentProfile': {
         'title': 'Ubah Profil Agen',
         'select_image_source': 'Pilih Sumber Gambar',
@@ -931,12 +979,15 @@ class AppStrings {
         'error': 'Gagal memperbarui profil',
         'profile_updated': 'Profil berhasil diperbarui!',
         'permission_required': 'Izin Diperlukan',
-        'camera_permission_message': 'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
-        'storage_permission_message': 'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
+        'camera_permission_message':
+            'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
+        'storage_permission_message':
+            'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
         'cancel': 'Batal',
         'open_settings': 'Buka Pengaturan',
         'email_changed_title': 'Email Berubah',
-        'email_changed_body': 'Email Anda telah berubah. Silakan masuk lagi dengan email baru Anda.',
+        'email_changed_body':
+            'Email Anda telah berubah. Silakan masuk lagi dengan email baru Anda.',
         'ok': 'OK',
       },
       'clearanceForm': {
@@ -964,7 +1015,8 @@ class AppStrings {
         'back': 'Kembali',
         'upload_instruction': 'Mohon unggah dokumen yang diperlukan',
         'port_clearance': 'Port Clearance',
-        'port_clearance_subtitle': 'Unggah Port Clearance dari pelabuhan sebelumnya',
+        'port_clearance_subtitle':
+            'Unggah Port Clearance dari pelabuhan sebelumnya',
         'crew_list': 'Daftar Kru',
         'crew_list_subtitle': 'Unggah dokumen daftar kru yang valid',
         'notification_letter': 'Surat Pemberitahuan',
@@ -980,15 +1032,18 @@ class AppStrings {
         'not_uploaded': 'Belum diunggah',
         'submit_application': 'Kirim Pengajuan',
         'submit_dialog_title': 'Kirim',
-        'submit_dialog_content': 'Apakah Anda yakin data pengajuan Anda sudah benar? Kirim untuk melanjutkan. Kami akan segera meninjau pengajuan Anda.',
+        'submit_dialog_content':
+            'Apakah Anda yakin data pengajuan Anda sudah benar? Kirim untuk melanjutkan. Kami akan segera meninjau pengajuan Anda.',
         'cancel': 'Batal',
         'send': 'Kirim',
         'gallery': 'Pilih dari Galeri',
         'camera': 'Ambil Gambar via Kamera',
         'file_picker': 'Pilih dari File',
         'permission_required': 'Izin Diperlukan',
-        'camera_permission_message': 'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
-        'storage_permission_message': 'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
+        'camera_permission_message':
+            'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
+        'storage_permission_message':
+            'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
         'open_settings': 'Buka Pengaturan',
         'arrival_form': 'Form Clearance Kedatangan',
         'departure_form': 'Form Clearance Keberangkatan',
@@ -1018,7 +1073,8 @@ class AppStrings {
         'debug_update': 'DEBUG: Memperbarui permohonan yang ada',
         'debug_submit': 'DEBUG: Mengirim permohonan baru',
         'debug_success': 'DEBUG: Pengiriman permohonan berhasil, ID',
-        'debug_failed': 'DEBUG: Pengiriman permohonan gagal - tidak ada ID yang dikembalikan',
+        'debug_failed':
+            'DEBUG: Pengiriman permohonan gagal - tidak ada ID yang dikembalikan',
         'debug_error': 'DEBUG: Error di _performSubmission',
         'debug_error_type': 'DEBUG: Tipe error',
         'debug_firebase_code': 'DEBUG: Kode error Firebase',
@@ -1026,10 +1082,13 @@ class AppStrings {
       },
       'submissionSent': {
         'title': 'Verifikasi Berkas',
-        'message': 'Pengajuan Anda sedang diproses. Status akan diperbarui di halaman riwayat setelah diverifikasi oleh petugas.',
+        'message':
+            'Pengajuan Anda sedang diproses. Status akan diperbarui di halaman riwayat setelah diverifikasi oleh petugas.',
         'thank_you': 'Terima kasih atas pengajuan Anda!',
-        'submission_received': 'Permohonan Anda telah diterima dan sedang diproses.',
-        'tracking_info': 'Anda dapat melacak status permohonan di bagian Riwayat.',
+        'submission_received':
+            'Permohonan Anda telah diterima dan sedang diproses.',
+        'tracking_info':
+            'Anda dapat melacak status permohonan di bagian Riwayat.',
         'back_to_home': 'Kembali ke Beranda',
         'view_history': 'Lihat Riwayat',
         'support_info': 'Butuh bantuan? Hubungi tim dukungan kami.',
@@ -1037,8 +1096,10 @@ class AppStrings {
       'submissionWaiting': {
         'submission_received': 'Permohonan Diterima',
         'processing': 'Kami sedang memproses permohonan Anda',
-        'review_time': 'Tim kami akan meninjau permohonan Anda dalam 1-2 hari kerja.',
-        'notification_info': 'Anda akan menerima notifikasi setelah permohonan ditinjau.',
+        'review_time':
+            'Tim kami akan meninjau permohonan Anda dalam 1-2 hari kerja.',
+        'notification_info':
+            'Anda akan menerima notifikasi setelah permohonan ditinjau.',
         'check_status': 'Periksa Status',
         'back_to_home': 'Kembali ke Beranda',
         'estimated_time': 'Estimasi waktu pemrosesan: 1-2 hari kerja',
@@ -1074,8 +1135,10 @@ class AppStrings {
         'spb_title': 'Surat Persetujuan Berlayar',
         'immigration_office': 'Kantor Imigrasi Kelas II TPI Sampit',
         'approved_status': 'DISETUJUI',
-        'approved_subtitle_arrival': 'Permohonan clearance kedatangan telah disetujui.',
-        'approved_subtitle_departure': 'Permohonan clearance keberangkatan telah disetujui.',
+        'approved_subtitle_arrival':
+            'Permohonan clearance kedatangan telah disetujui.',
+        'approved_subtitle_departure':
+            'Permohonan clearance keberangkatan telah disetujui.',
         'ship_details': 'Detail Kapal',
         'ship_name': 'Nama Kapal',
         'flag': 'Bendera',
@@ -1094,7 +1157,8 @@ class AppStrings {
       'userNotifications': {
         'title': 'Notifikasi',
         'empty_title': 'Tidak ada apa-apa. Untuk saat ini.',
-        'empty_subtitle': 'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
+        'empty_subtitle':
+            'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
         'mark_all_read_success': 'Semua notifikasi ditandai terbaca',
         'mark_read_failed': 'Gagal menandai notifikasi sebagai terbaca',
         'mark_single_read_failed': 'Gagal menandai notifikasi sebagai terbaca',
@@ -1115,7 +1179,8 @@ class AppStrings {
         'mark_all_read': 'Tandai semua terbaca',
         'load_error': 'Error memuat notifikasi',
         'no_notifications': 'Belum ada notifikasi',
-        'no_notifications_desc': 'Ketika Anda memiliki notifikasi, mereka akan muncul di sini',
+        'no_notifications_desc':
+            'Ketika Anda memiliki notifikasi, mereka akan muncul di sini',
         'delete_success': 'Notifikasi dihapus',
         'unread': 'Belum dibaca',
       },
@@ -1126,7 +1191,7 @@ class AppStrings {
         'view_notifications': 'Lihat Notifikasi',
       },
       //endregion
-      
+
       //region Officer Screens
       'adminHome': {
         'home': 'Beranda',
@@ -1213,6 +1278,7 @@ class AppStrings {
         'username': 'Username',
         'email': 'Email',
         'registration_docs': 'Dokumen Registrasi',
+        'documents_empty': 'Belum ada dokumen yang diunggah.',
         'view_nib': 'Lihat File NIB',
         'view_ktp': 'Lihat File KTP',
         'reject': 'Tolak',
@@ -1229,6 +1295,14 @@ class AppStrings {
         'nationality': 'Kebangsaan',
         'role': 'Peran',
         'corporate_name': 'Nama Perusahaan',
+        'status': 'Status',
+        'account_metadata': 'Metadata Akun',
+        'created_at': 'Dibuat Pada',
+        'updated_at': 'Diperbarui Pada',
+        'email_verified': 'Email terverifikasi',
+        'email_not_verified': 'Email belum terverifikasi',
+        'documents_uploaded': 'Dokumen telah diunggah',
+        'documents_missing': 'Dokumen belum diunggah',
         'approve': 'Setujui',
         'reason_hint': 'Masukkan alasan di sini...',
       },
@@ -1251,7 +1325,8 @@ class AppStrings {
         'action': 'Tindakan',
         'reject_submission': 'Tolak Pengajuan',
         'finish_verification': 'Selesai Verifikasi',
-        'check_all_docs_warning': 'Harap periksa semua dokumen terlebih dahulu.',
+        'check_all_docs_warning':
+            'Harap periksa semua dokumen terlebih dahulu.',
         'revision_sent_success': 'Status perbaikan telah dikirim ke agen.',
         'approved_success': 'Pengajuan telah disetujui.',
         'rejected_success': 'Pengajuan telah ditolak.',
@@ -1332,12 +1407,15 @@ class AppStrings {
         'saving': 'Menyimpan...',
         'profile_updated': 'Profil berhasil diperbarui!',
         'permission_required': 'Izin Diperlukan',
-        'camera_permission_message': 'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
-        'storage_permission_message': 'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
+        'camera_permission_message':
+            'Izin kamera diperlukan untuk mengambil foto. Silakan aktifkan di pengaturan aplikasi.',
+        'storage_permission_message':
+            'Izin penyimpanan diperlukan untuk mengakses foto. Silakan aktifkan di pengaturan aplikasi.',
         'cancel': 'Batal',
         'open_settings': 'Buka Pengaturan',
         'email_changed_title': 'Email Berubah',
-        'email_changed_body': 'Email Anda telah berubah. Silakan masuk lagi dengan email baru Anda.',
+        'email_changed_body':
+            'Email Anda telah berubah. Silakan masuk lagi dengan email baru Anda.',
         'ok': 'OK',
         'error': 'Gagal memperbarui profil',
         'failed_to_pick_image': 'Gagal memilih gambar',
@@ -1345,15 +1423,20 @@ class AppStrings {
       'officerNotifications': {
         'title': 'Notifikasi',
         'mark_all_read_tooltip': 'Tandai semua terbaca',
-        'mark_all_read_message': 'Semua notifikasi ditandai terbaca (simulasi).',
+        'mark_all_read_message':
+            'Semua notifikasi ditandai terbaca (simulasi).',
         'empty_title': 'Tidak ada apa-apa. Untuk saat ini.',
-        'empty_subtitle': 'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
+        'empty_subtitle':
+            'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
         'new_agent_reg_title': 'Pendaftaran Agen Baru',
-        'new_agent_reg_body': 'PT. Bintang Samudera telah mengajukan pendaftaran. Mohon periksa dokumennya.',
+        'new_agent_reg_body':
+            'PT. Bintang Samudera telah mengajukan pendaftaran. Mohon periksa dokumennya.',
         'submission_needs_review_title': 'Pengajuan Perlu Diperiksa',
-        'submission_needs_review_body': 'KM. Egon telah mengirimkan pengajuan kedatangan yang perlu Anda periksa.',
+        'submission_needs_review_body':
+            'KM. Egon telah mengirimkan pengajuan kedatangan yang perlu Anda periksa.',
         'system_notice_title': 'Pemberitahuan Sistem',
-        'system_notice_body': 'Pembaruan sistem terjadwal akan dilakukan malam ini pukul 02:00 WIB.',
+        'system_notice_body':
+            'Pembaruan sistem terjadwal akan dilakukan malam ini pukul 02:00 WIB.',
       },
       'officerSettings': {
         'title': 'Pengaturan',
@@ -1367,11 +1450,14 @@ class AppStrings {
         'editProfile': 'Ubah Profil',
         'notification_preferences': 'Preferensi Notifikasi',
         'new_registration_notifications': 'Notifikasi Pendaftaran Baru',
-        'new_registration_notifications_desc': 'Dapatkan notifikasi saat agen baru mendaftar',
+        'new_registration_notifications_desc':
+            'Dapatkan notifikasi saat agen baru mendaftar',
         'submission_review_notifications': 'Notifikasi Tinjauan Pengajuan',
-        'submission_review_notifications_desc': 'Dapatkan notifikasi saat pengajuan perlu ditinjau',
+        'submission_review_notifications_desc':
+            'Dapatkan notifikasi saat pengajuan perlu ditinjau',
         'system_notifications': 'Notifikasi Sistem',
-        'system_notifications_desc': 'Terima pembaruan sistem dan pemberitahuan pemeliharaan',
+        'system_notifications_desc':
+            'Terima pembaruan sistem dan pemberitahuan pemeliharaan',
         'notification_sound': 'Suara Notifikasi',
         'notification_sound_desc': 'Putar suara untuk notifikasi',
         'work_schedule': 'Jadwal Kerja',
@@ -1384,9 +1470,11 @@ class AppStrings {
         'pending_accounts': 'Akun Tertunda',
         'officer_configurations': 'Konfigurasi Petugas',
         'auto_approve_low_risk': 'Setujui Otomatis Risiko Rendah',
-        'auto_approve_low_risk_desc': 'Setujui otomatis pengajuan risiko rendah',
+        'auto_approve_low_risk_desc':
+            'Setujui otomatis pengajuan risiko rendah',
         'notification_threshold': 'Ambang Batas Notifikasi',
-        'notification_threshold_desc': 'Jumlah item tertunda minimum untuk memicu notifikasi',
+        'notification_threshold_desc':
+            'Jumlah item tertunda minimum untuk memicu notifikasi',
         'detailed_logging': 'Pencatatan Detail',
         'detailed_logging_desc': 'Aktifkan pencatatan aktivitas detail',
         'N/A': 'N/A',
@@ -1418,7 +1506,9 @@ class AppStrings {
     if (id != null) return id;
     // Not found
     // For now, return a detailed error message to help with debugging.
-    debugPrint('Localization key not found: $screenKey.$stringKey for language $code');
+    debugPrint(
+      'Localization key not found: $screenKey.$stringKey for language $code',
+    );
     return '[$screenKey.$stringKey]';
   }
 }
