@@ -2,9 +2,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum AccountStatus { pending, verified, rejected }
 
+String _stringOrEmpty(dynamic value) {
+  if (value == null) return '';
+  if (value is String) return value;
+  return value.toString();
+}
+
 class UserAccount {
   final String uid;
   final String name;
+  final String corporateName;
+  final String fullName;
   final String username;
   final String email;
   final String password;
@@ -18,6 +26,8 @@ class UserAccount {
   UserAccount({
     required this.uid,
     required this.name,
+    this.corporateName = '',
+    this.fullName = '',
     required this.username,
     required this.email,
     required this.password,
@@ -32,6 +42,20 @@ class UserAccount {
 
   factory UserAccount.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final corporateNameRaw = _stringOrEmpty(data['corporateName']);
+    final fullNameRaw = _stringOrEmpty(data['fullName']);
+    final usernameRaw = _stringOrEmpty(data['username']);
+    final nameRaw = _stringOrEmpty(data['name']);
+    final fallbackName = corporateNameRaw.isNotEmpty
+        ? corporateNameRaw
+        : fullNameRaw.isNotEmpty
+        ? fullNameRaw
+        : nameRaw.isNotEmpty
+        ? nameRaw
+        : usernameRaw;
+    final profileImageRaw = _stringOrEmpty(
+      data['profileImageUrl'] ?? data['photoURL'],
+    );
     AccountStatus status;
     if (data['status'] is int) {
       status = AccountStatus.values[data['status']];
@@ -56,13 +80,17 @@ class UserAccount {
     }
     return UserAccount(
       uid: doc.id,
-      name: data['corporateName'] ?? data['name'] ?? '',
-      username: data['username'] ?? '',
-      email: data['email'] ?? '',
-      password: data['password'] ?? '',
-      nibFileName: data['nibFileName'] ?? '',
-      ktpFileName: data['ktpFileName'] ?? '',
-      profileImageUrl: data['profileImageUrl'] as String?,
+      name: fallbackName,
+      corporateName: corporateNameRaw.isNotEmpty
+          ? corporateNameRaw
+          : fallbackName,
+      fullName: fullNameRaw.isNotEmpty ? fullNameRaw : fallbackName,
+      username: usernameRaw,
+      email: _stringOrEmpty(data['email']),
+      password: _stringOrEmpty(data['password']),
+      nibFileName: _stringOrEmpty(data['nibFileName']),
+      ktpFileName: _stringOrEmpty(data['ktpFileName']),
+      profileImageUrl: profileImageRaw.isNotEmpty ? profileImageRaw : null,
       status: status,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -72,6 +100,8 @@ class UserAccount {
   Map<String, dynamic> toFirestore() {
     final data = <String, dynamic>{
       'name': name,
+      'corporateName': corporateName,
+      'fullName': fullName,
       'username': username,
       'email': email,
       'password': password,
@@ -96,12 +126,15 @@ class UserAccount {
     return {
       'uid': uid,
       'name': name,
+      'corporateName': corporateName,
+      'fullName': fullName,
       'username': username,
       'email': email,
       'password': password,
       'nibFileName': nibFileName,
       'ktpFileName': ktpFileName,
       'profileImageUrl': profileImageUrl,
+      'photoURL': profileImageUrl,
       'status': status.index,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -109,23 +142,68 @@ class UserAccount {
   }
 
   factory UserAccount.fromJson(Map<String, dynamic> json) {
+    final statusRaw = json['status'];
+    AccountStatus parsedStatus;
+    if (statusRaw is int &&
+        statusRaw >= 0 &&
+        statusRaw < AccountStatus.values.length) {
+      parsedStatus = AccountStatus.values[statusRaw];
+    } else {
+      parsedStatus = AccountStatus.pending;
+    }
+
+    DateTime parseDate(dynamic value) {
+      if (value is String) {
+        return DateTime.tryParse(value) ?? DateTime.now();
+      }
+      if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      return DateTime.now();
+    }
+
+    final nameRaw = _stringOrEmpty(json['name']);
+    final corporateNameRaw = _stringOrEmpty(json['corporateName']);
+    final fullNameRaw = _stringOrEmpty(json['fullName']);
+    final usernameRaw = _stringOrEmpty(json['username']);
+    final fallbackName = nameRaw.isNotEmpty
+        ? nameRaw
+        : corporateNameRaw.isNotEmpty
+        ? corporateNameRaw
+        : fullNameRaw.isNotEmpty
+        ? fullNameRaw
+        : usernameRaw;
+    final resolvedCorporateName = corporateNameRaw.isNotEmpty
+        ? corporateNameRaw
+        : fallbackName;
+    final resolvedFullName = fullNameRaw.isNotEmpty
+        ? fullNameRaw
+        : fallbackName;
+    final profileImage = _stringOrEmpty(
+      json['profileImageUrl'] ?? json['photoURL'],
+    );
+
     return UserAccount(
-      uid: json['uid'],
-      name: json['name'],
-      username: json['username'],
-      email: json['email'],
-      password: json['password'],
-      nibFileName: json['nibFileName'],
-      ktpFileName: json['ktpFileName'],
-      profileImageUrl: json['profileImageUrl'],
-      status: AccountStatus.values[json['status']],
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      uid: _stringOrEmpty(json['uid']),
+      name: fallbackName,
+      corporateName: resolvedCorporateName,
+      fullName: resolvedFullName,
+      username: usernameRaw,
+      email: _stringOrEmpty(json['email']),
+      password: _stringOrEmpty(json['password']),
+      nibFileName: _stringOrEmpty(json['nibFileName']),
+      ktpFileName: _stringOrEmpty(json['ktpFileName']),
+      profileImageUrl: profileImage.isNotEmpty ? profileImage : null,
+      status: parsedStatus,
+      createdAt: parseDate(json['createdAt']),
+      updatedAt: parseDate(json['updatedAt']),
     );
   }
 
   UserAccount copyWith({
     String? name,
+    String? corporateName,
+    String? fullName,
     String? email,
     String? profileImageUrl,
     AccountStatus? status,
@@ -134,6 +212,8 @@ class UserAccount {
     return UserAccount(
       uid: uid,
       name: name ?? this.name,
+      corporateName: corporateName ?? this.corporateName,
+      fullName: fullName ?? this.fullName,
       username: username,
       email: email ?? this.email,
       password: password,

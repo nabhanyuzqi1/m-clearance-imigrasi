@@ -829,6 +829,9 @@ exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
 
  const callerEmail = (context.auth.token && context.auth.token.email) || '';
  const targetUserRef = db.collection('users').doc(targetUid);
+ const applicationRef = db.collection('applications').doc(targetUid);
+
+ let applicationData = null;
 
  await db.runTransaction(async (txn) => {
    const snap = await txn.get(targetUserRef);
@@ -851,30 +854,28 @@ exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
    }
    txn.update(targetUserRef, updates);
 
-   // Generate clearance document if approved
    if (decision === 'approved') {
-     // Get application data
-     const applicationRef = db.collection('applications').doc(targetUid);
-     const applicationSnap = await applicationRef.get();
-     if (!applicationSnap.exists) {
-       throw new functions.https.HttpsError('not-found', 'Application document not found.');
-     }
-     const applicationData = applicationSnap.data() || {};
-
-     // Generate and upload clearance document
-     try {
-       const documentUrl = await generateClearanceDocument(targetUid, applicationData);
-       // Save document URL to application
-       await db.collection('applications').doc(targetUid).update({ clearanceDocumentUrl: documentUrl });
-     } catch (e) {
-       console.error('[officerDecideAccount] generateClearanceDocument error:', e);
-       // Optionally, you might want to handle the error more gracefully
-       // For example, set a flag in the user document to indicate that the document generation failed
-       // and needs to be retried.
-       throw new functions.https.HttpsError('internal', 'Failed to generate clearance document.');
+     const applicationSnap = await txn.get(applicationRef);
+     if (applicationSnap.exists) {
+       applicationData = applicationSnap.data() || {};
+     } else {
+       logger.warn(`[officerDecideAccount] No application document found for uid ${targetUid}. Skipping clearance document generation.`);
      }
    }
  });
+
+ if (decision === 'approved' && applicationData) {
+   try {
+     const documentUrl = await generateClearanceDocument(targetUid, applicationData);
+     await applicationRef.update({
+       clearanceDocumentUrl: documentUrl,
+       updatedAt: FieldValue.serverTimestamp(),
+     });
+   } catch (e) {
+     logger.error('[officerDecideAccount] generateClearanceDocument error:', e);
+     throw new functions.https.HttpsError('internal', 'Failed to generate clearance document.');
+   }
+ }
 
  return { ok: true, uid: targetUid, status: decision };
 });
