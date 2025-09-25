@@ -11,6 +11,7 @@ import '../../../models/officer_activity.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/notification_service.dart';
 import '../../../services/officer_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_bottom_navbar.dart';
@@ -48,7 +49,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   void initState() {
     super.initState();
-    LoggingService().info('ProfileScreen initialized for admin: ${widget.adminName}');
+    LoggingService().info(
+      'ProfileScreen initialized for admin: ${widget.adminName}',
+    );
     _loadSelectedIndex();
   }
 
@@ -114,23 +117,30 @@ class AdminMenuScreen extends StatefulWidget {
 class _AdminMenuScreenState extends State<AdminMenuScreen> {
   final FunctionsService _functionsService = FunctionsService();
   final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService();
 
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _dashboardSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _dashboardSubscription;
+  StreamSubscription<int>? _notificationSubscription;
   Map<String, dynamic>? _stats;
   bool _isLoadingStats = true;
+  int _unreadNotifications = 0;
 
-  bool get _showSkeleton => _isLoadingStats && (_stats == null || _stats!.isEmpty);
+  bool get _showSkeleton =>
+      _isLoadingStats && (_stats == null || _stats!.isEmpty);
 
   @override
   void initState() {
     super.initState();
     _fetchInitialStats();
     _listenToRealtimeCounters();
+    _listenToNotifications();
   }
 
   @override
   void dispose() {
     _dashboardSubscription?.cancel();
+    _notificationSubscription?.cancel();
     super.dispose();
   }
 
@@ -156,23 +166,44 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
         .collection('counters')
         .doc('dashboard')
         .snapshots()
-        .listen((snapshot) {
-      final data = snapshot.data();
-      if (!mounted || data == null) return;
-      setState(() {
-        _stats = {
-          ...?_stats,
-          if (data.containsKey('pendingAccounts'))
-            'pendingAccounts': (data['pendingAccounts'] as num?)?.toInt() ?? 0,
-          if (data.containsKey('pendingArrival'))
-            'pendingArrival': (data['pendingArrival'] as num?)?.toInt() ?? 0,
-          if (data.containsKey('pendingDeparture'))
-            'pendingDeparture': (data['pendingDeparture'] as num?)?.toInt() ?? 0,
-        };
-      });
-    }, onError: (error) {
-      LoggingService().error('Error listening to dashboard counters', error);
-    });
+        .listen(
+          (snapshot) {
+            final data = snapshot.data();
+            if (!mounted || data == null) return;
+            setState(() {
+              _stats = {
+                ...?_stats,
+                if (data.containsKey('pendingAccounts'))
+                  'pendingAccounts':
+                      (data['pendingAccounts'] as num?)?.toInt() ?? 0,
+                if (data.containsKey('pendingArrival'))
+                  'pendingArrival':
+                      (data['pendingArrival'] as num?)?.toInt() ?? 0,
+                if (data.containsKey('pendingDeparture'))
+                  'pendingDeparture':
+                      (data['pendingDeparture'] as num?)?.toInt() ?? 0,
+              };
+            });
+          },
+          onError: (error) {
+            LoggingService().error(
+              'Error listening to dashboard counters',
+              error,
+            );
+          },
+        );
+  }
+
+  void _listenToNotifications() {
+    _notificationSubscription = _notificationService.getUnreadCount().listen(
+      (count) {
+        if (!mounted) return;
+        setState(() => _unreadNotifications = count);
+      },
+      onError: (error) {
+        LoggingService().error('Error listening to notification count', error);
+      },
+    );
   }
 
   int _statValue(String key) {
@@ -201,7 +232,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
         automaticallyImplyLeading: false,
         actions: [
           NotificationIconWithBadge(
-            badgeCount: 0,
+            badgeCount: _unreadNotifications,
             onPressed: () {
               Navigator.push(
                 context,
@@ -223,7 +254,8 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
           builder: (context, userSnapshot) {
             final userRole = userSnapshot.data?.role ?? 'officer';
             final userAccount = userSnapshot.data;
-            final fetchedCorporateName = userAccount?.corporateName.trim() ?? '';
+            final fetchedCorporateName =
+                userAccount?.corporateName.trim() ?? '';
             final fetchedFullName = userAccount?.fullName.trim() ?? '';
             final fallbackCorporateName = widget.adminCorporateName.trim();
             final fallbackFullName = widget.adminName.trim();
@@ -231,12 +263,13 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
             final primaryName = fetchedCorporateName.isNotEmpty
                 ? fetchedCorporateName
                 : fetchedFullName.isNotEmpty
-                    ? fetchedFullName
-                    : fallbackCorporateName.isNotEmpty
-                        ? fallbackCorporateName
-                        : fallbackFullName;
+                ? fetchedFullName
+                : fallbackCorporateName.isNotEmpty
+                ? fallbackCorporateName
+                : fallbackFullName;
 
-            final secondaryName = fetchedCorporateName.isNotEmpty && fetchedFullName.isNotEmpty
+            final secondaryName =
+                fetchedCorporateName.isNotEmpty && fetchedFullName.isNotEmpty
                 ? fetchedFullName
                 : '';
 
@@ -246,7 +279,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
             final displayPhotoUrl = userAccount?.photoURL ?? widget.photoURL;
 
-            LoggingService().info('Admin Home Screen: photoURL = $displayPhotoUrl');
+            LoggingService().info(
+              'Admin Home Screen: photoURL = $displayPhotoUrl',
+            );
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,11 +292,18 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                     CircleAvatar(
                       radius: screenWidth * 0.08,
                       backgroundColor: AppTheme.greyShade200,
-                      backgroundImage: (displayPhotoUrl != null && displayPhotoUrl.isNotEmpty)
+                      backgroundImage:
+                          (displayPhotoUrl != null &&
+                              displayPhotoUrl.isNotEmpty)
                           ? NetworkImage(displayPhotoUrl)
                           : null,
-                      child: (displayPhotoUrl == null || displayPhotoUrl.isEmpty)
-                          ? Icon(Icons.person, size: screenWidth * 0.08, color: AppTheme.greyColor)
+                      child:
+                          (displayPhotoUrl == null || displayPhotoUrl.isEmpty)
+                          ? Icon(
+                              Icons.person,
+                              size: screenWidth * 0.08,
+                              color: AppTheme.greyColor,
+                            )
                           : null,
                     ),
                     SizedBox(width: screenWidth * 0.04),
@@ -271,11 +313,15 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                         children: [
                           Text(
                             '${tr('welcome')},',
-                            style: AppTheme.bodyMedium(context).copyWith(color: AppTheme.greyColor),
+                            style: AppTheme.bodyMedium(
+                              context,
+                            ).copyWith(color: AppTheme.greyColor),
                           ),
                           Text(
                             primaryName,
-                            style: AppTheme.headingSmall(context).copyWith(color: AppTheme.blackColor),
+                            style: AppTheme.headingSmall(
+                              context,
+                            ).copyWith(color: AppTheme.blackColor),
                             overflow: TextOverflow.ellipsis,
                           ),
                           if (secondaryName.isNotEmpty)
@@ -283,8 +329,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                               padding: EdgeInsets.only(top: screenWidth * 0.01),
                               child: Text(
                                 secondaryName,
-                                style: AppTheme.bodyMedium(context)
-                                    .copyWith(color: AppTheme.greyShade600),
+                                style: AppTheme.bodyMedium(
+                                  context,
+                                ).copyWith(color: AppTheme.greyShade600),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -296,7 +343,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                 SizedBox(height: verticalSpacing * 1.5),
                 Text(
                   tr('services'),
-                  style: AppTheme.headingSmall(context).copyWith(color: AppTheme.blackColor),
+                  style: AppTheme.headingSmall(
+                    context,
+                  ).copyWith(color: AppTheme.blackColor),
                 ),
                 SizedBox(height: verticalSpacing),
                 _buildStatsAwareCard(
@@ -311,7 +360,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => ArrivalVerificationScreen(adminName: officerFullName),
+                        builder: (context) => ArrivalVerificationScreen(
+                          adminName: officerFullName,
+                        ),
                       ),
                     );
                   },
@@ -329,7 +380,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => DepartureVerificationScreen(adminName: officerFullName),
+                        builder: (context) => DepartureVerificationScreen(
+                          adminName: officerFullName,
+                        ),
                       ),
                     );
                   },
@@ -347,7 +400,8 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const AccountVerificationListScreen(),
+                        builder: (context) =>
+                            const AccountVerificationListScreen(),
                       ),
                     );
                   },
@@ -374,7 +428,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                 SizedBox(height: verticalSpacing * 2),
                 Text(
                   tr('recent_activities'),
-                  style: AppTheme.labelLarge(context).copyWith(color: AppTheme.blackColor),
+                  style: AppTheme.labelLarge(
+                    context,
+                  ).copyWith(color: AppTheme.blackColor),
                 ),
                 SizedBox(height: verticalSpacing),
                 StreamBuilder<List<OfficerActivity>>(
@@ -385,7 +441,10 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                     }
 
                     if (snapshot.hasError) {
-                      LoggingService().error('Error loading officer activities', snapshot.error);
+                      LoggingService().error(
+                        'Error loading officer activities',
+                        snapshot.error,
+                      );
                       return Center(
                         child: Text(
                           tr('error_loading_activities'),
@@ -409,9 +468,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                             SizedBox(height: AppTheme.spacing16),
                             Text(
                               tr('no_recent_activities'),
-                              style: AppTheme.bodyMedium(context).copyWith(
-                                color: AppTheme.greyColor,
-                              ),
+                              style: AppTheme.bodyMedium(
+                                context,
+                              ).copyWith(color: AppTheme.greyColor),
                               textAlign: TextAlign.center,
                             ),
                           ],
@@ -421,11 +480,15 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
                     return Column(
                       children: activities.map((activity) {
-                        final statusColor = _getActivityStatusColor(activity.status);
+                        final statusColor = _getActivityStatusColor(
+                          activity.status,
+                        );
                         final iconData = _getActivityIcon(activity.iconData);
 
                         return Container(
-                          margin: EdgeInsets.only(bottom: verticalSpacing * 0.5),
+                          margin: EdgeInsets.only(
+                            bottom: verticalSpacing * 0.5,
+                          ),
                           padding: EdgeInsets.all(verticalSpacing),
                           decoration: BoxDecoration(
                             color: AppTheme.whiteColor,
@@ -454,12 +517,20 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                                     Text(
                                       activity.title,
                                       style: AppTheme.bodyMedium(context)
-                                          .copyWith(fontWeight: FontWeight.bold, color: AppTheme.blackColor),
+                                          .copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.blackColor,
+                                          ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
-                                      _formatActivityDate(context, activity.date),
-                                      style: AppTheme.bodySmall(context).copyWith(color: AppTheme.greyColor),
+                                      _formatActivityDate(
+                                        context,
+                                        activity.date,
+                                      ),
+                                      style: AppTheme.bodySmall(
+                                        context,
+                                      ).copyWith(color: AppTheme.greyColor),
                                     ),
                                   ],
                                 ),
@@ -476,10 +547,11 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                                   ),
                                   child: Text(
                                     activity.status!.toUpperCase(),
-                                    style: AppTheme.labelSmall(context).copyWith(
-                                      color: statusColor,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: AppTheme.labelSmall(context)
+                                        .copyWith(
+                                          color: statusColor,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                   ),
                                 ),
                             ],
@@ -517,7 +589,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
       );
     }
 
-    final subtitle = badgeCount > 0 ? '$baseSubtitle ($badgeCount)' : baseSubtitle;
+    final subtitle = badgeCount > 0
+        ? '$baseSubtitle ($badgeCount)'
+        : baseSubtitle;
     return _buildServiceCard(
       context,
       title: title,
@@ -594,7 +668,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                     subtitle,
                     style: TextStyle(
                       fontSize: subtitleFontSize,
-                      color: isPrimary ? AppTheme.whiteColor70 : AppTheme.greyColor,
+                      color: isPrimary
+                          ? AppTheme.whiteColor70
+                          : AppTheme.greyColor,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -602,7 +678,11 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
               ),
             ),
             SizedBox(width: screenWidth * 0.02),
-            Icon(iconData, size: iconSize, color: isPrimary ? Colors.white : color),
+            Icon(
+              iconData,
+              size: iconSize,
+              color: isPrimary ? Colors.white : color,
+            ),
           ],
         ),
       ),
