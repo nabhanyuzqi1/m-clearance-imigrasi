@@ -709,10 +709,16 @@ class AppStrings {
       'officerNotifications': {
         'title': 'Notifications',
         'mark_all_read_tooltip': 'Mark all as read',
-        'mark_all_read_message':
-            'All notifications marked as read (simulation).',
+        'mark_all_read_message': 'All notifications marked as read.',
         'empty_title': 'Nothing here. For now.',
         'empty_subtitle': "This is where you'll find what is\ngoing on",
+        'mark_read_failed': 'Failed to mark notifications as read',
+        'mark_single_read_failed': 'Failed to mark notification as read',
+        'delete_success': 'Notification deleted',
+        'load_error': 'Error loading notifications',
+        'today': 'Today',
+        'yesterday': 'Yesterday',
+        'days_ago': 'days ago',
         'new_agent_reg_title': 'New Agent Registration',
         'new_agent_reg_body':
             'PT. Bintang Samudera has submitted a registration. Please review the documents.',
@@ -1437,11 +1443,18 @@ class AppStrings {
       'officerNotifications': {
         'title': 'Notifikasi',
         'mark_all_read_tooltip': 'Tandai semua terbaca',
-        'mark_all_read_message':
-            'Semua notifikasi ditandai terbaca (simulasi).',
+        'mark_all_read_message': 'Semua notifikasi ditandai terbaca.',
         'empty_title': 'Tidak ada apa-apa. Untuk saat ini.',
         'empty_subtitle':
             'Di sinilah Anda akan menemukan apa\nyang sedang terjadi',
+        'mark_read_failed': 'Gagal menandai notifikasi sebagai terbaca',
+        'mark_single_read_failed':
+            'Gagal menandai notifikasi ini sebagai terbaca',
+        'delete_success': 'Notifikasi dihapus',
+        'load_error': 'Gagal memuat notifikasi',
+        'today': 'Hari ini',
+        'yesterday': 'Kemarin',
+        'days_ago': 'hari lalu',
         'new_agent_reg_title': 'Pendaftaran Agen Baru',
         'new_agent_reg_body':
             'PT. Bintang Samudera telah mengajukan pendaftaran. Mohon periksa dokumennya.',

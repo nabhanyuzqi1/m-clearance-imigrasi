@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
@@ -43,12 +45,37 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   Future<void> _loadStats() async {
     setState(() => _isLoadingStats = true);
     try {
-      final todayStats = await _functionsService.getOfficerDashboardStats();
+      final countersSnap = await FirebaseFirestore.instance
+          .collection('counters')
+          .doc('dashboard')
+          .get();
+
+      Map<String, dynamic> todayStats = {
+        'pendingArrival': 0,
+        'pendingDeparture': 0,
+        'pendingAccounts': 0,
+      };
+      if (countersSnap.exists) {
+        final data = countersSnap.data() ?? {};
+        todayStats = {
+          'pendingArrival': (data['pendingArrival'] as num?)?.toInt() ?? 0,
+          'pendingDeparture': (data['pendingDeparture'] as num?)?.toInt() ?? 0,
+          'pendingAccounts': (data['pendingAccounts'] as num?)?.toInt() ?? 0,
+        };
+      }
+
       final monthStats = await _functionsService.getOfficerMonthlyStats();
+      final normalizedMonthStats = {
+        'pendingArrival': (monthStats['pendingArrival'] as num?)?.toInt() ?? 0,
+        'pendingDeparture':
+            (monthStats['pendingDeparture'] as num?)?.toInt() ?? 0,
+        'pendingAccounts':
+            (monthStats['pendingAccounts'] as num?)?.toInt() ?? 0,
+      };
 
       setState(() {
         _todayStats = todayStats;
-        _monthStats = monthStats;
+        _monthStats = normalizedMonthStats;
         _isLoadingStats = false;
       });
     } catch (e) {

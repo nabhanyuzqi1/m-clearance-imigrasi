@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../services/notification_service.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../providers/language_provider.dart';
 import '../../../models/clearance_application.dart';
@@ -41,13 +44,30 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   UserAccount? currentUser;
   bool _isLoadingUser = true;
   final UserService _userService = UserService();
+  final NotificationService _notificationService = NotificationService();
+  StreamSubscription<int>? _notificationSubscription;
+  int _unreadNotifications = 0;
 
   @override
   void initState() {
     super.initState();
-    LoggingService().info('UserHomeScreen initialized with language: ${widget.initialLanguage}');
+    LoggingService().info(
+      'UserHomeScreen initialized with language: ${widget.initialLanguage}',
+    );
     _loadSelectedIndex();
     _loadCurrentUser();
+    _notificationSubscription = _notificationService.getUnreadCount().listen(
+      (count) {
+        if (!mounted) return;
+        setState(() => _unreadNotifications = count);
+      },
+      onError: (error) {
+        LoggingService().error(
+          'Error listening to user notification count',
+          error,
+        );
+      },
+    );
   }
 
   Future<void> _loadCurrentUser() async {
@@ -80,6 +100,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     _loadCurrentUser();
   }
 
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    super.dispose();
+  }
+
   Future<void> _loadSelectedIndex() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -97,7 +123,12 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final maxWidth = isTablet ? 400.0 : double.infinity;
-    final fontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6);
+    final fontSize = AppTheme.responsiveFontSize(
+      context,
+      mobile: AppTheme.fontSizeBody1,
+      tablet: AppTheme.fontSizeH6,
+      desktop: AppTheme.fontSizeH6,
+    );
 
     showDialog(
       context: context,
@@ -105,15 +136,23 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         return Container(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: Center(
-                child: Text(
-              AppLocalizations.of(context).get('userProfile.logout_confirm_title'),
-              style: AppTheme.labelLarge(context).copyWith(
-                  fontWeight: FontWeight.bold),
-            )),
+              child: Text(
+                AppLocalizations.of(
+                  context,
+                ).get('userProfile.logout_confirm_title'),
+                style: AppTheme.labelLarge(
+                  context,
+                ).copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
             content: Text(
-              AppLocalizations.of(context).get('userProfile.logout_confirm_body'),
+              AppLocalizations.of(
+                context,
+              ).get('userProfile.logout_confirm_body'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: fontSize),
             ),
@@ -138,7 +177,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     Navigator.pushReplacementNamed(context, AppRoutes.login);
                   }
                 },
-              )
+              ),
             ],
           ),
         );
@@ -150,7 +189,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   Widget build(BuildContext context) {
     return Consumer<LanguageProvider>(
       builder: (context, languageProvider, child) {
-        final currentLangCode = languageProvider.locale.languageCode.toUpperCase();
+        final currentLangCode = languageProvider.locale.languageCode
+            .toUpperCase();
 
         if (_isLoadingUser && currentUser == null) {
           return Scaffold(
@@ -162,7 +202,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   const SizedBox(height: 16),
                   Text(
                     AppLocalizations.of(context).get('userHome.loading_user'),
-                    style: TextStyle(fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.greyColor),
+                    style: TextStyle(
+                      fontSize: AppTheme.responsiveFontSize(context),
+                      color: AppTheme.greyColor,
+                    ),
                   ),
                 ],
               ),
@@ -171,13 +214,19 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         }
 
         if (currentUser == null) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         final List<Widget> pages = <Widget>[
           UserMenuScreen(
             userAccount: currentUser!,
             initialLanguage: currentLangCode,
+            unreadNotifications: _unreadNotifications,
+            onNotificationsTap: () {
+              Navigator.pushNamed(context, AppRoutes.userNotification);
+            },
           ),
           UserHistoryScreen(
             userAccount: currentUser!,
@@ -210,19 +259,21 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       },
     );
   }
-
-
 }
 
 // User Menu Screen - Main home screen with service cards
 class UserMenuScreen extends StatelessWidget {
   final UserAccount userAccount;
   final String initialLanguage;
+  final int unreadNotifications;
+  final VoidCallback onNotificationsTap;
 
   const UserMenuScreen({
     super.key,
     required this.userAccount,
     required this.initialLanguage,
+    required this.unreadNotifications,
+    required this.onNotificationsTap,
   });
 
   String _tr(BuildContext context, String screenKey, String stringKey) =>
@@ -244,11 +295,9 @@ class UserMenuScreen extends StatelessWidget {
         foregroundColor: AppTheme.blackColor,
         elevation: 0,
         actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.userNotification);
-            },
-            icon: const Icon(Icons.notifications_outlined),
+          NotificationIconWithBadge(
+            badgeCount: unreadNotifications,
+            onPressed: onNotificationsTap,
           ),
         ],
       ),
@@ -264,10 +313,17 @@ class UserMenuScreen extends StatelessWidget {
                   radius: screenWidth * 0.08,
                   backgroundColor: AppTheme.greyShade200,
                   backgroundImage: userAccount.profileImageUrl != null
-                      ? _buildProfileImage(userAccount.profileImageUrl!, screenWidth)
+                      ? _buildProfileImage(
+                          userAccount.profileImageUrl!,
+                          screenWidth,
+                        )
                       : null,
                   child: userAccount.profileImageUrl == null
-                      ? Icon(Icons.person, size: screenWidth * 0.08, color: AppTheme.greyColor)
+                      ? Icon(
+                          Icons.person,
+                          size: screenWidth * 0.08,
+                          color: AppTheme.greyColor,
+                        )
                       : null,
                 ),
                 SizedBox(width: screenWidth * 0.04),
@@ -277,15 +333,15 @@ class UserMenuScreen extends StatelessWidget {
                     children: [
                       Text(
                         _tr(context, 'userHome', 'hello'),
-                        style: AppTheme.bodyMedium(context).copyWith(
-                          color: AppTheme.greyColor,
-                        ),
+                        style: AppTheme.bodyMedium(
+                          context,
+                        ).copyWith(color: AppTheme.greyColor),
                       ),
                       Text(
                         userAccount.name,
-                        style: AppTheme.headingSmall(context).copyWith(
-                          color: AppTheme.blackColor,
-                        ),
+                        style: AppTheme.headingSmall(
+                          context,
+                        ).copyWith(color: AppTheme.blackColor),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -298,9 +354,9 @@ class UserMenuScreen extends StatelessWidget {
             // Service cards
             Text(
               _tr(context, 'userHome', 'services'),
-              style: AppTheme.headingSmall(context).copyWith(
-                color: AppTheme.blackColor,
-              ),
+              style: AppTheme.headingSmall(
+                context,
+              ).copyWith(color: AppTheme.blackColor),
             ),
             SizedBox(height: verticalSpacing),
 
@@ -355,9 +411,9 @@ class UserMenuScreen extends StatelessWidget {
             // Recent applications section
             Text(
               _tr(context, 'userHome', 'recent_applications'),
-              style: AppTheme.labelLarge(context).copyWith(
-                color: AppTheme.blackColor,
-              ),
+              style: AppTheme.labelLarge(
+                context,
+              ).copyWith(color: AppTheme.blackColor),
             ),
             SizedBox(height: verticalSpacing),
 
@@ -394,9 +450,9 @@ class UserMenuScreen extends StatelessWidget {
                         SizedBox(height: verticalSpacing),
                         Text(
                           _tr(context, 'userHome', 'no_applications'),
-                          style: AppTheme.bodyMedium(context).copyWith(
-                            color: AppTheme.greyColor,
-                          ),
+                          style: AppTheme.bodyMedium(
+                            context,
+                          ).copyWith(color: AppTheme.greyColor),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -427,7 +483,9 @@ class UserMenuScreen extends StatelessWidget {
                       child: Row(
                         children: [
                           Icon(
-                            app.type == ApplicationType.kedatangan ? Icons.anchor : Icons.directions_boat,
+                            app.type == ApplicationType.kedatangan
+                                ? Icons.anchor
+                                : Icons.directions_boat,
                             color: AppTheme.primaryColor,
                             size: screenWidth * 0.06,
                           ),
@@ -446,9 +504,9 @@ class UserMenuScreen extends StatelessWidget {
                                 ),
                                 Text(
                                   app.date ?? 'No Date',
-                                  style: AppTheme.bodySmall(context).copyWith(
-                                    color: AppTheme.greyColor,
-                                  ),
+                                  style: AppTheme.bodySmall(
+                                    context,
+                                  ).copyWith(color: AppTheme.greyColor),
                                 ),
                               ],
                             ),
@@ -483,7 +541,8 @@ class UserMenuScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildServiceCard(BuildContext context, {
+  Widget _buildServiceCard(
+    BuildContext context, {
     required String title,
     required String subtitle,
     required IconData icon,
@@ -495,8 +554,18 @@ class UserMenuScreen extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final cardPadding = screenWidth * 0.05;
     final iconSize = screenWidth * 0.08;
-    final titleFontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeH6, tablet: AppTheme.fontSizeH5, desktop: AppTheme.fontSizeH4);
-    final subtitleFontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody2, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1);
+    final titleFontSize = AppTheme.responsiveFontSize(
+      context,
+      mobile: AppTheme.fontSizeH6,
+      tablet: AppTheme.fontSizeH5,
+      desktop: AppTheme.fontSizeH4,
+    );
+    final subtitleFontSize = AppTheme.responsiveFontSize(
+      context,
+      mobile: AppTheme.fontSizeBody2,
+      tablet: AppTheme.fontSizeBody1,
+      desktop: AppTheme.fontSizeBody1,
+    );
 
     return InkWell(
       onTap: onTap,
@@ -511,8 +580,8 @@ class UserMenuScreen extends StatelessWidget {
             BoxShadow(
               color: AppTheme.greyColor.withAlpha(25),
               blurRadius: 10,
-              offset: const Offset(0, 5)
-            )
+              offset: const Offset(0, 5),
+            ),
           ],
         ),
         child: Row(
@@ -536,7 +605,9 @@ class UserMenuScreen extends StatelessWidget {
                     subtitle,
                     style: TextStyle(
                       fontSize: subtitleFontSize,
-                      color: isPrimary ? AppTheme.whiteColor70 : AppTheme.greyColor,
+                      color: isPrimary
+                          ? AppTheme.whiteColor70
+                          : AppTheme.greyColor,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -544,7 +615,11 @@ class UserMenuScreen extends StatelessWidget {
               ),
             ),
             SizedBox(width: screenWidth * 0.02),
-            Icon(serviceIcon, size: iconSize, color: isPrimary ? Colors.white : color),
+            Icon(
+              serviceIcon,
+              size: iconSize,
+              color: isPrimary ? Colors.white : color,
+            ),
           ],
         ),
       ),

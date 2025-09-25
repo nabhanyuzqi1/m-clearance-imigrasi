@@ -51,7 +51,21 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   final _wnaCrewController = TextEditingController();
 
   String? _selectedFlag;
-  final List<String> _countryFlags = ["Indonesia", "Singapura", "Malaysia", "Panama", "Liberia", "Thailand", "Vietnam", "Filipina","Tiongkok", "Jepang", "Korea Selatan", "India", "Amerika Serikat"];
+  final List<String> _countryFlags = [
+    "Indonesia",
+    "Singapura",
+    "Malaysia",
+    "Panama",
+    "Liberia",
+    "Thailand",
+    "Vietnam",
+    "Filipina",
+    "Tiongkok",
+    "Jepang",
+    "Korea Selatan",
+    "India",
+    "Amerika Serikat",
+  ];
   String? _selectedLocation;
   final List<String> _locations = ["Bagendang", "Pulang Pisau"];
 
@@ -59,7 +73,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   Uint8List? _portClearanceFileData;
   Uint8List? _crewListFileData;
   Uint8List? _notificationLetterFileData;
-  String? _portClearanceFileName, _crewListFileName, _notificationLetterFileName;
+  String? _portClearanceFileName,
+      _crewListFileName,
+      _notificationLetterFileName;
 
   final ImagePicker _picker = ImagePicker();
 
@@ -75,7 +91,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   late String _submitApplicationText;
   late String _saving;
 
-  String _tr(String key) => AppLocalizations.of(context).get('clearanceForm.$key');
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('clearanceForm.$key');
 
   void _cacheTranslations() {
     _formInstruction = _tr('form_instruction');
@@ -139,11 +156,15 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
   void _goToStep(int step) {
     if (step > 1 && !_formKey.currentState!.validate()) {
-      LoggingService().warning('Form validation failed, cannot proceed to step $step');
+      LoggingService().warning(
+        'Form validation failed, cannot proceed to step $step',
+      );
       return;
     }
     LoggingService().debug('Navigating to step $step');
-    setState(() { _currentStep = step; });
+    setState(() {
+      _currentStep = step;
+    });
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -151,7 +172,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime(2020),
-      lastDate: DateTime(2030)
+      lastDate: DateTime(2030),
     );
     if (picked != null) {
       setState(() {
@@ -232,40 +253,50 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     }
   }
 
-  Future<String?> _uploadDocumentToStorage(Uint8List fileData, String fileName, String userId, String docType) async {
-    return NetworkUtils.executeWithRetry(
-      () async {
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final fileExtension = fileName.split('.').last;
-        final sanitizedDocType = docType.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_').toLowerCase();
-        final uniqueFileName = '${sanitizedDocType}_${userId}_$timestamp.$fileExtension';
+  Future<String?> _uploadDocumentToStorage(
+    Uint8List fileData,
+    String fileName,
+    String userId,
+    String docType,
+  ) async {
+    return NetworkUtils.executeWithRetry(() async {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileExtension = fileName.split('.').last;
+      final sanitizedDocType = docType
+          .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
+          .toLowerCase();
+      final uniqueFileName =
+          '${sanitizedDocType}_${userId}_$timestamp.$fileExtension';
 
-        final storageRef = FirebaseStorage.instance.ref();
-        final documentRef = storageRef.child('applications/$userId/documents/$uniqueFileName');
+      final storageRef = FirebaseStorage.instance.ref();
+      final documentRef = storageRef.child(
+        'applications/$userId/documents/$uniqueFileName',
+      );
 
-        final uploadTask = documentRef.putData(fileData);
-        final snapshot = await NetworkUtils.withTimeout(
-          uploadTask.whenComplete(() => null),
-          const Duration(seconds: 90),
-        );
+      final uploadTask = documentRef.putData(fileData);
+      final snapshot = await NetworkUtils.withTimeout(
+        uploadTask.whenComplete(() => null),
+        const Duration(seconds: 90),
+      );
 
-        if (snapshot.state == TaskState.success) {
-          try {
-            final downloadUrl = await NetworkUtils.withTimeout(
-              documentRef.getDownloadURL(),
-              const Duration(seconds: 15),
-            );
-            return downloadUrl;
-          } catch (e) {
-            LoggingService().error('Failed to get download URL, returning storage path', e);
-            return documentRef.fullPath;
-          }
-        } else {
-          throw NetworkException(_tr('upload_failed'), isRetryable: true);
+      if (snapshot.state == TaskState.success) {
+        try {
+          final downloadUrl = await NetworkUtils.withTimeout(
+            documentRef.getDownloadURL(),
+            const Duration(seconds: 15),
+          );
+          return downloadUrl;
+        } catch (e) {
+          LoggingService().error(
+            'Failed to get download URL, returning storage path',
+            e,
+          );
+          return documentRef.fullPath;
         }
-      },
-      shouldRetry: NetworkUtils.isRetryableError,
-    ).catchError((e) {
+      } else {
+        throw NetworkException(_tr('upload_failed'), isRetryable: true);
+      }
+    }, shouldRetry: NetworkUtils.isRetryableError).catchError((e) {
       LoggingService().error(_tr('upload_error'), e);
       return '';
     });
@@ -283,7 +314,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 title: Text(_tr('gallery')),
                 onTap: () async {
                   Navigator.of(context).pop();
-                  final hasPermission = await _requestPermissions(ImageSource.gallery);
+                  final hasPermission = await _requestPermissions(
+                    ImageSource.gallery,
+                  );
                   if (hasPermission) {
                     _pickImageFile(ImageSource.gallery, docType);
                   }
@@ -294,7 +327,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 title: Text(_tr('camera')),
                 onTap: () async {
                   Navigator.of(context).pop();
-                  final hasPermission = await _requestPermissions(ImageSource.camera);
+                  final hasPermission = await _requestPermissions(
+                    ImageSource.camera,
+                  );
                   if (hasPermission) {
                     _pickImageFile(ImageSource.camera, docType);
                   }
@@ -355,7 +390,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       );
       if (result == null || result.files.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: AppTheme.errorColor),
+          SnackBar(
+            content: Text(_tr('select_file_failed')),
+            backgroundColor: AppTheme.errorColor,
+          ),
         );
         return;
       }
@@ -363,7 +401,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       final picked = result.files.single;
       if (picked.bytes == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: AppTheme.errorColor),
+          SnackBar(
+            content: Text(_tr('select_file_failed')),
+            backgroundColor: AppTheme.errorColor,
+          ),
         );
         return;
       }
@@ -384,11 +425,17 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_tr('upload_success')}: $name'), backgroundColor: AppTheme.successColor),
+        SnackBar(
+          content: Text('${_tr('upload_success')}: $name'),
+          backgroundColor: AppTheme.successColor,
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: AppTheme.errorColor),
+        SnackBar(
+          content: Text(_tr('select_file_failed')),
+          backgroundColor: AppTheme.errorColor,
+        ),
       );
     }
   }
@@ -398,8 +445,12 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
     LoggingService().info('Submit application button pressed');
 
-    if (_portClearanceFileData == null || _crewListFileData == null || _notificationLetterFileData == null) {
-      LoggingService().warning('Missing required documents, redirecting to upload step');
+    if (_portClearanceFileData == null ||
+        _crewListFileData == null ||
+        _notificationLetterFileData == null) {
+      LoggingService().warning(
+        'Missing required documents, redirecting to upload step',
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_tr('upload_all_docs')),
@@ -419,27 +470,64 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         return Container(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Center(child: Text(_tr('submit_dialog_title'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045))),
-            content: Text(_tr('submit_dialog_content'), textAlign: TextAlign.center, style: TextStyle(fontSize: screenWidth * 0.04)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Center(
+              child: Text(
+                _tr('submit_dialog_title'),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: screenWidth * 0.045,
+                ),
+              ),
+            ),
+            content: Text(
+              _tr('submit_dialog_content'),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: screenWidth * 0.04),
+            ),
             actionsAlignment: MainAxisAlignment.center,
             actions: <Widget>[
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
-                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.08, vertical: screenWidth * 0.03)
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  side: BorderSide(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.08,
+                    vertical: screenWidth * 0.03,
+                  ),
                 ),
-                child: Text(_tr('cancel'), style: TextStyle(color: AppTheme.primaryColor, fontSize: screenWidth * 0.04)),
-                onPressed: () { Navigator.of(context).pop(); },
+                child: Text(
+                  _tr('cancel'),
+                  style: TextStyle(
+                    color: AppTheme.primaryColor,
+                    fontSize: screenWidth * 0.04,
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
               ),
               SizedBox(width: screenWidth * 0.02),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.08, vertical: screenWidth * 0.03)
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.08,
+                    vertical: screenWidth * 0.03,
+                  ),
                 ),
-                child: Text(_tr('send'), style: TextStyle(fontSize: screenWidth * 0.04)),
+                child: Text(
+                  _tr('send'),
+                  style: TextStyle(fontSize: screenWidth * 0.04),
+                ),
                 onPressed: () {
                   Navigator.of(context).pop();
                   _performSubmission();
@@ -458,7 +546,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     try {
       LoggingService().info('Starting application submission process');
       LoggingService().debug('Application type: ${widget.type}');
-      LoggingService().debug('Existing application: ${widget.existingApplication?.id}');
+      LoggingService().debug(
+        'Existing application: ${widget.existingApplication?.id}',
+      );
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -471,28 +561,73 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
       final uploadTasks = <Future<String?>>[];
 
-      if (_portClearanceFileData != null && _portClearanceFileName != null) {
-        uploadTasks.add(_uploadDocumentToStorage(_portClearanceFileData!, _portClearanceFileName!, user.uid, 'port_clearance'));
-      } else {
-        uploadTasks.add(Future.value(null));
+      final portUploadPlanned =
+          _portClearanceFileData != null && _portClearanceFileName != null;
+      final crewUploadPlanned =
+          _crewListFileData != null && _crewListFileName != null;
+      final notificationUploadPlanned =
+          _notificationLetterFileData != null &&
+          _notificationLetterFileName != null;
+
+      if (portUploadPlanned) {
+        uploadTasks.add(
+          _uploadDocumentToStorage(
+            _portClearanceFileData!,
+            _portClearanceFileName!,
+            user.uid,
+            'port_clearance',
+          ),
+        );
       }
 
-      if (_crewListFileData != null && _crewListFileName != null) {
-        uploadTasks.add(_uploadDocumentToStorage(_crewListFileData!, _crewListFileName!, user.uid, 'crew_list'));
-      } else {
-        uploadTasks.add(Future.value(null));
+      if (crewUploadPlanned) {
+        uploadTasks.add(
+          _uploadDocumentToStorage(
+            _crewListFileData!,
+            _crewListFileName!,
+            user.uid,
+            'crew_list',
+          ),
+        );
       }
 
-      if (_notificationLetterFileData != null && _notificationLetterFileName != null) {
-        uploadTasks.add(_uploadDocumentToStorage(_notificationLetterFileData!, _notificationLetterFileName!, user.uid, 'notification_letter'));
-      } else {
-        uploadTasks.add(Future.value(null));
+      if (notificationUploadPlanned) {
+        uploadTasks.add(
+          _uploadDocumentToStorage(
+            _notificationLetterFileData!,
+            _notificationLetterFileName!,
+            user.uid,
+            'notification_letter',
+          ),
+        );
       }
 
       final uploadResults = await Future.wait(uploadTasks);
-      final portClearanceUrl = uploadTasks.isNotEmpty ? uploadResults[0] : null;
-      final crewListUrl = uploadTasks.length > 1 ? uploadResults[1] : null;
-      final notificationLetterUrl = uploadTasks.length > 2 ? uploadResults[2] : null;
+      int resultIndex = 0;
+
+      String? portClearanceUrl;
+      if (portUploadPlanned) {
+        portClearanceUrl = uploadResults[resultIndex++];
+        if (portClearanceUrl == null || portClearanceUrl.isEmpty) {
+          throw Exception(_tr('upload_failed'));
+        }
+      }
+
+      String? crewListUrl;
+      if (crewUploadPlanned) {
+        crewListUrl = uploadResults[resultIndex++];
+        if (crewListUrl == null || crewListUrl.isEmpty) {
+          throw Exception(_tr('upload_failed'));
+        }
+      }
+
+      String? notificationLetterUrl;
+      if (notificationUploadPlanned) {
+        notificationLetterUrl = uploadResults[resultIndex++];
+        if (notificationLetterUrl == null || notificationLetterUrl.isEmpty) {
+          throw Exception(_tr('upload_failed'));
+        }
+      }
 
       LoggingService().info('File uploads completed successfully');
 
@@ -503,33 +638,53 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         agentName: _agentNameController.text,
         agentUid: '', // Will be set by the service
         type: widget.type,
-        port: _portController.text.trim().isEmpty ? null : _portController.text.trim(),
-        date: _dateController.text.trim().isEmpty ? null : _dateController.text.trim(),
-        wniCrew: _wniCrewController.text.trim().isEmpty ? null : _wniCrewController.text.trim(),
-        wnaCrew: _wnaCrewController.text.trim().isEmpty ? null : _wnaCrewController.text.trim(),
-        portClearanceFile: portClearanceUrl ?? _portClearanceFileName,
-        crewListFile: crewListUrl ?? _crewListFileName,
-        notificationLetterFile: notificationLetterUrl ?? _notificationLetterFileName,
+        port: _portController.text.trim().isEmpty
+            ? null
+            : _portController.text.trim(),
+        date: _dateController.text.trim().isEmpty
+            ? null
+            : _dateController.text.trim(),
+        wniCrew: _wniCrewController.text.trim().isEmpty
+            ? null
+            : _wniCrewController.text.trim(),
+        wnaCrew: _wnaCrewController.text.trim().isEmpty
+            ? null
+            : _wnaCrewController.text.trim(),
+        portClearanceFile:
+            portClearanceUrl ?? widget.existingApplication?.portClearanceFile,
+        crewListFile: crewListUrl ?? widget.existingApplication?.crewListFile,
+        notificationLetterFile:
+            notificationLetterUrl ??
+            widget.existingApplication?.notificationLetterFile,
       );
 
-      LoggingService().debug('Created ClearanceApplication object: ${application.shipName}');
+      LoggingService().debug(
+        'Created ClearanceApplication object: ${application.shipName}',
+      );
 
       String? applicationId;
       if (widget.existingApplication != null) {
         // Update existing application
         LoggingService().info('Updating existing application');
-        final success = await _userService.updateApplication(widget.existingApplication!.id, application);
+        final success = await _userService.updateApplication(
+          widget.existingApplication!.id,
+          application,
+        );
         if (success) {
           applicationId = widget.existingApplication!.id;
         }
       } else {
         // Submit new application
         LoggingService().info('Submitting new application');
-        applicationId = await _userService.submitClearanceApplication(application);
+        applicationId = await _userService.submitClearanceApplication(
+          application,
+        );
       }
 
       if (applicationId != null && mounted) {
-        LoggingService().info('Application submission successful, ID: $applicationId');
+        LoggingService().info(
+          'Application submission successful, ID: $applicationId',
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('success_message')),
@@ -548,7 +703,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           ),
         );
       } else {
-        LoggingService().error('Application submission failed - no ID returned');
+        LoggingService().error(
+          'Application submission failed - no ID returned',
+        );
         throw Exception(_tr('submit_error'));
       }
     } catch (e) {
@@ -557,12 +714,19 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       if (e is FirebaseException) {
         final firebaseError = e;
         LoggingService().debug('Firebase error code: ${firebaseError.code}');
-        LoggingService().debug('Firebase error message: ${firebaseError.message}');
+        LoggingService().debug(
+          'Firebase error message: ${firebaseError.message}',
+        );
       }
       if (mounted) {
+        String errorMessage = _tr('error_message');
+        final errorText = e.toString();
+        if (errorText.isNotEmpty) {
+          errorMessage = errorText.replaceFirst('Exception: ', '');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_tr('error_message')),
+            content: Text(errorMessage),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -584,7 +748,11 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: CustomAppBar(
-        titleText: AppLocalizations.of(context).get(widget.type == ApplicationType.kedatangan ? 'clearanceForm.arrival_title' : 'clearanceForm.departure_title'),
+        titleText: AppLocalizations.of(context).get(
+          widget.type == ApplicationType.kedatangan
+              ? 'clearanceForm.arrival_title'
+              : 'clearanceForm.departure_title',
+        ),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
         elevation: 0,
@@ -593,7 +761,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         child: Column(
           children: [
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: verticalPadding,
+              ),
               child: _buildStepper(),
             ),
             Expanded(
@@ -632,30 +803,56 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildStepIndicator(step: 1, label: _tr('step1'), isDone: _currentStep > 1),
+        _buildStepIndicator(
+          step: 1,
+          label: _tr('step1'),
+          isDone: _currentStep > 1,
+        ),
         _buildStepDivider(),
-        _buildStepIndicator(step: 2, label: _tr('step2'), isDone: _currentStep > 2),
+        _buildStepIndicator(
+          step: 2,
+          label: _tr('step2'),
+          isDone: _currentStep > 2,
+        ),
         _buildStepDivider(),
         _buildStepIndicator(step: 3, label: _tr('step3'), isDone: false),
       ],
     );
   }
 
-  Widget _buildStepIndicator({required int step, required String label, required bool isDone}) {
+  Widget _buildStepIndicator({
+    required int step,
+    required String label,
+    required bool isDone,
+  }) {
     bool isActive = _currentStep == step;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: isActive ? AppTheme.primaryColor : (isDone ? Colors.white : AppTheme.greyShade200),
+        color: isActive
+            ? AppTheme.primaryColor
+            : (isDone ? Colors.white : AppTheme.greyShade200),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isActive || isDone ? AppTheme.primaryColor : AppTheme.greyShade300)
+        border: Border.all(
+          color: isActive || isDone
+              ? AppTheme.primaryColor
+              : AppTheme.greyShade300,
+        ),
       ),
       child: Row(
         key: ValueKey('step_$step'),
         children: [
-          if (isDone) const Icon(Icons.check_circle, color: AppTheme.primaryColor, size: 18),
+          if (isDone)
+            const Icon(
+              Icons.check_circle,
+              color: AppTheme.primaryColor,
+              size: 18,
+            ),
           if (isDone) const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: isActive ? Colors.white : Colors.black)),
+          Text(
+            label,
+            style: TextStyle(color: isActive ? Colors.white : Colors.black),
+          ),
         ],
       ),
     );
@@ -685,30 +882,60 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         shrinkWrap: true,
         padding: EdgeInsets.all(horizontalPadding),
         children: [
-          Text(_formInstruction, style: TextStyle(color: AppTheme.greyShade500, fontSize: screenWidth * 0.035)),
+          Text(
+            _formInstruction,
+            style: TextStyle(
+              color: AppTheme.greyShade500,
+              fontSize: screenWidth * 0.035,
+            ),
+          ),
           SizedBox(height: verticalSpacing),
-          _buildTextField(label: _tr('ship_name'), controller: _shipNameController, hint: _shipNameHint, key: const ValueKey('ship_name_field')),
+          _buildTextField(
+            label: _tr('ship_name'),
+            controller: _shipNameController,
+            hint: _shipNameHint,
+            key: const ValueKey('ship_name_field'),
+          ),
           Padding(
             key: const ValueKey('flag_dropdown'),
             padding: EdgeInsets.only(bottom: verticalSpacing),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_tr('flag'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
+                Text(
+                  _tr('flag'),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: screenWidth * 0.04,
+                  ),
+                ),
                 SizedBox(height: screenWidth * 0.02),
                 DropdownButtonFormField<String>(
                   key: const ValueKey('flag_selector'),
                   initialValue: _selectedFlag,
                   decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     filled: true,
                     fillColor: AppTheme.greyShade50,
                   ),
                   items: _countryFlags.map((String country) {
-                    return DropdownMenuItem<String>(value: country, child: Text(country, style: TextStyle(fontSize: screenWidth * 0.035)));
+                    return DropdownMenuItem<String>(
+                      value: country,
+                      child: Text(
+                        country,
+                        style: TextStyle(fontSize: screenWidth * 0.035),
+                      ),
+                    );
                   }).toList(),
-                  onChanged: (newValue) { setState(() { _selectedFlag = newValue; }); },
-                  validator: (value) => value == null ? _tr('select_flag') : null,
+                  onChanged: (newValue) {
+                    setState(() {
+                      _selectedFlag = newValue;
+                    });
+                  },
+                  validator: (value) =>
+                      value == null ? _tr('select_flag') : null,
                 ),
               ],
             ),
@@ -719,33 +946,80 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_tr('location'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
+                Text(
+                  _tr('location'),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: screenWidth * 0.04,
+                  ),
+                ),
                 SizedBox(height: screenWidth * 0.02),
                 DropdownButtonFormField<String>(
                   key: const ValueKey('location_selector'),
                   initialValue: _selectedLocation,
                   decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     filled: true,
                     fillColor: AppTheme.greyShade50,
                   ),
                   items: _locations.map((String location) {
-                    return DropdownMenuItem<String>(value: location, child: Text(location, style: TextStyle(fontSize: screenWidth * 0.035)));
+                    return DropdownMenuItem<String>(
+                      value: location,
+                      child: Text(
+                        location,
+                        style: TextStyle(fontSize: screenWidth * 0.035),
+                      ),
+                    );
                   }).toList(),
-                  onChanged: (newValue) { setState(() { _selectedLocation = newValue; }); },
-                  validator: (value) => value == null ? _tr('select_location') : null,
+                  onChanged: (newValue) {
+                    setState(() {
+                      _selectedLocation = newValue;
+                    });
+                  },
+                  validator: (value) =>
+                      value == null ? _tr('select_location') : null,
                 ),
               ],
             ),
           ),
-          _buildTextField(label: portLabel, controller: _portController, hint: _tr('tanjung_priok'), key: const ValueKey('port_field')),
-          _buildTextField(label: dateLabel, controller: _dateController, hint: _selectDateHint, isReadOnly: true, isDate: true, key: const ValueKey('date_field')),
+          _buildTextField(
+            label: portLabel,
+            controller: _portController,
+            hint: _tr('tanjung_priok'),
+            key: const ValueKey('port_field'),
+          ),
+          _buildTextField(
+            label: dateLabel,
+            controller: _dateController,
+            hint: _selectDateHint,
+            isReadOnly: true,
+            isDate: true,
+            key: const ValueKey('date_field'),
+          ),
           Row(
             key: const ValueKey('crew_row'),
             children: [
-              Expanded(child: _buildTextField(label: _tr('wni_crew'), controller: _wniCrewController, hint: "0", isNumeric: true, key: const ValueKey('wni_crew_field'))),
+              Expanded(
+                child: _buildTextField(
+                  label: _tr('wni_crew'),
+                  controller: _wniCrewController,
+                  hint: "0",
+                  isNumeric: true,
+                  key: const ValueKey('wni_crew_field'),
+                ),
+              ),
               SizedBox(width: screenWidth * 0.04),
-              Expanded(child: _buildTextField(label: _tr('wna_crew'), controller: _wnaCrewController, hint: "0", isNumeric: true, key: const ValueKey('wna_crew_field'))),
+              Expanded(
+                child: _buildTextField(
+                  label: _tr('wna_crew'),
+                  controller: _wnaCrewController,
+                  hint: "0",
+                  isNumeric: true,
+                  key: const ValueKey('wna_crew_field'),
+                ),
+              ),
             ],
           ),
           SizedBox(height: verticalSpacing),
@@ -772,13 +1046,37 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       shrinkWrap: true,
       padding: EdgeInsets.all(horizontalPadding),
       children: [
-        Text(_uploadInstruction, style: TextStyle(color: AppTheme.greyShade500, fontSize: screenWidth * 0.035)),
+        Text(
+          _uploadInstruction,
+          style: TextStyle(
+            color: AppTheme.greyShade500,
+            fontSize: screenWidth * 0.035,
+          ),
+        ),
         SizedBox(height: verticalSpacing),
-        _buildUploadCard(title: _tr('port_clearance'), subtitle: _tr('port_clearance_subtitle'), fileName: _portClearanceFileName, onTap: () => _showImageSourceActionSheet(_tr('port_clearance')), key: const ValueKey('port_clearance_card')),
+        _buildUploadCard(
+          title: _tr('port_clearance'),
+          subtitle: _tr('port_clearance_subtitle'),
+          fileName: _portClearanceFileName,
+          onTap: () => _showImageSourceActionSheet(_tr('port_clearance')),
+          key: const ValueKey('port_clearance_card'),
+        ),
         SizedBox(height: verticalSpacing),
-        _buildUploadCard(title: _tr('crew_list'), subtitle: _tr('crew_list_subtitle'), fileName: _crewListFileName, onTap: () => _showImageSourceActionSheet(_tr('crew_list')), key: const ValueKey('crew_list_card')),
+        _buildUploadCard(
+          title: _tr('crew_list'),
+          subtitle: _tr('crew_list_subtitle'),
+          fileName: _crewListFileName,
+          onTap: () => _showImageSourceActionSheet(_tr('crew_list')),
+          key: const ValueKey('crew_list_card'),
+        ),
         SizedBox(height: verticalSpacing),
-        _buildUploadCard(title: _tr('notification_letter'), subtitle: _tr('notification_letter_subtitle'), fileName: _notificationLetterFileName, onTap: () => _showImageSourceActionSheet(_tr('notification_letter')), key: const ValueKey('notification_letter_card')),
+        _buildUploadCard(
+          title: _tr('notification_letter'),
+          subtitle: _tr('notification_letter_subtitle'),
+          fileName: _notificationLetterFileName,
+          onTap: () => _showImageSourceActionSheet(_tr('notification_letter')),
+          key: const ValueKey('notification_letter_card'),
+        ),
         SizedBox(height: verticalSpacing),
         Row(
           children: [
@@ -788,11 +1086,16 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppTheme.primaryColor),
                   foregroundColor: AppTheme.primaryColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04)
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
                 ),
-                child: Text(_back, style: TextStyle(fontSize: screenWidth * 0.04))
-              )
+                child: Text(
+                  _back,
+                  style: TextStyle(fontSize: screenWidth * 0.04),
+                ),
+              ),
             ),
             SizedBox(width: screenWidth * 0.04),
             Expanded(
@@ -802,11 +1105,11 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
                   textStyle: TextStyle(fontSize: screenWidth * 0.04),
                 ),
-                child: Text(_next)
-              )
+                child: Text(_next),
+              ),
             ),
           ],
-        )
+        ),
       ],
     );
   }
@@ -828,24 +1131,50 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           Expanded(
             child: ListView(
               children: [
-                Text(_tr('review_confirm'), style: TextStyle(fontSize: screenWidth * 0.045, fontWeight: FontWeight.bold)),
+                Text(
+                  _tr('review_confirm'),
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.045,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 SizedBox(height: verticalSpacing),
                 Card(
                   elevation: 0,
                   color: AppTheme.greyShade50,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Padding(
                     padding: EdgeInsets.all(horizontalPadding),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_tr('vessel_details'), style: TextStyle(fontSize: screenWidth * 0.04, fontWeight: FontWeight.bold)),
+                        Text(
+                          _tr('vessel_details'),
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.04,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         Divider(height: verticalSpacing * 2),
-                        _buildDetailRow(_tr('ship_name'), _shipNameController.text),
+                        _buildDetailRow(
+                          _tr('ship_name'),
+                          _shipNameController.text,
+                        ),
                         _buildDetailRow(_tr('flag'), _selectedFlag ?? '-'),
-                        _buildDetailRow(_tr('crew_count'), "${_tr('wni_label')}: ${_wniCrewController.text}, ${_tr('wna_label')}: ${_wnaCrewController.text}"),
-                        _buildDetailRow(_tr('location'), _selectedLocation ?? '-'),
-                        _buildDetailRow(_tr('date_label'), _dateController.text),
+                        _buildDetailRow(
+                          _tr('crew_count'),
+                          "${_tr('wni_label')}: ${_wniCrewController.text}, ${_tr('wna_label')}: ${_wnaCrewController.text}",
+                        ),
+                        _buildDetailRow(
+                          _tr('location'),
+                          _selectedLocation ?? '-',
+                        ),
+                        _buildDetailRow(
+                          _tr('date_label'),
+                          _dateController.text,
+                        ),
                       ],
                     ),
                   ),
@@ -854,16 +1183,30 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 Card(
                   elevation: 0,
                   color: AppTheme.greyShade50,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Padding(
                     padding: EdgeInsets.all(horizontalPadding),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_tr('required_docs'), style: TextStyle(fontSize: screenWidth * 0.04, fontWeight: FontWeight.bold)),
+                        Text(
+                          _tr('required_docs'),
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.04,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         Divider(height: verticalSpacing * 2),
-                        _buildDocumentRow(_tr('notification_letter'), _notificationLetterFileName),
-                        _buildDocumentRow(_tr('port_clearance'), _portClearanceFileName),
+                        _buildDocumentRow(
+                          _tr('notification_letter'),
+                          _notificationLetterFileName,
+                        ),
+                        _buildDocumentRow(
+                          _tr('port_clearance'),
+                          _portClearanceFileName,
+                        ),
                         _buildDocumentRow(_tr('crew_list'), _crewListFileName),
                       ],
                     ),
@@ -882,18 +1225,27 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppTheme.primaryColor),
                       foregroundColor: AppTheme.primaryColor,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04)
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: EdgeInsets.symmetric(
+                        vertical: screenWidth * 0.04,
+                      ),
                     ),
-                    child: Text(_back, style: TextStyle(fontSize: screenWidth * 0.04))
-                  )
+                    child: Text(
+                      _back,
+                      style: TextStyle(fontSize: screenWidth * 0.04),
+                    ),
+                  ),
                 ),
                 SizedBox(width: screenWidth * 0.04),
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _isSubmitting ? null : _submitApplication,
                     style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                      padding: EdgeInsets.symmetric(
+                        vertical: screenWidth * 0.04,
+                      ),
                       textStyle: TextStyle(fontSize: screenWidth * 0.04),
                     ),
                     child: _isSubmitting
@@ -903,14 +1255,17 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                               SizedBox(
                                 width: screenWidth * 0.05,
                                 height: screenWidth * 0.05,
-                                child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               ),
                               SizedBox(width: screenWidth * 0.03),
                               Text(_saving),
                             ],
                           )
-                        : Text(_submitApplicationText)
-                  )
+                        : Text(_submitApplicationText),
+                  ),
                 ),
               ],
             ),
@@ -1000,7 +1355,14 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (label.isNotEmpty) Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
+          if (label.isNotEmpty)
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: screenWidth * 0.04,
+              ),
+            ),
           if (label.isNotEmpty) SizedBox(height: screenWidth * 0.02),
           TextFormField(
             key: ValueKey('${label}_field'),
@@ -1011,11 +1373,20 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(fontSize: screenWidth * 0.035),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               filled: isReadOnly,
-              fillColor: isReadOnly ? AppTheme.greyShade200 : AppTheme.greyShade50,
-              suffixIcon: isDate ? const Icon(Icons.calendar_today_outlined) : null,
-              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.03),
+              fillColor: isReadOnly
+                  ? AppTheme.greyShade200
+                  : AppTheme.greyShade50,
+              suffixIcon: isDate
+                  ? const Icon(Icons.calendar_today_outlined)
+                  : null,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: screenWidth * 0.04,
+                vertical: screenWidth * 0.03,
+              ),
             ),
             validator: (v) => v!.isEmpty ? _tr('required_field') : null,
             onTap: isDate ? () => _selectDate(context) : null,
@@ -1025,7 +1396,13 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     );
   }
 
-  Widget _buildUploadCard({required String title, required String subtitle, required String? fileName, required VoidCallback onTap, Key? key}) {
+  Widget _buildUploadCard({
+    required String title,
+    required String subtitle,
+    required String? fileName,
+    required VoidCallback onTap,
+    Key? key,
+  }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.04;
     final verticalSpacing = screenWidth * 0.03;
@@ -1051,8 +1428,20 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: TextStyle(fontSize: screenWidth * 0.04, fontWeight: FontWeight.bold)),
-            Text(subtitle, style: TextStyle(fontSize: screenWidth * 0.03, color: AppTheme.greyShade600)),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: screenWidth * 0.04,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: screenWidth * 0.03,
+                color: AppTheme.greyShade600,
+              ),
+            ),
             SizedBox(height: verticalSpacing),
             isUploaded
                 ? Row(
@@ -1065,24 +1454,55 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                           borderRadius: BorderRadius.circular(8),
                           color: AppTheme.greyShade200,
                         ),
-                        child: fileData != null && fileName.toLowerCase().endsWith('.pdf')
-                            ? Icon(Icons.picture_as_pdf, color: AppTheme.errorColor, size: screenWidth * 0.05)
-                            : fileData != null && (fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg') || fileName.toLowerCase().endsWith('.png'))
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Image.memory(
-                                      fileData,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          Icon(Icons.image, color: AppTheme.greyColor, size: screenWidth * 0.05),
-                                    ),
-                                  )
-                                : Icon(Icons.insert_drive_file, color: AppTheme.primaryColor, size: screenWidth * 0.05),
+                        child:
+                            fileData != null &&
+                                fileName.toLowerCase().endsWith('.pdf')
+                            ? Icon(
+                                Icons.picture_as_pdf,
+                                color: AppTheme.errorColor,
+                                size: screenWidth * 0.05,
+                              )
+                            : fileData != null &&
+                                  (fileName.toLowerCase().endsWith('.jpg') ||
+                                      fileName.toLowerCase().endsWith(
+                                        '.jpeg',
+                                      ) ||
+                                      fileName.toLowerCase().endsWith('.png'))
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: Image.memory(
+                                  fileData,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Icon(
+                                        Icons.image,
+                                        color: AppTheme.greyColor,
+                                        size: screenWidth * 0.05,
+                                      ),
+                                ),
+                              )
+                            : Icon(
+                                Icons.insert_drive_file,
+                                color: AppTheme.primaryColor,
+                                size: screenWidth * 0.05,
+                              ),
                       ),
                       SizedBox(width: screenWidth * 0.02),
-                      const Icon(Icons.check_circle, color: AppTheme.successColor),
+                      const Icon(
+                        Icons.check_circle,
+                        color: AppTheme.successColor,
+                      ),
                       SizedBox(width: screenWidth * 0.02),
-                      Expanded(child: Text(fileName, style: TextStyle(color: AppTheme.successColor, fontSize: screenWidth * 0.035), overflow: TextOverflow.ellipsis)),
+                      Expanded(
+                        child: Text(
+                          fileName,
+                          style: TextStyle(
+                            color: AppTheme.successColor,
+                            fontSize: screenWidth * 0.035,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       IconButton(
                         onPressed: () {
                           if (fileData != null) {
@@ -1097,22 +1517,38 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                             );
                           }
                         },
-                        icon: const Icon(Icons.visibility, color: AppTheme.greyShade600),
+                        icon: const Icon(
+                          Icons.visibility,
+                          color: AppTheme.greyShade600,
+                        ),
                       ),
-                      IconButton(onPressed: onTap, icon: const Icon(Icons.edit, color: AppTheme.greyShade600))
-                    ]
+                      IconButton(
+                        onPressed: onTap,
+                        icon: const Icon(
+                          Icons.edit,
+                          color: AppTheme.greyShade600,
+                        ),
+                      ),
+                    ],
                   )
                 : OutlinedButton.icon(
                     onPressed: onTap,
                     icon: const Icon(Icons.upload_file),
-                    label: Text(_tr('choose_file'), style: TextStyle(fontSize: screenWidth * 0.04)),
+                    label: Text(
+                      _tr('choose_file'),
+                      style: TextStyle(fontSize: screenWidth * 0.04),
+                    ),
                     style: OutlinedButton.styleFrom(
                       minimumSize: Size(double.infinity, screenWidth * 0.12),
                       side: const BorderSide(color: AppTheme.primaryColor),
                       foregroundColor: AppTheme.primaryColor,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
-                    )
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: EdgeInsets.symmetric(
+                        vertical: screenWidth * 0.03,
+                      ),
+                    ),
                   ),
           ],
         ),
@@ -1129,9 +1565,31 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 2, child: Text(label, style: TextStyle(color: AppTheme.greyShade500, fontSize: screenWidth * 0.035))),
-          Text(_tr('separator'), style: TextStyle(fontSize: screenWidth * 0.035)),
-          Expanded(flex: 3, child: Text(value, style: TextStyle(fontWeight: FontWeight.bold, height: 1.4, fontSize: screenWidth * 0.035))),
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: AppTheme.greyShade500,
+                fontSize: screenWidth * 0.035,
+              ),
+            ),
+          ),
+          Text(
+            _tr('separator'),
+            style: TextStyle(fontSize: screenWidth * 0.035),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                height: 1.4,
+                fontSize: screenWidth * 0.035,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1146,14 +1604,32 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       padding: EdgeInsets.symmetric(vertical: verticalPadding),
       child: Row(
         children: [
-          Icon(Icons.description_outlined, color: AppTheme.greyShade400, size: screenWidth * 0.05),
+          Icon(
+            Icons.description_outlined,
+            color: AppTheme.greyShade400,
+            size: screenWidth * 0.05,
+          ),
           SizedBox(width: horizontalSpacing),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
-                Text(fileName ?? _tr('not_uploaded'), style: TextStyle(color: fileName != null ? AppTheme.primaryColor : AppTheme.errorColor, fontSize: screenWidth * 0.03)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: screenWidth * 0.04,
+                  ),
+                ),
+                Text(
+                  fileName ?? _tr('not_uploaded'),
+                  style: TextStyle(
+                    color: fileName != null
+                        ? AppTheme.primaryColor
+                        : AppTheme.errorColor,
+                    fontSize: screenWidth * 0.03,
+                  ),
+                ),
               ],
             ),
           ),
