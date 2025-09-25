@@ -43,7 +43,14 @@ class OfficerSettingsScreen extends StatelessWidget {
             return Center(child: Text(_tr(context, 'error_loading_user')));
           }
           if (!authSnapshot.hasData || authSnapshot.data == null) {
-            return Center(child: Text(_tr(context, 'no_user_found')));
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!context.mounted) return;
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                AppRoutes.login,
+                (route) => false,
+              );
+            });
+            return const SizedBox.shrink();
           }
 
           final user = authSnapshot.data!;
