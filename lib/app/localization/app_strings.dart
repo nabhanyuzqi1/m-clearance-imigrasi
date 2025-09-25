@@ -738,6 +738,8 @@ class AppStrings {
         'yes': 'Yes',
         'no': 'No',
         'N/A': 'N/A',
+        'no_user_found': 'No officer data found.',
+        'error_loading_user': 'Failed to load officer data.',
       },
       //endregion
     },
@@ -1460,6 +1462,10 @@ class AppStrings {
         'officer_name_placeholder': 'Nama Petugas',
         'officer_email_placeholder': 'petugas@email.com',
         'editProfile': 'Ubah Profil',
+        'logout_confirm_title': 'Keluar',
+        'logout_confirm_body': 'Apakah Anda yakin ingin keluar?',
+        'yes': 'Ya',
+        'no': 'Tidak',
         'notification_preferences': 'Preferensi Notifikasi',
         'new_registration_notifications': 'Notifikasi Pendaftaran Baru',
         'new_registration_notifications_desc':
@@ -1490,6 +1496,8 @@ class AppStrings {
         'detailed_logging': 'Pencatatan Detail',
         'detailed_logging_desc': 'Aktifkan pencatatan aktivitas detail',
         'N/A': 'N/A',
+        'no_user_found': 'Data petugas tidak ditemukan.',
+        'error_loading_user': 'Gagal memuat data petugas.',
       },
       //endregion
     },

@@ -45,6 +45,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     );
     setState(() => _loadingAction = true);
 
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     _rejectionReason = _reasonController.text.trim();
     if (decision != 'approved' &&
         (_rejectionReason == null || _rejectionReason!.isEmpty)) {
@@ -77,17 +80,18 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       final key = decision == 'approved'
           ? 'verified_message'
           : 'rejected_message';
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(_tr(key)),
           backgroundColor: AppTheme.successColor,
         ),
       );
-      Navigator.pop(context, true);
+      navigator.pop(true);
     } catch (e) {
       LoggingService().error('Error processing officer decision: $e', e);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text(_tr('error_occurred')),
             backgroundColor: AppTheme.errorColor,

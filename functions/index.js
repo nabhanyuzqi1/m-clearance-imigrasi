@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const { Resend } = require("resend");
 const { logger } = require("firebase-functions");
@@ -17,8 +17,8 @@ const { FieldValue, Timestamp } = admin.firestore;
 function requireAuth(context) {
   if (!context.auth) {
     const err = new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required.'
+      "unauthenticated",
+      "Authentication required.",
     );
     throw err;
   }
@@ -26,14 +26,16 @@ function requireAuth(context) {
 
 // Counter management helpers
 async function updateUserCounters(oldStatus, newStatus) {
-  const countersRef = db.collection('counters').doc('dashboard');
+  const countersRef = db.collection("counters").doc("dashboard");
   const updates = {};
 
   if (oldStatus && oldStatus !== newStatus) {
-    if (oldStatus === 'pending_approval') updates.pendingAccounts = FieldValue.increment(-1);
+    if (oldStatus === "pending_approval")
+      updates.pendingAccounts = FieldValue.increment(-1);
   }
   if (newStatus) {
-    if (newStatus === 'pending_approval') updates.pendingAccounts = FieldValue.increment(1);
+    if (newStatus === "pending_approval")
+      updates.pendingAccounts = FieldValue.increment(1);
   }
 
   if (Object.keys(updates).length > 0) {
@@ -41,20 +43,33 @@ async function updateUserCounters(oldStatus, newStatus) {
   }
 }
 
-async function updateApplicationCounters(oldType, oldStatus, newType, newStatus) {
-  const countersRef = db.collection('counters').doc('dashboard');
+async function updateApplicationCounters(
+  oldType,
+  oldStatus,
+  newType,
+  newStatus,
+) {
+  const countersRef = db.collection("counters").doc("dashboard");
   const updates = {};
 
-  if (oldType && oldStatus && (oldType !== newType || oldStatus !== newStatus)) {
-    if (oldStatus === 'waiting') {
-      if (oldType === 'arrival') updates.pendingArrival = FieldValue.increment(-1);
-      else if (oldType === 'departure') updates.pendingDeparture = FieldValue.increment(-1);
+  if (
+    oldType &&
+    oldStatus &&
+    (oldType !== newType || oldStatus !== newStatus)
+  ) {
+    if (oldStatus === "waiting") {
+      if (oldType === "arrival")
+        updates.pendingArrival = FieldValue.increment(-1);
+      else if (oldType === "departure")
+        updates.pendingDeparture = FieldValue.increment(-1);
     }
   }
   if (newType && newStatus) {
-    if (newStatus === 'waiting') {
-      if (newType === 'arrival') updates.pendingArrival = FieldValue.increment(1);
-      else if (newType === 'departure') updates.pendingDeparture = FieldValue.increment(1);
+    if (newStatus === "waiting") {
+      if (newType === "arrival")
+        updates.pendingArrival = FieldValue.increment(1);
+      else if (newType === "departure")
+        updates.pendingDeparture = FieldValue.increment(1);
     }
   }
 
@@ -62,6 +77,99 @@ async function updateApplicationCounters(oldType, oldStatus, newType, newStatus)
     await countersRef.set(updates, { merge: true });
   }
 }
+
+async function recordNotification(uid, payload = {}) {
+  if (!uid) return null;
+  const timestamp =
+    payload.timestamp instanceof Timestamp
+      ? payload.timestamp
+      : Timestamp.now();
+  const notificationsRef = db
+    .collection("notifications")
+    .doc(uid)
+    .collection("items");
+  const notifId = payload.id || notificationsRef.doc().id;
+
+  const typeValue = typeof payload.type === "number" ? payload.type : 0;
+
+  const notificationData = {
+    title: payload.title || "Notification",
+    body: payload.body || "",
+    date: timestamp,
+    createdAt: timestamp,
+    type: typeValue,
+    userId: uid,
+    isRead: false,
+    ...(payload.extra && typeof payload.extra === "object"
+      ? payload.extra
+      : {}),
+  };
+
+  await notificationsRef.doc(notifId).set(notificationData, { merge: false });
+  return notifId;
+}
+
+async function notifyRoles(roles, payload = {}, options = {}) {
+  if (!Array.isArray(roles) || roles.length === 0) return;
+  const uniqueRoles = Array.from(new Set(roles.filter(Boolean)));
+  if (uniqueRoles.length === 0) return;
+
+  const snapshot = await db
+    .collection("users")
+    .where("role", "in", uniqueRoles)
+    .get();
+
+  const skipUid = options.skipUid;
+  const tasks = [];
+  snapshot.forEach((doc) => {
+    const uid = doc.id;
+    if (skipUid && uid === skipUid) return;
+    tasks.push(
+      recordNotification(uid, {
+        ...payload,
+        id: payload.id ? `${payload.id}_${uid}` : undefined,
+      }),
+    );
+  });
+
+  await Promise.all(tasks);
+}
+
+exports.onNotificationWrite = functions.firestore
+  .document("notifications/{uid}/items/{notifId}")
+  .onWrite(async (change, context) => {
+    const uid = context.params.uid;
+    if (!uid) return;
+
+    let delta = 0;
+    const beforeData = change.before.exists ? change.before.data() || {} : null;
+    const afterData = change.after.exists ? change.after.data() || {} : null;
+
+    if (!beforeData && afterData) {
+      const unread = afterData.isRead !== true;
+      if (unread) delta += 1;
+    } else if (beforeData && !afterData) {
+      const wasUnread = beforeData.isRead !== true;
+      if (wasUnread) delta -= 1;
+    } else if (beforeData && afterData) {
+      const wasUnread = beforeData.isRead !== true;
+      const nowUnread = afterData.isRead !== true;
+      if (wasUnread !== nowUnread) {
+        delta += nowUnread ? 1 : -1;
+      }
+    }
+
+    if (delta === 0) return;
+
+    const metaRef = db.collection("notifications").doc(uid);
+    await metaRef.set(
+      {
+        unreadCount: FieldValue.increment(delta),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  });
 
 // Resend client (lazy-init)
 // Direct Resend integration using Resend SDK
@@ -73,13 +181,13 @@ async function resolveUserEmail(uid, fallbackEmail) {
     if (u && u.email) return u.email;
   } catch (_) {}
   try {
-    const snap = await db.collection('users').doc(uid).get();
+    const snap = await db.collection("users").doc(uid).get();
     if (snap.exists) {
       const data = snap.data() || {};
       if (data.email) return data.email;
     }
   } catch (_) {}
-  return '';
+  return "";
 }
 
 async function resolveUserName(uid, fallbackEmail) {
@@ -90,7 +198,7 @@ async function resolveUserName(uid, fallbackEmail) {
   } catch (_) {}
   // Try Firestore username
   try {
-    const snap = await db.collection('users').doc(uid).get();
+    const snap = await db.collection("users").doc(uid).get();
     if (snap.exists) {
       const data = snap.data() || {};
       if (data.username) return data.username;
@@ -98,57 +206,69 @@ async function resolveUserName(uid, fallbackEmail) {
   } catch (_) {}
   // Fallback to email local-part
   const email = await resolveUserEmail(uid, fallbackEmail);
-  if (email && email.includes('@')) return email.split('@')[0];
-  return 'User';
+  if (email && email.includes("@")) return email.split("@")[0];
+  return "User";
 }
 
 function normalizeRole(role) {
-  if (!role || typeof role !== 'string') {
+  if (!role || typeof role !== "string") {
     return null;
   }
   const normalized = role.toLowerCase();
-  return ['user', 'officer', 'admin'].includes(normalized) ? normalized : null;
+  return ["user", "officer", "admin"].includes(normalized) ? normalized : null;
 }
 
 async function callerRole(context) {
   if (!context.auth) {
-    return 'unauthenticated';
+    return "unauthenticated";
   }
 
   const uid = context.auth.uid;
-  const tokenRole = normalizeRole(context.auth.token && context.auth.token.role);
+  const tokenRole = normalizeRole(
+    context.auth.token && context.auth.token.role,
+  );
 
   try {
-    const userSnap = await db.collection('users').doc(uid).get();
+    const userSnap = await db.collection("users").doc(uid).get();
     if (userSnap.exists) {
       const firestoreRole = normalizeRole((userSnap.data() || {}).role);
       if (firestoreRole) {
-        if (firestoreRole !== tokenRole && firestoreRole !== 'user') {
+        if (firestoreRole !== tokenRole && firestoreRole !== "user") {
           try {
-            await admin.auth().setCustomUserClaims(uid, { role: firestoreRole });
-            console.log(`[callerRole] Synced custom claims for ${uid} to role '${firestoreRole}'`);
+            await admin
+              .auth()
+              .setCustomUserClaims(uid, { role: firestoreRole });
+            console.log(
+              `[callerRole] Synced custom claims for ${uid} to role '${firestoreRole}'`,
+            );
           } catch (syncError) {
-            console.error('[callerRole] Failed to sync custom claims role:', syncError);
+            console.error(
+              "[callerRole] Failed to sync custom claims role:",
+              syncError,
+            );
           }
         }
         return firestoreRole;
       }
     }
   } catch (error) {
-    console.error('[callerRole] Error fetching role:', error);
+    console.error("[callerRole] Error fetching role:", error);
   }
 
   if (tokenRole) {
     return tokenRole;
   }
 
-  return 'user';
+  return "user";
 }
 
 async function ensureOfficerOrAdmin(context) {
   const role = await callerRole(context);
-  if (role !== 'officer' && role !== 'admin') {
-    throw new functions.https.HttpsError('permission-denied', 'Officer or admin role required.');
+  if (role !== "officer" && role !== "admin") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Officer or admin role required.",
+    );
   }
 }
 
@@ -165,45 +285,50 @@ class EmailConfigService {
 
   async getConfig() {
     const now = Date.now();
-    if (this.config && (now - this.lastFetched) < this.cacheDuration) {
+    if (this.config && now - this.lastFetched < this.cacheDuration) {
       return this.config;
     }
 
     try {
-      const snapshot = await rtdb.ref('email_config').once('value');
+      const snapshot = await rtdb.ref("email_config").once("value");
       const data = snapshot.val();
       if (data) {
         this.config = data;
         this.lastFetched = now;
-        console.log('[EmailConfigService] Fetched config from RTDB at email_config');
+        console.log(
+          "[EmailConfigService] Fetched config from RTDB at email_config",
+        );
         return this.config;
       }
     } catch (error) {
-      console.error('[EmailConfigService] Failed to fetch config from RTDB:', error);
+      console.error(
+        "[EmailConfigService] Failed to fetch config from RTDB:",
+        error,
+      );
     }
 
     // Fallback to environment variables
-    console.log('[EmailConfigService] Using fallback config from environment');
+    console.log("[EmailConfigService] Using fallback config from environment");
     return this.getFallbackConfig();
   }
 
   getFallbackConfig() {
     return {
       global: {
-        apiKey: process.env.RESEND_API_KEY || '',
-        from: 'noreply@mclearanceisam.com',
-        fromName: 'M-Clearance',
-        accountName: 'M-Clearance',
-        supportEmail: 'support@mclearanceisam.com',
+        apiKey: process.env.RESEND_API_KEY || "",
+        from: "noreply@mclearanceisam.com",
+        fromName: "M-Clearance",
+        accountName: "M-Clearance",
+        supportEmail: "support@mclearanceisam.com",
         maxRetries: Number(process.env.MAX_EMAIL_RETRIES) || 3,
         cooldownSeconds: Number(process.env.MAILERSEND_COOLDOWN_SECONDS) || 60,
         maxAttempts: Number(process.env.MAILERSEND_MAX_ATTEMPTS) || 5,
       },
       templates: {
         verification: {
-          templateId: '',
-          subject: 'Your verification code',
-          tags: ['email_verification'],
+          templateId: "",
+          subject: "Your verification code",
+          tags: ["email_verification"],
         },
       },
     };
@@ -214,46 +339,77 @@ class EmailConfigService {
     // Handle both RTDB flat structure and fallback nested structure
     const globalConfig = config.global || config;
     return {
-      apiKey: globalConfig.apiKey || process.env.RESEND_API_KEY || '',
-      from: globalConfig.fromEmail || globalConfig.from || '',
-      fromName: globalConfig.fromName || 'M-Clearance System',
-      accountName: globalConfig.accountName || globalConfig.fromName || 'M-Clearance System',
-      supportEmail: globalConfig.supportEmail || globalConfig.fromEmail || globalConfig.from || '',
+      apiKey: globalConfig.apiKey || process.env.RESEND_API_KEY || "",
+      from: globalConfig.fromEmail || globalConfig.from || "",
+      fromName: globalConfig.fromName || "M-Clearance System",
+      accountName:
+        globalConfig.accountName ||
+        globalConfig.fromName ||
+        "M-Clearance System",
+      supportEmail:
+        globalConfig.supportEmail ||
+        globalConfig.fromEmail ||
+        globalConfig.from ||
+        "",
       maxRetries: globalConfig.maxRetries || 3,
       cooldownSeconds: globalConfig.cooldownSeconds || 60,
       maxAttempts: globalConfig.maxAttempts || 5,
     };
   }
 
-  async getTemplateSettings(templateName = 'verification') {
+  async getTemplateSettings(templateName = "verification") {
     const config = await this.getConfig();
     // Handle both RTDB flat structure and fallback nested structure
     const templatesConfig = config.templates || config;
     const templateFieldMap = {
       verification: {
-        subject: templatesConfig.verification?.subject || 'Your verification code - M-Clearance',
-        html: templatesConfig.verification?.html || '<p>Your verification code is: {code}</p>',
-        text: templatesConfig.verification?.text || 'Your verification code is: {code}',
-        tags: ['email_verification']
+        subject:
+          templatesConfig.verification?.subject ||
+          "Your verification code - M-Clearance",
+        html:
+          templatesConfig.verification?.html ||
+          "<p>Your verification code is: {code}</p>",
+        text:
+          templatesConfig.verification?.text ||
+          "Your verification code is: {code}",
+        tags: ["email_verification"],
       },
       passwordReset: {
-        subject: templatesConfig.passwordReset?.subject || 'Password Reset Request - M-Clearance',
-        html: templatesConfig.passwordReset?.html || '<p>Reset your password: {resetLink}</p>',
-        text: templatesConfig.passwordReset?.text || 'Reset your password: {resetLink}',
-        tags: ['password_reset']
+        subject:
+          templatesConfig.passwordReset?.subject ||
+          "Password Reset Request - M-Clearance",
+        html:
+          templatesConfig.passwordReset?.html ||
+          "<p>Reset your password: {resetLink}</p>",
+        text:
+          templatesConfig.passwordReset?.text ||
+          "Reset your password: {resetLink}",
+        tags: ["password_reset"],
       },
       approval: {
-        subject: templatesConfig.approval?.subject || 'Application Approved - M-Clearance',
-        html: templatesConfig.approval?.html || '<p>Your application has been approved.</p>',
-        text: templatesConfig.approval?.text || 'Your application has been approved.',
-        tags: ['application_approval']
+        subject:
+          templatesConfig.approval?.subject ||
+          "Application Approved - M-Clearance",
+        html:
+          templatesConfig.approval?.html ||
+          "<p>Your application has been approved.</p>",
+        text:
+          templatesConfig.approval?.text ||
+          "Your application has been approved.",
+        tags: ["application_approval"],
       },
       rejection: {
-        subject: templatesConfig.rejection?.subject || 'Application Status Update - M-Clearance',
-        html: templatesConfig.rejection?.html || '<p>Your application requires additional information.</p>',
-        text: templatesConfig.rejection?.text || 'Your application requires additional information.',
-        tags: ['application_rejection']
-      }
+        subject:
+          templatesConfig.rejection?.subject ||
+          "Application Status Update - M-Clearance",
+        html:
+          templatesConfig.rejection?.html ||
+          "<p>Your application requires additional information.</p>",
+        text:
+          templatesConfig.rejection?.text ||
+          "Your application requires additional information.",
+        tags: ["application_rejection"],
+      },
     };
     return templateFieldMap[templateName] || {};
   }
@@ -270,7 +426,12 @@ const emailConfig = new EmailConfigService();
 exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
   const uid = user.uid;
   const email = user.email || "";
-  console.log("[onUserCreate] uid:", uid, "emailVerified:", !!user.emailVerified);
+  console.log(
+    "[onUserCreate] uid:",
+    uid,
+    "emailVerified:",
+    !!user.emailVerified,
+  );
 
   // Best-effort to assign default role via custom claims; swallow errors to avoid retries
   try {
@@ -303,7 +464,7 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
         console.log("[onUserCreate] Created user doc:", uid);
 
         // Update counters if status is pending_approval (though initially it's not)
-        if (initDoc.status === 'pending_approval') {
+        if (initDoc.status === "pending_approval") {
           await updateUserCounters(null, initDoc.status);
         }
         return;
@@ -318,7 +479,8 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
       if (typeof data.email !== "string") updates.email = email;
       if (typeof data.uid !== "string") updates.uid = uid;
       if (!data.role) updates.role = "user";
-      if (typeof data.hasUploadedDocuments !== "boolean") updates.hasUploadedDocuments = false;
+      if (typeof data.hasUploadedDocuments !== "boolean")
+        updates.hasUploadedDocuments = false;
       if (!Array.isArray(data.documents)) updates.documents = [];
 
       // If email already verified in Auth and not yet reflected in Firestore, set once
@@ -371,12 +533,19 @@ exports.onUserDocUpdate = functions.firestore
     const afterStatus = after.status || "pending_email_verification";
     const email = after.email || before.email || "";
 
-    const becameApproved = beforeStatus !== "approved" && afterStatus === "approved";
-    const becameRejected = beforeStatus !== "rejected" && afterStatus === "rejected";
-    const hasDocsNowTrue = before.hasUploadedDocuments !== true && after.hasUploadedDocuments === true;
-    const movedToPendingApproval = beforeStatus === "pending_documents" && afterStatus === "pending_approval";
+    const becameApproved =
+      beforeStatus !== "approved" && afterStatus === "approved";
+    const becameRejected =
+      beforeStatus !== "rejected" && afterStatus === "rejected";
+    const hasDocsNowTrue =
+      before.hasUploadedDocuments !== true &&
+      after.hasUploadedDocuments === true;
+    const movedToPendingApproval =
+      beforeStatus === "pending_documents" &&
+      afterStatus === "pending_approval";
     const shouldEnforcePendingApproval =
-      beforeStatus === "pending_documents" && (hasDocsNowTrue || afterStatus === "pending_approval");
+      beforeStatus === "pending_documents" &&
+      (hasDocsNowTrue || afterStatus === "pending_approval");
 
     // Helper to read a stable updatedAt millisecond value for dedupe IDs
     const getUpdatedAtMillis = () => {
@@ -400,11 +569,17 @@ exports.onUserDocUpdate = functions.firestore
               status: "pending_approval",
               updatedAt: FieldValue.serverTimestamp(),
             });
-            console.log("[onUserDocUpdate] Enforced pending_approval for uid:", uid);
+            console.log(
+              "[onUserDocUpdate] Enforced pending_approval for uid:",
+              uid,
+            );
             // Update counters for the enforced status change
             await updateUserCounters(curStatus, "pending_approval");
           } else {
-            console.log("[onUserDocUpdate] Skipped enforcement; current status:", curStatus);
+            console.log(
+              "[onUserDocUpdate] Skipped enforcement; current status:",
+              curStatus,
+            );
           }
         });
       }
@@ -412,7 +587,12 @@ exports.onUserDocUpdate = functions.firestore
       // 2) Update counters for status changes
       if (beforeStatus !== afterStatus) {
         await updateUserCounters(beforeStatus, afterStatus);
-        console.log("[onUserDocUpdate] Updated counters for status change:", beforeStatus, "->", afterStatus);
+        console.log(
+          "[onUserDocUpdate] Updated counters for status change:",
+          beforeStatus,
+          "->",
+          afterStatus,
+        );
       }
 
       // 3) Enqueue review item idempotently
@@ -429,32 +609,83 @@ exports.onUserDocUpdate = functions.firestore
           });
           console.log("[onUserDocUpdate] Enqueued review item:", reviewId);
         } else {
-          console.log("[onUserDocUpdate] Review item already exists:", reviewId);
+          console.log(
+            "[onUserDocUpdate] Review item already exists:",
+            reviewId,
+          );
         }
+
+        const accountName =
+          after.corporateName ||
+          after.fullName ||
+          after.username ||
+          email ||
+          uid;
+        await notifyRoles(
+          ["officer", "admin"],
+          {
+            id: reviewId,
+            title: "New account pending review",
+            body: `Account ${accountName} is ready for verification.`,
+            type: 0,
+            extra: {
+              status: "pending_approval",
+              targetUid: uid,
+            },
+          },
+          { skipUid: uid },
+        );
       }
 
       // 4) Notifications on terminal decision transitions (approved/rejected)
       if (becameApproved || becameRejected) {
         const statusType = becameApproved ? "approved" : "rejected";
-        const message =
-          statusType === "approved"
-            ? "Your account has been approved."
-            : "Your account has been rejected.";
         const decidedAtMs = getUpdatedAtMillis();
+        const timestamp = Timestamp.fromMillis(decidedAtMs);
+        const title =
+          statusType === "approved" ? "Account Approved" : "Account Rejected";
+        const body =
+          statusType === "approved"
+            ? "Your account has been approved. You can now access all features."
+            : `Your account has been rejected${after.decisionNote ? `: ${after.decisionNote}` : "."}`;
         const notifId = `${statusType}_${decidedAtMs}`;
-        const notifRef = db.collection("notifications").doc(uid).collection("items").doc(notifId);
 
-        const notifSnap = await notifRef.get();
-        if (!notifSnap.exists) {
-          await notifRef.set({
-            type: statusType,
-            message,
-            createdAt: Timestamp.fromMillis(decidedAtMs),
-          });
-          console.log("[onUserDocUpdate] Created notification:", notifId);
-        } else {
-          console.log("[onUserDocUpdate] Notification already exists:", notifId);
-        }
+        await recordNotification(uid, {
+          id: notifId,
+          title,
+          body,
+          timestamp,
+          type: statusType === "approved" ? 1 : 0,
+          extra: {
+            status: statusType,
+            decidedBy: after.decidedBy || before.decidedBy || null,
+          },
+        });
+        console.log("[onUserDocUpdate] Created notification:", notifId);
+
+        const accountName =
+          after.corporateName ||
+          after.fullName ||
+          after.username ||
+          after.email ||
+          uid;
+        await notifyRoles(
+          ["officer", "admin"],
+          {
+            title:
+              statusType === "approved"
+                ? "Account verified"
+                : "Account rejected",
+            body: `Account ${accountName} has been ${statusType}.`,
+            timestamp,
+            type: 0,
+            extra: {
+              status: statusType,
+              targetUid: uid,
+            },
+          },
+          { skipUid: uid },
+        );
       }
     } catch (error) {
       console.error("[onUserDocUpdate] Error:", error);
@@ -468,78 +699,96 @@ exports.onUserDocUpdate = functions.firestore
  * - Idempotent based on storagePath (gs://bucket/name) or file name
  * - Does NOT modify status; only appends to documents if not already present
  */
-exports.onDocumentFinalize = functions.storage.object().onFinalize(async (object) => {
-  try {
-    const name = object.name; // e.g., "users/<uid>/documents/<filename>"
-    const bucket = object.bucket;
+exports.onDocumentFinalize = functions.storage
+  .object()
+  .onFinalize(async (object) => {
+    try {
+      const name = object.name; // e.g., "users/<uid>/documents/<filename>"
+      const bucket = object.bucket;
 
-    if (!name || !bucket) {
-      console.log("[onDocumentFinalize] Missing object name or bucket, skipping.");
-      return;
-    }
-
-    const parts = name.split("/");
-    let uid = null;
-    let filename = parts[parts.length - 1] || "document";
-
-    // Support either "users/{uid}/documents/..." or "documents/{uid}/..."
-    if (parts.length >= 4 && parts[0] === "users" && parts[2] === "documents") {
-      uid = parts[1];
-    } else if (parts.length >= 2 && parts[0] === "documents") {
-      uid = parts[1];
-    }
-
-    if (!uid) {
-      console.log("[onDocumentFinalize] Object path is not a recognized user document path:", name);
-      return;
-    }
-
-    const storagePath = `gs://${bucket}/${name}`;
-    const userRef = db.collection("users").doc(uid);
-
-    await db.runTransaction(async (txn) => {
-      const snap = await txn.get(userRef);
-      if (!snap.exists) {
-        console.warn("[onDocumentFinalize] User doc not found for uid:", uid);
+      if (!name || !bucket) {
+        console.log(
+          "[onDocumentFinalize] Missing object name or bucket, skipping.",
+        );
         return;
       }
 
-      const data = snap.data() || {};
-      const docs = Array.isArray(data.documents) ? data.documents : [];
+      const parts = name.split("/");
+      let uid = null;
+      let filename = parts[parts.length - 1] || "document";
 
-      const alreadyPresent = docs.some((d) => {
-        if (!d || typeof d !== "object") return false;
-        return d.storagePath === storagePath || d.documentName === filename;
-      });
+      // Support either "users/{uid}/documents/..." or "documents/{uid}/..."
+      if (
+        parts.length >= 4 &&
+        parts[0] === "users" &&
+        parts[2] === "documents"
+      ) {
+        uid = parts[1];
+      } else if (parts.length >= 2 && parts[0] === "documents") {
+        uid = parts[1];
+      }
 
-      if (alreadyPresent) {
-        console.log("[onDocumentFinalize] Document already recorded for uid:", uid, storagePath);
+      if (!uid) {
+        console.log(
+          "[onDocumentFinalize] Object path is not a recognized user document path:",
+          name,
+        );
         return;
       }
 
-      // Use object.timeCreated to keep uploadedAt deterministic for idempotency
-      const uploadedAt =
-        object.timeCreated
+      const storagePath = `gs://${bucket}/${name}`;
+      const userRef = db.collection("users").doc(uid);
+
+      await db.runTransaction(async (txn) => {
+        const snap = await txn.get(userRef);
+        if (!snap.exists) {
+          console.warn("[onDocumentFinalize] User doc not found for uid:", uid);
+          return;
+        }
+
+        const data = snap.data() || {};
+        const docs = Array.isArray(data.documents) ? data.documents : [];
+
+        const alreadyPresent = docs.some((d) => {
+          if (!d || typeof d !== "object") return false;
+          return d.storagePath === storagePath || d.documentName === filename;
+        });
+
+        if (alreadyPresent) {
+          console.log(
+            "[onDocumentFinalize] Document already recorded for uid:",
+            uid,
+            storagePath,
+          );
+          return;
+        }
+
+        // Use object.timeCreated to keep uploadedAt deterministic for idempotency
+        const uploadedAt = object.timeCreated
           ? Timestamp.fromDate(new Date(object.timeCreated))
           : FieldValue.serverTimestamp();
 
-      const entry = {
-        documentName: filename,
-        storagePath: storagePath,
-        uploadedAt: uploadedAt,
-      };
+        const entry = {
+          documentName: filename,
+          storagePath: storagePath,
+          uploadedAt: uploadedAt,
+        };
 
-      // Append without touching status; do not mutate updatedAt here to avoid unintended triggers
-      txn.update(userRef, {
-        documents: FieldValue.arrayUnion(entry),
+        // Append without touching status; do not mutate updatedAt here to avoid unintended triggers
+        txn.update(userRef, {
+          documents: FieldValue.arrayUnion(entry),
+        });
+
+        console.log(
+          "[onDocumentFinalize] Appended document entry for uid:",
+          uid,
+          entry,
+        );
       });
-
-      console.log("[onDocumentFinalize] Appended document entry for uid:", uid, entry);
-    });
-  } catch (error) {
-    console.error("[onDocumentFinalize] Error:", error);
-  }
-});
+    } catch (error) {
+      console.error("[onDocumentFinalize] Error:", error);
+    }
+  });
 
 /**
  * setUserRole (callable)
@@ -550,59 +799,75 @@ exports.onDocumentFinalize = functions.storage.object().onFinalize(async (object
 exports.setUserRole = functions.https.onCall(async (data, context) => {
   requireAuth(context);
   const role = await callerRole(context);
-  if (role !== 'admin') {
-    throw new functions.https.HttpsError('permission-denied', 'Admin role required.');
+  if (role !== "admin") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Admin role required.",
+    );
   }
 
-  const targetUid = (data && data.uid) || '';
-  const newRole = (data && data.role) || '';
-  if (!targetUid || !['user', 'officer', 'admin'].includes(newRole)) {
-    throw new functions.https.HttpsError('invalid-argument', 'Provide uid and role in [user|officer|admin].');
+  const targetUid = (data && data.uid) || "";
+  const newRole = (data && data.role) || "";
+  if (!targetUid || !["user", "officer", "admin"].includes(newRole)) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Provide uid and role in [user|officer|admin].",
+    );
   }
 
   await admin.auth().setCustomUserClaims(targetUid, { role: newRole });
 
-  const userRef = db.collection('users').doc(targetUid);
+  const userRef = db.collection("users").doc(targetUid);
   const now = FieldValue.serverTimestamp();
   await userRef.set({ role: newRole, updatedAt: now }, { merge: true });
 
   return { ok: true, uid: targetUid, role: newRole };
 });
 
-
 /**
  * generateClearanceDocument (helper)
  * Generates a PDF document containing the application data with M-Clearance ISam logo and uploads it to Firebase Storage.
  */
 async function generateClearanceDocument(uid, application) {
-  console.log('[generateClearanceDocument] Starting PDF generation for user:', uid, 'application:', application.id);
+  console.log(
+    "[generateClearanceDocument] Starting PDF generation for user:",
+    uid,
+    "application:",
+    application.id,
+  );
 
   try {
-    const PDFMake = require('pdfmake');
-    console.log('[generateClearanceDocument] PDFMake loaded successfully');
+    const PDFMake = require("pdfmake");
+    console.log("[generateClearanceDocument] PDFMake loaded successfully");
 
     const fonts = {
       Roboto: {
-        normal: 'node_modules/pdfmake/build/vfs_fonts.js#Roboto-Regular.ttf',
-        bold: 'node_modules/pdfmake/build/vfs_fonts.js#Roboto-Medium.ttf',
-      }
+        normal: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Regular.ttf",
+        bold: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Medium.ttf",
+      },
     };
     const pdfMake = new PDFMake(fonts);
-    console.log('[generateClearanceDocument] PDFMake instance created');
+    console.log("[generateClearanceDocument] PDFMake instance created");
 
     // M-Clearance ISam logo (base64 encoded - you would need to replace this with actual base64)
     // For now using a placeholder - in production, you'd upload the logo to storage and reference it
-    const logoBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='; // Placeholder
+    const logoBase64 =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="; // Placeholder
 
     // Safely format dates
-    let submittedAtText = 'N/A';
+    let submittedAtText = "N/A";
     try {
       if (application.createdAt) {
-        const timestamp = application.createdAt.toMillis ? application.createdAt.toMillis() : application.createdAt;
+        const timestamp = application.createdAt.toMillis
+          ? application.createdAt.toMillis()
+          : application.createdAt;
         submittedAtText = new Date(timestamp).toLocaleString();
       }
     } catch (dateError) {
-      console.warn('[generateClearanceDocument] Error formatting date:', dateError);
+      console.warn(
+        "[generateClearanceDocument] Error formatting date:",
+        dateError,
+      );
     }
 
     const docDefinition = {
@@ -614,184 +879,263 @@ async function generateClearanceDocument(uid, application) {
               image: logoBase64,
               width: 50,
               height: 50,
-              alignment: 'left'
+              alignment: "left",
             },
             {
-              text: 'M-Clearance ISam',
-              style: 'companyHeader',
-              alignment: 'right',
-              margin: [0, 15, 0, 0]
-            }
+              text: "M-Clearance ISam",
+              style: "companyHeader",
+              alignment: "right",
+              margin: [0, 15, 0, 0],
+            },
           ],
-          margin: [0, 0, 0, 20]
+          margin: [0, 0, 0, 20],
         },
         // Divider line
         {
           canvas: [
             {
-              type: 'line',
-              x1: 0, y1: 0,
-              x2: 515, y2: 0,
+              type: "line",
+              x1: 0,
+              y1: 0,
+              x2: 515,
+              y2: 0,
               lineWidth: 1,
-              lineColor: '#007bff'
-            }
+              lineColor: "#007bff",
+            },
           ],
-          margin: [0, 0, 0, 20]
+          margin: [0, 0, 0, 20],
         },
         // Title
-        { text: 'Clearance Application Document', style: 'header', alignment: 'center' },
-        { text: `Application ID: ${application.id || 'N/A'}`, style: 'subheader', alignment: 'center' },
+        {
+          text: "Clearance Application Document",
+          style: "header",
+          alignment: "center",
+        },
+        {
+          text: `Application ID: ${application.id || "N/A"}`,
+          style: "subheader",
+          alignment: "center",
+        },
         // Spacer
-        { text: '', margin: [0, 0, 0, 20] },
+        { text: "", margin: [0, 0, 0, 20] },
         // Application Details
         {
           table: {
-            widths: ['auto', '*'],
+            widths: ["auto", "*"],
             body: [
-              [{ text: 'Ship Name:', style: 'tableLabel' }, { text: application.shipName || 'N/A', style: 'tableValue' }],
-              [{ text: 'Flag:', style: 'tableLabel' }, { text: application.flag || 'N/A', style: 'tableValue' }],
-              [{ text: 'Agent Name:', style: 'tableLabel' }, { text: application.agentName || 'N/A', style: 'tableValue' }],
-              [{ text: 'Application Type:', style: 'tableLabel' }, { text: application.type || 'N/A', style: 'tableValue' }],
-              [{ text: 'Port:', style: 'tableLabel' }, { text: application.port || 'N/A', style: 'tableValue' }],
-              [{ text: 'Date:', style: 'tableLabel' }, { text: application.date || 'N/A', style: 'tableValue' }],
-              [{ text: 'WNI Crew:', style: 'tableLabel' }, { text: (application.wniCrew?.toString()) || '0', style: 'tableValue' }],
-              [{ text: 'WNA Crew:', style: 'tableLabel' }, { text: (application.wnaCrew?.toString()) || '0', style: 'tableValue' }],
-              [{ text: 'Location:', style: 'tableLabel' }, { text: application.location || 'N/A', style: 'tableValue' }],
-              [{ text: 'Status:', style: 'tableLabel' }, { text: application.status || 'N/A', style: 'tableValue' }],
-              [{ text: 'Submitted At:', style: 'tableLabel' }, { text: submittedAtText, style: 'tableValue' }],
-              [{ text: 'Reviewed By:', style: 'tableLabel' }, { text: application.officerName || 'Not reviewed yet', style: 'tableValue' }],
-            ]
+              [
+                { text: "Ship Name:", style: "tableLabel" },
+                { text: application.shipName || "N/A", style: "tableValue" },
+              ],
+              [
+                { text: "Flag:", style: "tableLabel" },
+                { text: application.flag || "N/A", style: "tableValue" },
+              ],
+              [
+                { text: "Agent Name:", style: "tableLabel" },
+                { text: application.agentName || "N/A", style: "tableValue" },
+              ],
+              [
+                { text: "Application Type:", style: "tableLabel" },
+                { text: application.type || "N/A", style: "tableValue" },
+              ],
+              [
+                { text: "Port:", style: "tableLabel" },
+                { text: application.port || "N/A", style: "tableValue" },
+              ],
+              [
+                { text: "Date:", style: "tableLabel" },
+                { text: application.date || "N/A", style: "tableValue" },
+              ],
+              [
+                { text: "WNI Crew:", style: "tableLabel" },
+                {
+                  text: application.wniCrew?.toString() || "0",
+                  style: "tableValue",
+                },
+              ],
+              [
+                { text: "WNA Crew:", style: "tableLabel" },
+                {
+                  text: application.wnaCrew?.toString() || "0",
+                  style: "tableValue",
+                },
+              ],
+              [
+                { text: "Location:", style: "tableLabel" },
+                { text: application.location || "N/A", style: "tableValue" },
+              ],
+              [
+                { text: "Status:", style: "tableLabel" },
+                { text: application.status || "N/A", style: "tableValue" },
+              ],
+              [
+                { text: "Submitted At:", style: "tableLabel" },
+                { text: submittedAtText, style: "tableValue" },
+              ],
+              [
+                { text: "Reviewed By:", style: "tableLabel" },
+                {
+                  text: application.officerName || "Not reviewed yet",
+                  style: "tableValue",
+                },
+              ],
+            ],
           },
           layout: {
             fillColor: function (rowIndex) {
-              return (rowIndex % 2 === 0) ? '#f8f9fa' : null;
-            }
+              return rowIndex % 2 === 0 ? "#f8f9fa" : null;
+            },
           },
-          margin: [0, 0, 0, 20]
+          margin: [0, 0, 0, 20],
         },
         // Notes section if available
-        ...(application.notes ? [
-          { text: 'Officer Notes:', style: 'notesHeader', margin: [0, 20, 0, 10] },
-          {
-            text: application.notes,
-            style: 'notesText',
-            margin: [0, 0, 0, 20]
-          }
-        ] : []),
+        ...(application.notes
+          ? [
+              {
+                text: "Officer Notes:",
+                style: "notesHeader",
+                margin: [0, 20, 0, 10],
+              },
+              {
+                text: application.notes,
+                style: "notesText",
+                margin: [0, 0, 0, 20],
+              },
+            ]
+          : []),
         // Footer
         {
-          text: 'Generated by M-Clearance ISam System',
-          style: 'footer',
-          alignment: 'center',
-          margin: [0, 40, 0, 0]
-        }
+          text: "Generated by M-Clearance ISam System",
+          style: "footer",
+          alignment: "center",
+          margin: [0, 40, 0, 0],
+        },
       ],
       styles: {
         companyHeader: {
           fontSize: 20,
           bold: true,
-          color: '#007bff'
+          color: "#007bff",
         },
         header: {
           fontSize: 18,
           bold: true,
           margin: [0, 0, 0, 10],
-          color: '#007bff'
+          color: "#007bff",
         },
         subheader: {
           fontSize: 14,
           bold: true,
           margin: [0, 5, 0, 5],
-          color: '#495057'
+          color: "#495057",
         },
         tableLabel: {
           fontSize: 12,
           bold: true,
-          color: '#495057',
-          margin: [0, 8, 0, 8]
+          color: "#495057",
+          margin: [0, 8, 0, 8],
         },
         tableValue: {
           fontSize: 12,
-          color: '#212529',
-          margin: [0, 8, 0, 8]
+          color: "#212529",
+          margin: [0, 8, 0, 8],
         },
         notesHeader: {
           fontSize: 14,
           bold: true,
-          color: '#dc3545'
+          color: "#dc3545",
         },
         notesText: {
           fontSize: 12,
-          color: '#6c757d',
-          italics: true
+          color: "#6c757d",
+          italics: true,
         },
         footer: {
           fontSize: 10,
-          color: '#6c757d',
-          italics: true
-        }
+          color: "#6c757d",
+          italics: true,
+        },
       },
       defaultStyle: {
-        font: 'Roboto'
-      }
+        font: "Roboto",
+      },
     };
 
-    console.log('[generateClearanceDocument] Creating PDF document...');
+    console.log("[generateClearanceDocument] Creating PDF document...");
 
     // Create PDF document
     const pdfDoc = pdfMake.createPdfKitDocument(docDefinition);
-    console.log('[generateClearanceDocument] PDF document created');
+    console.log("[generateClearanceDocument] PDF document created");
 
     // Collect PDF data
     const chunks = [];
-    pdfDoc.on('data', chunk => chunks.push(chunk));
-    console.log('[generateClearanceDocument] PDF data collection started');
+    pdfDoc.on("data", (chunk) => chunks.push(chunk));
+    console.log("[generateClearanceDocument] PDF data collection started");
 
     // Return a promise that resolves when PDF is generated and uploaded
     return new Promise((resolve, reject) => {
-      pdfDoc.on('end', async () => {
+      pdfDoc.on("end", async () => {
         try {
-          console.log('[generateClearanceDocument] PDF generation completed, concatenating chunks...');
+          console.log(
+            "[generateClearanceDocument] PDF generation completed, concatenating chunks...",
+          );
           const result = Buffer.concat(chunks);
-          console.log('[generateClearanceDocument] PDF buffer created, size:', result.length);
+          console.log(
+            "[generateClearanceDocument] PDF buffer created, size:",
+            result.length,
+          );
 
           // Upload to Firebase Storage
-          console.log('[generateClearanceDocument] Starting upload to Firebase Storage...');
+          console.log(
+            "[generateClearanceDocument] Starting upload to Firebase Storage...",
+          );
           const bucket = admin.storage().bucket();
-          const safeShipName = (application.shipName || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
+          const safeShipName = (application.shipName || "Unknown").replace(
+            /[^a-zA-Z0-9]/g,
+            "_",
+          );
           const filename = `clearance_documents/${uid}/${safeShipName}_${Date.now()}.pdf`;
           const file = bucket.file(filename);
 
-          console.log('[generateClearanceDocument] Uploading file:', filename);
+          console.log("[generateClearanceDocument] Uploading file:", filename);
           await file.save(result, {
-            metadata: { contentType: 'application/pdf' },
+            metadata: { contentType: "application/pdf" },
           });
-          console.log('[generateClearanceDocument] File uploaded successfully');
+          console.log("[generateClearanceDocument] File uploaded successfully");
 
           // Get signed URL
-          console.log('[generateClearanceDocument] Generating signed URL...');
+          console.log("[generateClearanceDocument] Generating signed URL...");
           const [signedUrl] = await file.getSignedUrl({
-            action: 'read',
-            expires: '03-09-2491'
+            action: "read",
+            expires: "03-09-2491",
           });
 
-          console.log('[generateClearanceDocument] Signed URL generated successfully');
+          console.log(
+            "[generateClearanceDocument] Signed URL generated successfully",
+          );
           resolve(signedUrl);
         } catch (uploadError) {
-          console.error('[generateClearanceDocument] Upload error:', uploadError);
+          console.error(
+            "[generateClearanceDocument] Upload error:",
+            uploadError,
+          );
           reject(new Error(`Upload failed: ${uploadError.message}`));
         }
       });
 
-      pdfDoc.on('error', (error) => {
-        console.error('[generateClearanceDocument] PDF generation error:', error);
+      pdfDoc.on("error", (error) => {
+        console.error(
+          "[generateClearanceDocument] PDF generation error:",
+          error,
+        );
         reject(new Error(`PDF generation failed: ${error.message}`));
       });
 
       pdfDoc.end();
     });
   } catch (e) {
-    console.error('[generateClearanceDocument] Unexpected error:', e);
+    console.error("[generateClearanceDocument] Unexpected error:", e);
     throw new Error(`PDF generation failed: ${e.message}`);
   }
 }
@@ -803,346 +1147,445 @@ async function generateClearanceDocument(uid, application) {
  * onUserDocUpdate will generate notifications.
  */
 exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
-  requireAuth(context);
-  const callerUid = context.auth.uid;
-  const userRef = db.collection('users').doc(callerUid);
-  const userSnap = await userRef.get();
+  try {
+    requireAuth(context);
+    const callerUid = context.auth.uid;
+    const userRef = db.collection("users").doc(callerUid);
+    const userSnap = await userRef.get();
 
-  if (!userSnap.exists) {
-    throw new functions.https.HttpsError('permission-denied', 'Caller user document not found.');
+    if (!userSnap.exists) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Caller user document not found.",
+      );
+    }
+
+    const userData = userSnap.data() || {};
+    const role = userData.role;
+
+    if (role !== "officer" && role !== "admin") {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        `Officer or admin role required. Your role is '${role}'.`,
+      );
+    }
+
+    const targetUid = (data && data.targetUid) || "";
+    const decision = (data && data.decision) || "";
+    const note = (data && (data.note || data.reason)) || "";
+
+    if (!targetUid || !["approved", "rejected"].includes(decision)) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Provide targetUid and decision in [approved|rejected].",
+      );
+    }
+
+    const callerEmail = (context.auth.token && context.auth.token.email) || "";
+    const targetUserRef = db.collection("users").doc(targetUid);
+    const applicationRef = db.collection("applications").doc(targetUid);
+
+    let applicationData = null;
+
+    await db.runTransaction(async (txn) => {
+      const snap = await txn.get(targetUserRef);
+      if (!snap.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "User document not found.",
+        );
+      }
+      const data = snap.data() || {};
+      const status = data.status || "pending_email_verification";
+      if (status !== "pending_approval") {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          `User status must be pending_approval. Got: ${status}`,
+        );
+      }
+
+      if (decision === "approved") {
+        const applicationSnap = await txn.get(applicationRef);
+        if (applicationSnap.exists) {
+          applicationData = applicationSnap.data() || {};
+        } else {
+          logger.warn(
+            `[officerDecideAccount] No application document found for uid ${targetUid}. Skipping clearance document generation.`,
+          );
+        }
+      }
+
+      const updates = {
+        status: decision,
+        updatedAt: FieldValue.serverTimestamp(),
+        decidedBy: callerEmail || callerUid,
+      };
+      if (note && typeof note === "string" && note.length <= 1000) {
+        updates.decisionNote = note;
+      }
+      txn.update(targetUserRef, updates);
+    });
+
+    if (decision === "approved" && applicationData) {
+      try {
+        const documentUrl = await generateClearanceDocument(
+          targetUid,
+          applicationData,
+        );
+        await applicationRef.update({
+          clearanceDocumentUrl: documentUrl,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        logger.error(
+          "[officerDecideAccount] generateClearanceDocument error:",
+          e,
+        );
+        await applicationRef.set(
+          {
+            clearanceDocumentError: e.message || "Failed to generate document",
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
+    }
+
+    return { ok: true, uid: targetUid, status: decision };
+  } catch (error) {
+    logger.error("[officerDecideAccount] Unexpected error", error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      "internal",
+      error?.message || "Failed to process officer decision.",
+    );
   }
-
-  const userData = userSnap.data() || {};
-  const role = userData.role;
-
-  if (role !== 'officer' && role !== 'admin') {
-    throw new functions.https.HttpsError('permission-denied', `Officer or admin role required. Your role is '${role}'.`);
-  }
-
- const targetUid = (data && data.targetUid) || '';
- const decision = (data && data.decision) || '';
- const note = (data && data.note) || '';
-
- if (!targetUid || !['approved', 'rejected'].includes(decision)) {
-   throw new functions.https.HttpsError('invalid-argument', 'Provide targetUid and decision in [approved|rejected].');
- }
-
- const callerEmail = (context.auth.token && context.auth.token.email) || '';
- const targetUserRef = db.collection('users').doc(targetUid);
- const applicationRef = db.collection('applications').doc(targetUid);
-
- let applicationData = null;
-
- await db.runTransaction(async (txn) => {
-   const snap = await txn.get(targetUserRef);
-   if (!snap.exists) {
-     throw new functions.https.HttpsError('not-found', 'User document not found.');
-   }
-   const data = snap.data() || {};
-   const status = data.status || 'pending_email_verification';
-   if (status !== 'pending_approval') {
-     throw new functions.https.HttpsError('failed-precondition', `User status must be pending_approval. Got: ${status}`);
-   }
-
-   const updates = {
-     status: decision,
-     updatedAt: FieldValue.serverTimestamp(),
-     decidedBy: callerEmail || callerUid,
-   };
-   if (note && typeof note === 'string' && note.length <= 1000) {
-     updates.decisionNote = note;
-   }
-   txn.update(targetUserRef, updates);
-
-   if (decision === 'approved') {
-     const applicationSnap = await txn.get(applicationRef);
-     if (applicationSnap.exists) {
-       applicationData = applicationSnap.data() || {};
-     } else {
-       logger.warn(`[officerDecideAccount] No application document found for uid ${targetUid}. Skipping clearance document generation.`);
-     }
-   }
- });
-
- if (decision === 'approved' && applicationData) {
-   try {
-     const documentUrl = await generateClearanceDocument(targetUid, applicationData);
-     await applicationRef.update({
-       clearanceDocumentUrl: documentUrl,
-       updatedAt: FieldValue.serverTimestamp(),
-     });
-   } catch (e) {
-     logger.error('[officerDecideAccount] generateClearanceDocument error:', e);
-     throw new functions.https.HttpsError('internal', 'Failed to generate clearance document.');
-   }
- }
-
- return { ok: true, uid: targetUid, status: decision };
 });
 
 /**
  * - pendingArrival/pendingDeparture: applications awaiting review by type
  */
-exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) => {
-  requireAuth(context);
-  await ensureOfficerOrAdmin(context);
+exports.getOfficerDashboardStats = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
 
-  const functionStart = Date.now();
-  console.log('[getOfficerDashboardStats] Function started');
+    const functionStart = Date.now();
+    console.log("[getOfficerDashboardStats] Function started");
 
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
 
-  // Try to get from counters first for better performance
-  const countersRef = db.collection('counters').doc('dashboard');
-  const countersSnap = await countersRef.get();
-  let counters = {};
-  if (countersSnap.exists) {
-    counters = countersSnap.data() || {};
-  }
-
-  // Helper to count a query without loading all docs (fallback)
-  async function countQuery(q, label) {
-    const queryStart = Date.now();
-    try {
-      const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
-      const queryTime = Date.now() - queryStart;
-      console.log(`[getOfficerDashboardStats] ${label} count took ${queryTime}ms, returned ${snap.size} docs`);
-      return snap.size;
-    } catch (error) {
-      logger.error(`[getOfficerDashboardStats] ${label} query failed`, error);
-      return 0;
+    // Try to get from counters first for better performance
+    const countersRef = db.collection("counters").doc("dashboard");
+    const countersSnap = await countersRef.get();
+    let counters = {};
+    if (countersSnap.exists) {
+      counters = countersSnap.data() || {};
     }
-  }
 
-  const usersCol = db.collection('users');
-  const applicationsCol = db.collection('applications');
+    // Helper to count a query without loading all docs (fallback)
+    async function countQuery(q, label) {
+      const queryStart = Date.now();
+      try {
+        const snap = await q
+          .select(admin.firestore.FieldPath.documentId())
+          .get();
+        const queryTime = Date.now() - queryStart;
+        console.log(
+          `[getOfficerDashboardStats] ${label} count took ${queryTime}ms, returned ${snap.size} docs`,
+        );
+        return snap.size;
+      } catch (error) {
+        logger.error(`[getOfficerDashboardStats] ${label} query failed`, error);
+        return 0;
+      }
+    }
 
-  const countStart = Date.now();
+    const usersCol = db.collection("users");
+    const applicationsCol = db.collection("applications");
 
-  // Use counters where available, fallback to counting
-  const [
-    pendingAccounts,
-    approvedToday,
-    rejectedToday,
-    pendingArrival,
-    pendingDeparture,
-  ] = await Promise.all([
-    counters.pendingAccounts !== undefined
-      ? Promise.resolve(counters.pendingAccounts)
-      : countQuery(usersCol.where('status', '==', 'pending_approval'), 'pendingAccounts'),
-    countQuery(
-      usersCol
-        .where('status', '==', 'approved')
-        .where('updatedAt', '>=', Timestamp.fromDate(startOfDay)),
-      'approvedToday',
-    ),
-    countQuery(
-      usersCol
-        .where('status', '==', 'rejected')
-        .where('updatedAt', '>=', Timestamp.fromDate(startOfDay)),
-      'rejectedToday',
-    ),
-    counters.pendingArrival !== undefined
-      ? Promise.resolve(counters.pendingArrival)
-      : countQuery(
-          applicationsCol
-            .where('type', '==', 'arrival')
-            .where('status', '==', 'waiting'),
-          'pendingArrival',
-        ),
-    counters.pendingDeparture !== undefined
-      ? Promise.resolve(counters.pendingDeparture)
-      : countQuery(
-          applicationsCol
-            .where('type', '==', 'departure')
-            .where('status', '==', 'waiting'),
-          'pendingDeparture',
-        ),
-  ]);
+    const countStart = Date.now();
 
-  const countTime = Date.now() - countStart;
-  console.log(`[getOfficerDashboardStats] All counts took ${countTime}ms`);
+    // Use counters where available, fallback to counting
+    const [
+      pendingAccounts,
+      approvedToday,
+      rejectedToday,
+      pendingArrival,
+      pendingDeparture,
+    ] = await Promise.all([
+      counters.pendingAccounts !== undefined
+        ? Promise.resolve(counters.pendingAccounts)
+        : countQuery(
+            usersCol.where("status", "==", "pending_approval"),
+            "pendingAccounts",
+          ),
+      countQuery(
+        usersCol
+          .where("status", "==", "approved")
+          .where("updatedAt", ">=", Timestamp.fromDate(startOfDay)),
+        "approvedToday",
+      ),
+      countQuery(
+        usersCol
+          .where("status", "==", "rejected")
+          .where("updatedAt", ">=", Timestamp.fromDate(startOfDay)),
+        "rejectedToday",
+      ),
+      counters.pendingArrival !== undefined
+        ? Promise.resolve(counters.pendingArrival)
+        : countQuery(
+            applicationsCol
+              .where("type", "==", "arrival")
+              .where("status", "==", "waiting"),
+            "pendingArrival",
+          ),
+      counters.pendingDeparture !== undefined
+        ? Promise.resolve(counters.pendingDeparture)
+        : countQuery(
+            applicationsCol
+              .where("type", "==", "departure")
+              .where("status", "==", "waiting"),
+            "pendingDeparture",
+          ),
+    ]);
 
-  const totalTime = Date.now() - functionStart;
-  console.log(`[getOfficerDashboardStats] Total function time: ${totalTime}ms`);
+    const countTime = Date.now() - countStart;
+    console.log(`[getOfficerDashboardStats] All counts took ${countTime}ms`);
 
-  return {
-    pendingAccounts,
-    approvedToday,
-    rejectedToday,
-    pendingArrival,
-    pendingDeparture,
-  };
-});
+    const totalTime = Date.now() - functionStart;
+    console.log(
+      `[getOfficerDashboardStats] Total function time: ${totalTime}ms`,
+    );
+
+    return {
+      pendingAccounts,
+      approvedToday,
+      rejectedToday,
+      pendingArrival,
+      pendingDeparture,
+    };
+  },
+);
 /**
  * Get officer monthly statistics
  */
-exports.getOfficerMonthlyStats = functions.https.onCall(async (data, context) => {
-  requireAuth(context);
-  await ensureOfficerOrAdmin(context);
+exports.getOfficerMonthlyStats = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const applicationsCol = db.collection('applications');
+    const applicationsCol = db.collection("applications");
 
-  async function countQuery(q, label) {
-    try {
-      const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
-      console.log(`[getOfficerMonthlyStats] ${label} returned ${snap.size} docs`);
-      return snap.size;
-    } catch (error) {
-      logger.error(`[getOfficerMonthlyStats] ${label} query failed`, error);
-      return 0;
+    async function countQuery(q, label) {
+      try {
+        const snap = await q
+          .select(admin.firestore.FieldPath.documentId())
+          .get();
+        console.log(
+          `[getOfficerMonthlyStats] ${label} returned ${snap.size} docs`,
+        );
+        return snap.size;
+      } catch (error) {
+        logger.error(`[getOfficerMonthlyStats] ${label} query failed`, error);
+        return 0;
+      }
     }
-  }
 
-  const [
-    pendingArrival,
-    pendingDeparture,
-    pendingAccounts,
-  ] = await Promise.all([
-    countQuery(
-      applicationsCol
-        .where('type', '==', 'arrival')
-        .where('status', '==', 'waiting')
-        .where('createdAt', '>=', Timestamp.fromDate(startOfMonth)),
-      'pendingArrivalThisMonth',
-    ),
-    countQuery(
-      applicationsCol
-        .where('type', '==', 'departure')
-        .where('status', '==', 'waiting')
-        .where('createdAt', '>=', Timestamp.fromDate(startOfMonth)),
-      'pendingDepartureThisMonth',
-    ),
-    countQuery(
-      db
-        .collection('users')
-        .where('status', '==', 'pending_approval')
-        .where('createdAt', '>=', Timestamp.fromDate(startOfMonth)),
-      'pendingAccountsThisMonth',
-    ),
-  ]);
+    const [pendingArrival, pendingDeparture, pendingAccounts] =
+      await Promise.all([
+        countQuery(
+          applicationsCol
+            .where("type", "==", "arrival")
+            .where("status", "==", "waiting")
+            .where("createdAt", ">=", Timestamp.fromDate(startOfMonth)),
+          "pendingArrivalThisMonth",
+        ),
+        countQuery(
+          applicationsCol
+            .where("type", "==", "departure")
+            .where("status", "==", "waiting")
+            .where("createdAt", ">=", Timestamp.fromDate(startOfMonth)),
+          "pendingDepartureThisMonth",
+        ),
+        countQuery(
+          db
+            .collection("users")
+            .where("status", "==", "pending_approval")
+            .where("createdAt", ">=", Timestamp.fromDate(startOfMonth)),
+          "pendingAccountsThisMonth",
+        ),
+      ]);
 
-  return {
-    pendingArrival,
-    pendingDeparture,
-    pendingAccounts,
-  };
-});
+    return {
+      pendingArrival,
+      pendingDeparture,
+      pendingAccounts,
+    };
+  },
+);
 
 /**
  * issueEmailVerificationCode (callable)
  * Generates a short-lived 4-digit code for email verification and stores it on users/{uid}.
  * Optionally integrate with email provider; for now we only store and return masked info.
  */
-exports.issueEmailVerificationCode = functions.https.onCall(async (data, context) => {
-  requireAuth(context);
-  const uid = context.auth.uid;
-  const userRef = db.collection('users').doc(uid);
+exports.issueEmailVerificationCode = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    const uid = context.auth.uid;
+    const userRef = db.collection("users").doc(uid);
 
-  // Fetch dynamic configuration
-  const globalSettings = await emailConfig.getGlobalSettings();
-  const templateSettings = await emailConfig.getTemplateSettings('verification');
+    // Fetch dynamic configuration
+    const globalSettings = await emailConfig.getGlobalSettings();
+    const templateSettings =
+      await emailConfig.getTemplateSettings("verification");
 
-  // Optimized transaction: minimize reads, use server timestamps
-  let code, now, expiresAt, emailDocId;
-  try {
-    const result = await db.runTransaction(async (txn) => {
-      const snap = await txn.get(userRef);
-      const data = snap.exists ? (snap.data() || {}) : {};
-      const ver = data.verification || {};
-      const issuedAt = ver.issuedAt;
-      const nowTs = FieldValue.serverTimestamp(); // Use server timestamp for consistency
-      if (issuedAt && typeof issuedAt.toMillis === 'function') {
-        const elapsedSec = Math.floor((Timestamp.now().toMillis() - issuedAt.toMillis()) / 1000);
-        const remain = (globalSettings.cooldownSeconds || 60) - elapsedSec;
-        if (remain > 0) {
-          return { cooldown: true, retryAfterSec: remain };
+    // Optimized transaction: minimize reads, use server timestamps
+    let code, now, expiresAt, emailDocId;
+    try {
+      const result = await db.runTransaction(async (txn) => {
+        const snap = await txn.get(userRef);
+        const data = snap.exists ? snap.data() || {} : {};
+        const ver = data.verification || {};
+        const issuedAt = ver.issuedAt;
+        const nowTs = FieldValue.serverTimestamp(); // Use server timestamp for consistency
+        if (issuedAt && typeof issuedAt.toMillis === "function") {
+          const elapsedSec = Math.floor(
+            (Timestamp.now().toMillis() - issuedAt.toMillis()) / 1000,
+          );
+          const remain = (globalSettings.cooldownSeconds || 60) - elapsedSec;
+          if (remain > 0) {
+            return { cooldown: true, retryAfterSec: remain };
+          }
         }
-      }
-      const raw = Math.floor(Math.random() * 10000);
-      const newCode = raw.toString().padStart(4, '0');
-      const expires = Timestamp.fromMillis(Timestamp.now().toMillis() + 10 * 60 * 1000);
-      const mailId = `${uid}_${Date.now()}`; // Use Date.now() for uniqueness
-      txn.set(userRef, {
-        verification: {
+        const raw = Math.floor(Math.random() * 10000);
+        const newCode = raw.toString().padStart(4, "0");
+        const expires = Timestamp.fromMillis(
+          Timestamp.now().toMillis() + 10 * 60 * 1000,
+        );
+        const mailId = `${uid}_${Date.now()}`; // Use Date.now() for uniqueness
+        txn.set(
+          userRef,
+          {
+            verification: {
+              code: newCode,
+              issuedAt: nowTs,
+              expiresAt: expires,
+              attempts: 0,
+              emailDocId: mailId,
+            },
+            updatedAt: nowTs,
+          },
+          { merge: true },
+        );
+        return {
           code: newCode,
-          issuedAt: nowTs,
+          now: Timestamp.now(),
           expiresAt: expires,
-          attempts: 0,
           emailDocId: mailId,
-        },
-        updatedAt: nowTs,
-      }, { merge: true });
-      return { code: newCode, now: Timestamp.now(), expiresAt: expires, emailDocId: mailId };
-    });
-    if (result && result.cooldown) {
-      return { ok: false, reason: 'cooldown', retryAfterSec: result.retryAfterSec };
-    }
-    ({ code, now, expiresAt, emailDocId } = result);
-  } catch (e) {
-    console.error('[issueEmailVerificationCode] transaction failed:', e);
-    throw e;
-  }
-
-  console.log('[issueEmailVerificationCode] uid:', uid, 'code_issued');
-
-  // Send email directly using Resend API
-  const tokenEmail = (context.auth && context.auth.token && context.auth.token.email) || '';
-  const recipientEmail = await resolveUserEmail(uid, tokenEmail);
-  const recipientName = await resolveUserName(uid, tokenEmail);
-  if (!recipientEmail) {
-    console.warn('[issueEmailVerificationCode] Could not resolve recipient email for uid:', uid);
-    return { ok: true, sent: false, reason: 'noRecipientEmail' };
-  }
-
-  try {
-    // Initialize Resend client
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
-    const subject = templateSettings.subject || 'Your verification code';
-    const html = (templateSettings.html || '<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.<br/>It expires in 10 minutes.</p><p>Regards,<br/>{accountName}</p>')
-      .replace(/{name}/g, recipientName)
-      .replace(/{code}/g, code)
-      .replace(/{accountName}/g, globalSettings.accountName);
-    const text = (templateSettings.text || 'Hello {name},\nYour verification code is {code}. It expires in 10 minutes.\nRegards, {accountName}')
-      .replace(/{name}/g, recipientName)
-      .replace(/{code}/g, code)
-      .replace(/{accountName}/g, globalSettings.accountName);
-
-    // Prepare email data for Resend
-    const emailData = {
-      from: `${globalSettings.fromName} <${globalSettings.from}>`,
-      to: recipientEmail,
-      subject: subject,
-      html: html,
-      text: text,
-      reply_to: globalSettings.supportEmail || globalSettings.from,
-    };
-
-    // Send the email
-    const { data, error } = await resend.emails.send(emailData);
-
-    if (error) {
-      console.error('[issueEmailVerificationCode] Failed to send email:', error);
-      return { ok: true, sent: false, reason: 'sendFailed', error: error.message };
+        };
+      });
+      if (result && result.cooldown) {
+        return {
+          ok: false,
+          reason: "cooldown",
+          retryAfterSec: result.retryAfterSec,
+        };
+      }
+      ({ code, now, expiresAt, emailDocId } = result);
+    } catch (e) {
+      console.error("[issueEmailVerificationCode] transaction failed:", e);
+      throw e;
     }
 
-    console.log('[issueEmailVerificationCode] Email sent successfully:', data);
-    return { ok: true, sent: true, messageId: data?.id };
-  } catch (e) {
-    // If thrown by cooldown guard
-    if (e && typeof e.message === 'string' && e.message.startsWith('cooldown:')) {
-      const remain = Number(e.message.split(':')[1] || '60');
-      return { ok: false, reason: 'cooldown', retryAfterSec: remain };
+    console.log("[issueEmailVerificationCode] uid:", uid, "code_issued");
+
+    // Send email directly using Resend API
+    const tokenEmail =
+      (context.auth && context.auth.token && context.auth.token.email) || "";
+    const recipientEmail = await resolveUserEmail(uid, tokenEmail);
+    const recipientName = await resolveUserName(uid, tokenEmail);
+    if (!recipientEmail) {
+      console.warn(
+        "[issueEmailVerificationCode] Could not resolve recipient email for uid:",
+        uid,
+      );
+      return { ok: true, sent: false, reason: "noRecipientEmail" };
     }
-    console.error('[issueEmailVerificationCode] Failed to send email:', e);
-    return { ok: true, sent: false, reason: 'sendFailed', error: e.message };
-  }
-});
+
+    try {
+      // Initialize Resend client
+      const resend = new Resend(process.env.RESEND_API_KEY);
+
+      const subject = templateSettings.subject || "Your verification code";
+      const html = (
+        templateSettings.html ||
+        "<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.<br/>It expires in 10 minutes.</p><p>Regards,<br/>{accountName}</p>"
+      )
+        .replace(/{name}/g, recipientName)
+        .replace(/{code}/g, code)
+        .replace(/{accountName}/g, globalSettings.accountName);
+      const text = (
+        templateSettings.text ||
+        "Hello {name},\nYour verification code is {code}. It expires in 10 minutes.\nRegards, {accountName}"
+      )
+        .replace(/{name}/g, recipientName)
+        .replace(/{code}/g, code)
+        .replace(/{accountName}/g, globalSettings.accountName);
+
+      // Prepare email data for Resend
+      const emailData = {
+        from: `${globalSettings.fromName} <${globalSettings.from}>`,
+        to: recipientEmail,
+        subject: subject,
+        html: html,
+        text: text,
+        reply_to: globalSettings.supportEmail || globalSettings.from,
+      };
+
+      // Send the email
+      const { data, error } = await resend.emails.send(emailData);
+
+      if (error) {
+        console.error(
+          "[issueEmailVerificationCode] Failed to send email:",
+          error,
+        );
+        return {
+          ok: true,
+          sent: false,
+          reason: "sendFailed",
+          error: error.message,
+        };
+      }
+
+      console.log(
+        "[issueEmailVerificationCode] Email sent successfully:",
+        data,
+      );
+      return { ok: true, sent: true, messageId: data?.id };
+    } catch (e) {
+      // If thrown by cooldown guard
+      if (
+        e &&
+        typeof e.message === "string" &&
+        e.message.startsWith("cooldown:")
+      ) {
+        const remain = Number(e.message.split(":")[1] || "60");
+        return { ok: false, reason: "cooldown", retryAfterSec: remain };
+      }
+      console.error("[issueEmailVerificationCode] Failed to send email:", e);
+      return { ok: true, sent: false, reason: "sendFailed", error: e.message };
+    }
+  },
+);
 
 /**
  * verifyEmailCode (callable)
@@ -1158,19 +1601,33 @@ exports.initializeCounters = functions.https.onCall(async (data, context) => {
   requireAuth(context);
   await ensureOfficerOrAdmin(context);
 
-  console.log('[initializeCounters] Starting counter initialization');
+  console.log("[initializeCounters] Starting counter initialization");
 
-  const countersRef = db.collection('counters').doc('dashboard');
+  const countersRef = db.collection("counters").doc("dashboard");
 
   // Count users
-  const pendingAccountsSnap = await db.collection('users').where('status', '==', 'pending_approval').select(admin.firestore.FieldPath.documentId()).get();
+  const pendingAccountsSnap = await db
+    .collection("users")
+    .where("status", "==", "pending_approval")
+    .select(admin.firestore.FieldPath.documentId())
+    .get();
   const pendingAccounts = pendingAccountsSnap.size;
 
   // Count applications
-  const pendingArrivalSnap = await db.collection('applications').where('type', '==', 'arrival').where('status', '==', 'waiting').select(admin.firestore.FieldPath.documentId()).get();
+  const pendingArrivalSnap = await db
+    .collection("applications")
+    .where("type", "==", "arrival")
+    .where("status", "==", "waiting")
+    .select(admin.firestore.FieldPath.documentId())
+    .get();
   const pendingArrival = pendingArrivalSnap.size;
 
-  const pendingDepartureSnap = await db.collection('applications').where('type', '==', 'departure').where('status', '==', 'waiting').select(admin.firestore.FieldPath.documentId()).get();
+  const pendingDepartureSnap = await db
+    .collection("applications")
+    .where("type", "==", "departure")
+    .where("status", "==", "waiting")
+    .select(admin.firestore.FieldPath.documentId())
+    .get();
   const pendingDeparture = pendingDepartureSnap.size;
 
   await countersRef.set({
@@ -1180,20 +1637,30 @@ exports.initializeCounters = functions.https.onCall(async (data, context) => {
     lastUpdated: FieldValue.serverTimestamp(),
   });
 
-  console.log('[initializeCounters] Counters initialized:', { pendingAccounts, pendingArrival, pendingDeparture });
+  console.log("[initializeCounters] Counters initialized:", {
+    pendingAccounts,
+    pendingArrival,
+    pendingDeparture,
+  });
 
-  return { success: true, counters: { pendingAccounts, pendingArrival, pendingDeparture } };
+  return {
+    success: true,
+    counters: { pendingAccounts, pendingArrival, pendingDeparture },
+  };
 });
 
 exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
   requireAuth(context);
   const uid = context.auth.uid;
-  const submitted = (data && data.code) ? String(data.code) : '';
+  const submitted = data && data.code ? String(data.code) : "";
   if (!/^\d{4}$/.test(submitted)) {
-    throw new functions.https.HttpsError('invalid-argument', 'Invalid code format.');
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Invalid code format.",
+    );
   }
 
-  const userRef = db.collection('users').doc(uid);
+  const userRef = db.collection("users").doc(uid);
 
   // Fetch dynamic configuration
   const globalSettings = await emailConfig.getGlobalSettings();
@@ -1202,28 +1669,43 @@ exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
   await db.runTransaction(async (txn) => {
     const snap = await txn.get(userRef);
     if (!snap.exists) {
-      throw new functions.https.HttpsError('not-found', 'User document not found.');
+      throw new functions.https.HttpsError(
+        "not-found",
+        "User document not found.",
+      );
     }
     const doc = snap.data() || {};
     const ver = doc.verification || {};
-    const code = ver.code || '';
+    const code = ver.code || "";
     const expiresAt = ver.expiresAt;
     const attempts = Number(ver.attempts || 0);
 
     if (!code) {
-      throw new functions.https.HttpsError('failed-precondition', 'No active verification code.');
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "No active verification code.",
+      );
     }
     if (attempts >= (globalSettings.maxAttempts || 5)) {
-      throw new functions.https.HttpsError('resource-exhausted', 'Too many attempts. Please request a new code later.');
+      throw new functions.https.HttpsError(
+        "resource-exhausted",
+        "Too many attempts. Please request a new code later.",
+      );
     }
-    if (expiresAt && typeof expiresAt.toMillis === 'function') {
+    if (expiresAt && typeof expiresAt.toMillis === "function") {
       if (Timestamp.now().toMillis() > expiresAt.toMillis()) {
-        throw new functions.https.HttpsError('deadline-exceeded', 'Code expired.');
+        throw new functions.https.HttpsError(
+          "deadline-exceeded",
+          "Code expired.",
+        );
       }
     }
     if (code !== submitted) {
-      txn.update(userRef, { 'verification.attempts': attempts + 1 });
-      throw new functions.https.HttpsError('permission-denied', 'Incorrect code.');
+      txn.update(userRef, { "verification.attempts": attempts + 1 });
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Incorrect code.",
+      );
     }
 
     // Mark Auth user as emailVerified = true (outside transaction for Auth API)
@@ -1233,9 +1715,9 @@ exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
       updatedAt: FieldValue.serverTimestamp(),
       verification: FieldValue.delete(),
     };
-    const currentStatus = doc.status || 'pending_email_verification';
-    if (currentStatus === 'pending_email_verification') {
-      updates.status = 'pending_documents';
+    const currentStatus = doc.status || "pending_email_verification";
+    if (currentStatus === "pending_email_verification") {
+      updates.status = "pending_documents";
     }
     txn.update(userRef, updates);
   });
@@ -1253,27 +1735,41 @@ exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
  */
 exports.testEmailSend = functions.https.onCall(async (data, context) => {
   try {
-    console.log('[testEmailSend] Testing direct Resend integration...');
+    console.log("[testEmailSend] Testing direct Resend integration...");
 
     // Get configuration
     const globalSettings = await emailConfig.getGlobalSettings();
-    const templateSettings = await emailConfig.getTemplateSettings('verification');
+    const templateSettings =
+      await emailConfig.getTemplateSettings("verification");
 
-    console.log('[testEmailSend] Global settings:', JSON.stringify(globalSettings, null, 2));
-    console.log('[testEmailSend] Template settings:', JSON.stringify(templateSettings, null, 2));
+    console.log(
+      "[testEmailSend] Global settings:",
+      JSON.stringify(globalSettings, null, 2),
+    );
+    console.log(
+      "[testEmailSend] Template settings:",
+      JSON.stringify(templateSettings, null, 2),
+    );
 
     // Initialize Resend client
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     // Test email parameters - use provided data or defaults
-    const testRecipient = (data && data.email) || 'mclearanceisam@gmail.com';
-    const testName = (data && data.name) || 'Test User';
+    const testRecipient = (data && data.email) || "mclearanceisam@gmail.com";
+    const testName = (data && data.name) || "Test User";
 
-    const subject = templateSettings.subject || 'Test Email - Direct Resend Integration';
-    const html = (templateSettings.html || '<p>Hello {name},</p><p>This is a test email sent using Resend API.</p><p>Regards,<br/>{accountName}</p>')
+    const subject =
+      templateSettings.subject || "Test Email - Direct Resend Integration";
+    const html = (
+      templateSettings.html ||
+      "<p>Hello {name},</p><p>This is a test email sent using Resend API.</p><p>Regards,<br/>{accountName}</p>"
+    )
       .replace(/{name}/g, testName)
       .replace(/{accountName}/g, globalSettings.accountName);
-    const text = (templateSettings.text || 'Hello {name},\n\nThis is a test email sent using Resend API.\n\nRegards,\n{accountName}')
+    const text = (
+      templateSettings.text ||
+      "Hello {name},\n\nThis is a test email sent using Resend API.\n\nRegards,\n{accountName}"
+    )
       .replace(/{name}/g, testName)
       .replace(/{accountName}/g, globalSettings.accountName);
 
@@ -1287,24 +1783,25 @@ exports.testEmailSend = functions.https.onCall(async (data, context) => {
       reply_to: globalSettings.supportEmail || globalSettings.from,
     };
 
-    console.log('[testEmailSend] Sending email to:', testRecipient);
-    console.log('[testEmailSend] From:', emailData.from);
-    console.log('[testEmailSend] Subject:', emailData.subject);
+    console.log("[testEmailSend] Sending email to:", testRecipient);
+    console.log("[testEmailSend] From:", emailData.from);
+    console.log("[testEmailSend] Subject:", emailData.subject);
 
     // Send the email
-    const { data: emailDataResponse, error } = await resend.emails.send(emailData);
+    const { data: emailDataResponse, error } =
+      await resend.emails.send(emailData);
 
     if (error) {
-      console.error('[testEmailSend] Failed to send email:', error);
+      console.error("[testEmailSend] Failed to send email:", error);
       return {
         success: false,
         error: error.message,
         recipient: testRecipient,
-        message: 'Test email sending failed'
+        message: "Test email sending failed",
       };
     }
 
-    console.log('[testEmailSend] Email sent successfully:', emailDataResponse);
+    console.log("[testEmailSend] Email sent successfully:", emailDataResponse);
 
     return {
       success: true,
@@ -1312,18 +1809,18 @@ exports.testEmailSend = functions.https.onCall(async (data, context) => {
       recipient: testRecipient,
       templateUsed: !!templateSettings.html,
       templateSubject: templateSettings.subject,
-      message: 'Test email sent successfully via direct Resend integration with HTML templates'
+      message:
+        "Test email sent successfully via direct Resend integration with HTML templates",
     };
   } catch (error) {
-    console.error('[testEmailSend] Error:', error);
+    console.error("[testEmailSend] Error:", error);
     return {
       success: false,
       error: error.message,
-      message: 'Test email sending failed'
+      message: "Test email sending failed",
     };
   }
 });
-
 
 /**
  * generateHistoryPDF (callable)
@@ -1335,80 +1832,110 @@ exports.generateHistoryPDF = functions.https.onCall(async (data, context) => {
   const applicationId = data?.applicationId;
 
   if (!applicationId) {
-    throw new functions.https.HttpsError('invalid-argument', 'Application ID is required.');
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Application ID is required.",
+    );
   }
 
   try {
-    console.log('[generateHistoryPDF] Starting PDF generation for application:', applicationId);
+    console.log(
+      "[generateHistoryPDF] Starting PDF generation for application:",
+      applicationId,
+    );
 
     // Get application data
-    const applicationRef = db.collection('applications').doc(applicationId);
+    const applicationRef = db.collection("applications").doc(applicationId);
     const applicationSnap = await applicationRef.get();
 
     if (!applicationSnap.exists) {
-      console.error('[generateHistoryPDF] Application not found:', applicationId);
-      throw new functions.https.HttpsError('not-found', 'Application not found.');
+      console.error(
+        "[generateHistoryPDF] Application not found:",
+        applicationId,
+      );
+      throw new functions.https.HttpsError(
+        "not-found",
+        "Application not found.",
+      );
     }
 
     const application = applicationSnap.data();
-    console.log('[generateHistoryPDF] Retrieved application data for:', applicationId);
+    console.log(
+      "[generateHistoryPDF] Retrieved application data for:",
+      applicationId,
+    );
 
     // Ownership check is handled by Firestore rules
 
     // Generate PDF
-    console.log('[generateHistoryPDF] Calling generateClearanceDocument...');
+    console.log("[generateHistoryPDF] Calling generateClearanceDocument...");
     const pdfUrl = await generateClearanceDocument(uid, application);
 
-    console.log('[generateHistoryPDF] PDF generated successfully for application:', applicationId, 'URL:', pdfUrl);
+    console.log(
+      "[generateHistoryPDF] PDF generated successfully for application:",
+      applicationId,
+      "URL:",
+      pdfUrl,
+    );
     return { success: true, pdfUrl };
-
   } catch (error) {
-    console.error('[generateHistoryPDF] Error generating PDF for application:', applicationId, error);
+    console.error(
+      "[generateHistoryPDF] Error generating PDF for application:",
+      applicationId,
+      error,
+    );
 
     // Provide more specific error messages
-    if (error.code === 'not-found') {
+    if (error.code === "not-found") {
       throw error;
-    } else if (error.code === 'permission-denied') {
+    } else if (error.code === "permission-denied") {
       throw error;
     } else {
       // Log the full error for debugging
-      console.error('[generateHistoryPDF] Full error details:', {
+      console.error("[generateHistoryPDF] Full error details:", {
         message: error.message,
         stack: error.stack,
-        code: error.code
+        code: error.code,
       });
-      throw new functions.https.HttpsError('internal', `Failed to generate PDF: ${error.message}`);
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to generate PDF: ${error.message}`,
+      );
     }
   }
 });
 
 /**
-  * Applications triggers
-  * - Ensure defaults on create
-  * - Update counters on create
-  * - Notify user on status decision transitions (approved/declined)
-  */
+ * Applications triggers
+ * - Ensure defaults on create
+ * - Update counters on create
+ * - Notify user on status decision transitions (approved/declined)
+ */
 exports.onApplicationCreate = functions.firestore
-  .document('applications/{appId}')
+  .document("applications/{appId}")
   .onCreate(async (snap, context) => {
     const data = snap.data() || {};
     const updates = {};
     if (!data.createdAt) updates.createdAt = FieldValue.serverTimestamp();
     if (!data.updatedAt) updates.updatedAt = FieldValue.serverTimestamp();
-    if (!data.status) updates.status = 'waiting';
+    if (!data.status) updates.status = "waiting";
     if (Object.keys(updates).length) {
       await snap.ref.update(updates);
     }
 
     // Update counters for new application
-    const type = data.type || 'arrival';
-    const status = updates.status || data.status || 'waiting';
+    const type = data.type || "arrival";
+    const status = updates.status || data.status || "waiting";
     await updateApplicationCounters(null, null, type, status);
-    console.log("[onApplicationCreate] Updated counters for new application:", type, status);
+    console.log(
+      "[onApplicationCreate] Updated counters for new application:",
+      type,
+      status,
+    );
   });
 
 exports.onApplicationUpdate = functions.firestore
-  .document('applications/{appId}')
+  .document("applications/{appId}")
   .onUpdate(async (change, context) => {
     try {
       const before = change.before.data() || {};
@@ -1422,38 +1949,57 @@ exports.onApplicationUpdate = functions.firestore
 
       // Update counters if type or status changed
       if (beforeType !== afterType || beforeStatus !== afterStatus) {
-        await updateApplicationCounters(beforeType, beforeStatus, afterType, afterStatus);
-        console.log("[onApplicationUpdate] Updated counters for application change:", beforeType, beforeStatus, "->", afterType, afterStatus);
+        await updateApplicationCounters(
+          beforeType,
+          beforeStatus,
+          afterType,
+          afterStatus,
+        );
+        console.log(
+          "[onApplicationUpdate] Updated counters for application change:",
+          beforeType,
+          beforeStatus,
+          "->",
+          afterType,
+          afterStatus,
+        );
       }
 
       if (!userUid) return;
 
-      const becameApproved = before.status !== 'approved' && after.status === 'approved';
-      const becameDeclined = before.status !== 'declined' && after.status === 'declined';
-      const becameRevision = before.status !== 'revision' && after.status === 'revision';
+      const becameApproved =
+        before.status !== "approved" && after.status === "approved";
+      const becameDeclined =
+        before.status !== "declined" && after.status === "declined";
+      const becameRevision =
+        before.status !== "revision" && after.status === "revision";
       if (!(becameApproved || becameDeclined || becameRevision)) return;
 
-      const status = becameApproved ? 'approved' : becameDeclined ? 'declined' : 'revision';
-      const type = after.type || before.type || 'arrival';
+      const status = becameApproved
+        ? "approved"
+        : becameDeclined
+          ? "declined"
+          : "revision";
+      const type = after.type || before.type || "arrival";
       const shipName = after.shipName || before.shipName || type;
       const officerName = after.officerName || before.officerName;
       const note = after.notes || before.notes;
 
       const titleMap = {
-        approved: 'Application Approved',
-        declined: 'Application Declined',
-        revision: 'Application Requires Revision',
+        approved: "Application Approved",
+        declined: "Application Declined",
+        revision: "Application Requires Revision",
       };
 
-      let body = '';
+      let body = "";
       switch (status) {
-        case 'approved':
+        case "approved":
           body = `Your ${type} application for ${shipName} has been approved.`;
           break;
-        case 'declined':
+        case "declined":
           body = `Your ${type} application for ${shipName} has been declined.`;
           break;
-        case 'revision':
+        case "revision":
           body = `Your ${type} application for ${shipName} requires additional information.`;
           break;
         default:
@@ -1467,44 +2013,55 @@ exports.onApplicationUpdate = functions.firestore
 
       const timestamp = Timestamp.now();
       const notifId = `${context.params.appId}_${status}_${timestamp.toMillis()}`;
-      const notifRef = db.collection('notifications').doc(userUid).collection('items').doc(notifId);
-      const notificationData = {
-        title: titleMap[status] || 'Application Update',
+      await recordNotification(userUid, {
+        id: notifId,
+        title: titleMap[status] || "Application Update",
         body,
-        date: timestamp,
-        createdAt: timestamp,
-        type: status === 'approved' ? 1 : status === 'revision' ? 2 : 0,
-        userId: userUid,
-        isRead: false,
-        applicationId: context.params.appId,
-        applicationType: type,
-        status,
-      };
+        timestamp,
+        type: status === "approved" ? 1 : status === "revision" ? 2 : 0,
+        extra: {
+          applicationId: context.params.appId,
+          applicationType: type,
+          status,
+          officerName: officerName || null,
+          officerNote: note || null,
+        },
+      });
+      console.log("[onApplicationUpdate] Notification created:", notifId);
 
-      if (officerName) {
-        notificationData.officerName = officerName;
-      }
-      if (note) {
-        notificationData.officerNote = note;
-      }
-
-      await notifRef.set(notificationData);
-      console.log('[onApplicationUpdate] Notification created:', notifId, notificationData);
+      await notifyRoles(
+        ["officer", "admin"],
+        {
+          title: "Application status changed",
+          body: `Application ${context.params.appId} has been ${status}.`,
+          type: 0,
+          timestamp,
+          extra: {
+            applicationId: context.params.appId,
+            status,
+            targetUid: userUid,
+          },
+        },
+        { skipUid: userUid },
+      );
     } catch (e) {
-      console.error('[onApplicationUpdate] Error:', e);
+      console.error("[onApplicationUpdate] Error:", e);
     }
   });
 
 async function generateMonthlyReportPDF(uid, stats) {
-  console.log('[generateMonthlyReportPDF] Starting PDF generation for user:', uid);
+  console.log(
+    "[generateMonthlyReportPDF] Starting PDF generation for user:",
+    uid,
+  );
 
   try {
-    const PDFMake = require('pdfmake');
+    const PDFMake = require("pdfmake");
     const fonts = {
       Roboto: {
-        normal: 'node_modules/pdfmake/build/vfs_fonts.js#Roboto-Regular.ttf',
-        bold: 'node_modules/pdfmake/build/vfs_fonts.js#Roboto-Medium.ttf',
-      }
+        normal: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Regular.ttf",
+        bold: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Medium.ttf",
+      },
     };
     const pdfMake = new PDFMake(fonts);
 
@@ -1514,97 +2071,113 @@ async function generateMonthlyReportPDF(uid, stats) {
 
     const docDefinition = {
       content: [
-        { text: title, style: 'header', alignment: 'center' },
-        { text: `Generated on: ${now.toLocaleString()}`, style: 'subheader', alignment: 'center' },
-        { text: `Generated by: Officer ${uid}`, style: 'subheader', alignment: 'center' },
-        { text: '', margin: [0, 0, 0, 20] },
+        { text: title, style: "header", alignment: "center" },
+        {
+          text: `Generated on: ${now.toLocaleString()}`,
+          style: "subheader",
+          alignment: "center",
+        },
+        {
+          text: `Generated by: Officer ${uid}`,
+          style: "subheader",
+          alignment: "center",
+        },
+        { text: "", margin: [0, 0, 0, 20] },
         {
           table: {
-            widths: ['*', 'auto'],
+            widths: ["*", "auto"],
             body: [
-              [{ text: 'Category', style: 'tableHeader' }, { text: 'Count', style: 'tableHeader' }],
-              ['Pending Arrivals', stats.pendingArrival?.toString() ?? '0'],
-              ['Pending Departures', stats.pendingDeparture?.toString() ?? '0'],
-              ['Pending Accounts', stats.pendingAccounts?.toString() ?? '0'],
-            ]
+              [
+                { text: "Category", style: "tableHeader" },
+                { text: "Count", style: "tableHeader" },
+              ],
+              ["Pending Arrivals", stats.pendingArrival?.toString() ?? "0"],
+              ["Pending Departures", stats.pendingDeparture?.toString() ?? "0"],
+              ["Pending Accounts", stats.pendingAccounts?.toString() ?? "0"],
+            ],
           },
-          layout: 'lightHorizontalLines'
-        }
+          layout: "lightHorizontalLines",
+        },
       ],
       styles: {
         header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
         subheader: { fontSize: 12, margin: [0, 0, 0, 5] },
-        tableHeader: { bold: true, fontSize: 13, color: 'black' }
+        tableHeader: { bold: true, fontSize: 13, color: "black" },
       },
-      defaultStyle: { font: 'Roboto' }
+      defaultStyle: { font: "Roboto" },
     };
 
     const pdfDoc = pdfMake.createPdfKitDocument(docDefinition);
     const chunks = [];
-    pdfDoc.on('data', chunk => chunks.push(chunk));
+    pdfDoc.on("data", (chunk) => chunks.push(chunk));
 
     return new Promise((resolve, reject) => {
-      pdfDoc.on('end', () => {
+      pdfDoc.on("end", () => {
         const result = Buffer.concat(chunks);
         resolve(result);
       });
-      pdfDoc.on('error', reject);
+      pdfDoc.on("error", reject);
       pdfDoc.end();
     });
   } catch (e) {
-    console.error('[generateMonthlyReportPDF] Unexpected error:', e);
+    console.error("[generateMonthlyReportPDF] Unexpected error:", e);
     throw new Error(`PDF generation failed: ${e.message}`);
   }
 }
 
-exports.generateMonthlyReport = functions.https.onCall(async (data, context) => {
-  requireAuth(context);
-  await ensureOfficerOrAdmin(context);
+exports.generateMonthlyReport = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
 
-  const { stats } = data;
-  const uid = context.auth.uid;
+    const { stats } = data;
+    const uid = context.auth.uid;
 
-  try {
-    const now = new Date();
-    const date = new Date(now.getFullYear(), now.getMonth(), 1);
-    const title = `Monthly Report - ${date.getMonth() + 1}/${date.getFullYear()}`;
+    try {
+      const now = new Date();
+      const date = new Date(now.getFullYear(), now.getMonth(), 1);
+      const title = `Monthly Report - ${date.getMonth() + 1}/${date.getFullYear()}`;
 
-    // Generate PDF
-    const pdfBytes = await generateMonthlyReportPDF(uid, stats);
+      // Generate PDF
+      const pdfBytes = await generateMonthlyReportPDF(uid, stats);
 
-    // Upload to Firebase Storage
-    const bucket = admin.storage().bucket();
-    const filename = `reports/${uid}/monthly_${date.getFullYear()}_${date.getMonth() + 1}.pdf`;
-    const file = bucket.file(filename);
+      // Upload to Firebase Storage
+      const bucket = admin.storage().bucket();
+      const filename = `reports/${uid}/monthly_${date.getFullYear()}_${date.getMonth() + 1}.pdf`;
+      const file = bucket.file(filename);
 
-    await file.save(pdfBytes, {
-      metadata: { contentType: 'application/pdf' },
-    });
+      await file.save(pdfBytes, {
+        metadata: { contentType: "application/pdf" },
+      });
 
-    const [signedUrl] = await file.getSignedUrl({
-      action: 'read',
-      expires: '03-09-2491'
-    });
+      const [signedUrl] = await file.getSignedUrl({
+        action: "read",
+        expires: "03-09-2491",
+      });
 
-    // Save report metadata to Firestore
-    const reportData = {
-      title,
-      type: 'monthly',
-      date: Timestamp.fromDate(date),
-      createdBy: uid,
-      createdAt: Timestamp.now(),
-      pdfUrl: signedUrl,
-      stats,
-    };
+      // Save report metadata to Firestore
+      const reportData = {
+        title,
+        type: "monthly",
+        date: Timestamp.fromDate(date),
+        createdBy: uid,
+        createdAt: Timestamp.now(),
+        pdfUrl: signedUrl,
+        stats,
+      };
 
-    const reportRef = await db.collection('reports').add(reportData);
+      const reportRef = await db.collection("reports").add(reportData);
 
-    return { success: true, reportId: reportRef.id, pdfUrl: signedUrl };
-  } catch (error) {
-    logger.error("Error generating monthly report", error);
-    throw new functions.https.HttpsError('internal', 'Failed to generate monthly report.');
-  }
-});
+      return { success: true, reportId: reportRef.id, pdfUrl: signedUrl };
+    } catch (error) {
+      logger.error("Error generating monthly report", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to generate monthly report.",
+      );
+    }
+  },
+);
 
 /**
  * Updates the status of a user account.
@@ -1612,43 +2185,51 @@ exports.generateMonthlyReport = functions.https.onCall(async (data, context) => 
  * @param {object} context - The context object containing authentication information.
  * @returns {object} - An object indicating the success of the operation.
  */
-exports.updateUserAccountStatus = functions.https.onCall(async (data, context) => {
-  requireAuth(context);
-  await ensureOfficerOrAdmin(context);
+exports.updateUserAccountStatus = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
 
-  const { uid, status, rejectionReason } = data;
+    const { uid, status, rejectionReason } = data;
 
-  if (!uid || !status) {
-    throw new functions.https.HttpsError('invalid-argument', 'UID and status are required.');
-  }
+    if (!uid || !status) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "UID and status are required.",
+      );
+    }
 
-  const userRef = db.collection('users').doc(uid);
+    const userRef = db.collection("users").doc(uid);
 
-  try {
-    await db.runTransaction(async (transaction) => {
-      const userDoc = await transaction.get(userRef);
+    try {
+      await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
 
-      if (!userDoc.exists) {
-        throw new functions.https.HttpsError('not-found', 'User not found.');
-      }
+        if (!userDoc.exists) {
+          throw new functions.https.HttpsError("not-found", "User not found.");
+        }
 
-      const updates = {
-        status,
-        updatedAt: FieldValue.serverTimestamp(),
-      };
+        const updates = {
+          status,
+          updatedAt: FieldValue.serverTimestamp(),
+        };
 
-      if (status === 'rejected') {
-        updates.rejectionReason = rejectionReason;
-      } else {
-        updates.rejectionReason = FieldValue.delete();
-      }
+        if (status === "rejected") {
+          updates.rejectionReason = rejectionReason;
+        } else {
+          updates.rejectionReason = FieldValue.delete();
+        }
 
-      transaction.update(userRef, updates);
-    });
+        transaction.update(userRef, updates);
+      });
 
-    return { success: true };
-  } catch (error) {
-    logger.error('Error updating user account status', error);
-    throw new functions.https.HttpsError('internal', 'Failed to update user account status.');
-  }
-});
+      return { success: true };
+    } catch (error) {
+      logger.error("Error updating user account status", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to update user account status.",
+      );
+    }
+  },
+);

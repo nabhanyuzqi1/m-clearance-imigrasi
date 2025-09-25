@@ -19,8 +19,11 @@ class NotificationService {
         .collection('items')
         .orderBy('date', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => NotificationItem.fromFirestore(doc)).toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => NotificationItem.fromFirestore(doc))
+              .toList(),
+        );
   }
 
   // Get unread notifications count
@@ -43,13 +46,19 @@ class NotificationService {
       final user = _auth.currentUser;
       if (user == null) return false;
 
-      await _firestore
+      final notifRef = _firestore
           .collection('notifications')
           .doc(user.uid)
           .collection('items')
-          .doc(notificationId)
-          .update({'isRead': true});
+          .doc(notificationId);
+      final snap = await notifRef.get();
+      if (!snap.exists) return false;
+      final data = snap.data();
+      if ((data?['isRead'] ?? false) == true) {
+        return true;
+      }
 
+      await notifRef.update({'isRead': true});
       return true;
     } catch (e) {
       LoggingService().error('Error marking notification as read', e);
@@ -108,13 +117,15 @@ class NotificationService {
       final user = _auth.currentUser;
       if (user == null) return false;
 
-      await _firestore
+      final notifRef = _firestore
           .collection('notifications')
           .doc(user.uid)
           .collection('items')
-          .doc(notificationId)
-          .delete();
+          .doc(notificationId);
 
+      final snap = await notifRef.get();
+      if (!snap.exists) return false;
+      await notifRef.delete();
       return true;
     } catch (e) {
       LoggingService().error('Error deleting notification', e);
@@ -144,7 +155,8 @@ class NotificationService {
           break;
         case ApplicationStatus.revision:
           title = 'Application Needs Revision';
-          body = 'Your application for ship "$shipName" requires additional information.';
+          body =
+              'Your application for ship "$shipName" requires additional information.';
           type = NotificationType.revision;
           break;
         case ApplicationStatus.declined:
@@ -165,7 +177,8 @@ class NotificationService {
         userId: user.uid,
       );
 
-      return await createNotification(notification);
+      final id = await createNotification(notification);
+      return id;
     } catch (e) {
       LoggingService().error('Error creating application notification', e);
       return null;

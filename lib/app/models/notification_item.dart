@@ -23,14 +23,40 @@ class NotificationItem {
 
   factory NotificationItem.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    NotificationType type;
+    final rawType = data['type'];
+    if (rawType is int && rawType >= 0 && rawType < NotificationType.values.length) {
+      type = NotificationType.values[rawType];
+    } else if (rawType is String) {
+      switch (rawType.toLowerCase()) {
+        case 'approved':
+          type = NotificationType.approved;
+          break;
+        case 'revision':
+          type = NotificationType.revision;
+          break;
+        default:
+          type = NotificationType.update;
+      }
+    } else {
+      type = NotificationType.update;
+    }
+
+    final timestamp =
+        (data['date'] as Timestamp?) ?? (data['createdAt'] as Timestamp?) ?? Timestamp.now();
+    final title = data['title'] ?? data['message'] ?? '';
+    final body = data['body'] ?? data['message'] ?? '';
+    final userId = data['userId'] ?? '';
+    final isRead = data['isRead'] ?? false;
+
     return NotificationItem(
       id: doc.id,
-      title: data['title'] ?? '',
-      body: data['body'] ?? '',
-      date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      type: NotificationType.values[data['type'] ?? 0],
-      userId: data['userId'] ?? '',
-      isRead: data['isRead'] ?? false,
+      title: title,
+      body: body,
+      date: timestamp.toDate(),
+      type: type,
+      userId: userId,
+      isRead: isRead,
     );
   }
 
@@ -39,6 +65,7 @@ class NotificationItem {
       'title': title,
       'body': body,
       'date': Timestamp.fromDate(date),
+      'createdAt': Timestamp.fromDate(date),
       'type': type.index,
       'userId': userId,
       'isRead': isRead,

@@ -115,9 +115,17 @@ service cloud.firestore {
 
     // Notifications: notifications/{uid}/items/{notifId}
     // Read allowed for owner; client writes denied (Functions use admin privileges)
-    match /notifications/{uid}/{document=**} {
+    match /notifications/{uid} {
       allow read: if isSignedIn() && isOwner(uid);
-      allow write: if false;
+
+      match /items/{notifId} {
+        allow read: if isSignedIn() && isOwner(uid);
+        allow update: if isSignedIn() && isOwner(uid)
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['isRead'])
+          && request.resource.data['isRead'] is bool;
+        allow delete: if isSignedIn() && isOwner(uid);
+        allow create: if false; // only server-side
+      }
     }
 
     // Review queue (used by backoffice): reviewQueue/{reviewId}
