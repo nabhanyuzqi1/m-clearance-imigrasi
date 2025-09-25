@@ -904,10 +904,15 @@ exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) 
   // Helper to count a query without loading all docs (fallback)
   async function countQuery(q, label) {
     const queryStart = Date.now();
-    const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
-    const queryTime = Date.now() - queryStart;
-    console.log(`[getOfficerDashboardStats] ${label} count took ${queryTime}ms, returned ${snap.size} docs`);
-    return snap.size;
+    try {
+      const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
+      const queryTime = Date.now() - queryStart;
+      console.log(`[getOfficerDashboardStats] ${label} count took ${queryTime}ms, returned ${snap.size} docs`);
+      return snap.size;
+    } catch (error) {
+      logger.error(`[getOfficerDashboardStats] ${label} query failed`, error);
+      return 0;
+    }
   }
 
   const usersCol = db.collection('users');
@@ -923,11 +928,37 @@ exports.getOfficerDashboardStats = functions.https.onCall(async (data, context) 
     pendingArrival,
     pendingDeparture,
   ] = await Promise.all([
-    counters.pendingAccounts !== undefined ? Promise.resolve(counters.pendingAccounts) : countQuery(usersCol.where('status', '==', 'pending_approval'), 'pendingAccounts'),
-    countQuery(usersCol.where('status', '==', 'approved').where('updatedAt', '>=', Timestamp.fromDate(startOfDay)), 'approvedToday'), // Daily counts still need query
-    countQuery(usersCol.where('status', '==', 'rejected').where('updatedAt', '>=', Timestamp.fromDate(startOfDay)), 'rejectedToday'), // Daily counts still need query
-    counters.pendingArrival !== undefined ? Promise.resolve(counters.pendingArrival) : countQuery(applicationsCol.where('type', '==', 'arrival').where('status', '==', 'waiting'), 'pendingArrival'),
-    counters.pendingDeparture !== undefined ? Promise.resolve(counters.pendingDeparture) : countQuery(applicationsCol.where('type', '==', 'departure').where('status', '==', 'waiting'), 'pendingDeparture'),
+    counters.pendingAccounts !== undefined
+      ? Promise.resolve(counters.pendingAccounts)
+      : countQuery(usersCol.where('status', '==', 'pending_approval'), 'pendingAccounts'),
+    countQuery(
+      usersCol
+        .where('status', '==', 'approved')
+        .where('updatedAt', '>=', Timestamp.fromDate(startOfDay)),
+      'approvedToday',
+    ),
+    countQuery(
+      usersCol
+        .where('status', '==', 'rejected')
+        .where('updatedAt', '>=', Timestamp.fromDate(startOfDay)),
+      'rejectedToday',
+    ),
+    counters.pendingArrival !== undefined
+      ? Promise.resolve(counters.pendingArrival)
+      : countQuery(
+          applicationsCol
+            .where('type', '==', 'arrival')
+            .where('status', '==', 'waiting'),
+          'pendingArrival',
+        ),
+    counters.pendingDeparture !== undefined
+      ? Promise.resolve(counters.pendingDeparture)
+      : countQuery(
+          applicationsCol
+            .where('type', '==', 'departure')
+            .where('status', '==', 'waiting'),
+          'pendingDeparture',
+        ),
   ]);
 
   const countTime = Date.now() - countStart;
@@ -956,9 +987,15 @@ exports.getOfficerMonthlyStats = functions.https.onCall(async (data, context) =>
 
   const applicationsCol = db.collection('applications');
 
-  async function countQuery(q) {
-    const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
-    return snap.size;
+  async function countQuery(q, label) {
+    try {
+      const snap = await q.select(admin.firestore.FieldPath.documentId()).get();
+      console.log(`[getOfficerMonthlyStats] ${label} returned ${snap.size} docs`);
+      return snap.size;
+    } catch (error) {
+      logger.error(`[getOfficerMonthlyStats] ${label} query failed`, error);
+      return 0;
+    }
   }
 
   const [
@@ -966,9 +1003,27 @@ exports.getOfficerMonthlyStats = functions.https.onCall(async (data, context) =>
     pendingDeparture,
     pendingAccounts,
   ] = await Promise.all([
-    countQuery(applicationsCol.where('type', '==', 'arrival').where('status', '==', 'waiting').where('createdAt', '>=', Timestamp.fromDate(startOfMonth))),
-    countQuery(applicationsCol.where('type', '==', 'departure').where('status', '==', 'waiting').where('createdAt', '>=', Timestamp.fromDate(startOfMonth))),
-    countQuery(db.collection('users').where('status', '==', 'pending_approval').where('createdAt', '>=', Timestamp.fromDate(startOfMonth))),
+    countQuery(
+      applicationsCol
+        .where('type', '==', 'arrival')
+        .where('status', '==', 'waiting')
+        .where('createdAt', '>=', Timestamp.fromDate(startOfMonth)),
+      'pendingArrivalThisMonth',
+    ),
+    countQuery(
+      applicationsCol
+        .where('type', '==', 'departure')
+        .where('status', '==', 'waiting')
+        .where('createdAt', '>=', Timestamp.fromDate(startOfMonth)),
+      'pendingDepartureThisMonth',
+    ),
+    countQuery(
+      db
+        .collection('users')
+        .where('status', '==', 'pending_approval')
+        .where('createdAt', '>=', Timestamp.fromDate(startOfMonth)),
+      'pendingAccountsThisMonth',
+    ),
   ]);
 
   return {

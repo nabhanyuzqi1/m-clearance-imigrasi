@@ -29,7 +29,8 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   List<ReportModel> _reports = [];
   bool _isLoadingReports = true;
 
-  String _tr(String key) => AppLocalizations.of(context).get('officerReport.$key');
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('officerReport.$key');
 
   @override
   void initState() {
@@ -89,7 +90,10 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   Future<void> _downloadReport(ReportModel report) async {
     if (report.pdfUrl != null) {
       try {
-        await _reportService.downloadReport(report.pdfUrl!, '${report.title}.pdf');
+        await _reportService.downloadReport(
+          report.pdfUrl!,
+          '${report.title}.pdf',
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -125,7 +129,9 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     setState(() => _isGeneratingReport = true);
     try {
       if (type == 'monthly') {
-        final result = await _functionsService.generateMonthlyReport(_monthStats);
+        final result = await _functionsService.generateMonthlyReport(
+          _monthStats,
+        );
         if (result['success'] == true && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -143,7 +149,10 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           );
         }
       } else {
-        final newReport = await _reportService.generateReport(type, _todayStats);
+        final newReport = await _reportService.generateReport(
+          type,
+          _todayStats,
+        );
 
         if (newReport != null && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -204,7 +213,6 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               // Stats Cards
               if (_isLoadingStats)
                 const Center(child: CircularProgressIndicator())
@@ -241,9 +249,9 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                       SizedBox(height: verticalSpacing * 0.5),
                       Text(
                         _tr('generating_pdf'),
-                        style: AppTheme.bodyMedium(context).copyWith(
-                          color: AppTheme.greyColor,
-                        ),
+                        style: AppTheme.bodyMedium(
+                          context,
+                        ).copyWith(color: AppTheme.greyColor),
                       ),
                     ],
                   ),
@@ -253,8 +261,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
               SizedBox(height: verticalSpacing),
 
               // Statistics Chart
-              if (!_isLoadingStats)
-                _buildStatsChart(context),
+              if (!_isLoadingStats) _buildStatsChart(context),
 
               SizedBox(height: verticalSpacing * 2),
 
@@ -275,17 +282,19 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                 Center(
                   child: Text(
                     _tr('no_reports_found'),
-                    style: AppTheme.bodyMedium(context).copyWith(
-                      color: AppTheme.greyColor,
-                    ),
+                    style: AppTheme.bodyMedium(
+                      context,
+                    ).copyWith(color: AppTheme.greyColor),
                   ),
                 )
               else
-                ..._reports.map((report) => _buildReportHistoryItem(
-                  context,
-                  report: report,
-                  onTap: () => _downloadReport(report),
-                )),
+                ..._reports.map(
+                  (report) => _buildReportHistoryItem(
+                    context,
+                    report: report,
+                    onTap: () => _downloadReport(report),
+                  ),
+                ),
             ],
           ),
         ),
@@ -293,15 +302,26 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     );
   }
 
-  Widget _buildStatsCard(BuildContext context, {
+  Widget _buildStatsCard(
+    BuildContext context, {
     required String title,
     required Map<String, dynamic> stats,
     required Color color,
   }) {
+    String _formatStat(String key) {
+      final value = stats[key];
+      if (value is num) return value.toStringAsFixed(0);
+      if (value is String) {
+        final parsed = double.tryParse(value);
+        if (parsed != null) return parsed.toStringAsFixed(0);
+      }
+      return '0';
+    }
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: color.withValues(alpha:0.1),
+      color: color.withValues(alpha: 0.1),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -309,10 +329,9 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           children: [
             Text(
               title,
-              style: AppTheme.headingSmall(context).copyWith(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
+              style: AppTheme.headingSmall(
+                context,
+              ).copyWith(color: color, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Row(
@@ -321,19 +340,19 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                 _buildStatItem(
                   context,
                   label: _tr('arrival'),
-                  value: stats['pendingArrival']?.toString() ?? '0',
+                  value: _formatStat('pendingArrival'),
                   color: color,
                 ),
                 _buildStatItem(
                   context,
                   label: _tr('departure'),
-                  value: stats['pendingDeparture']?.toString() ?? '0',
+                  value: _formatStat('pendingDeparture'),
                   color: color,
                 ),
                 _buildStatItem(
                   context,
                   label: _tr('registration'),
-                  value: stats['pendingAccounts']?.toString() ?? '0',
+                  value: _formatStat('pendingAccounts'),
                   color: color,
                 ),
               ],
@@ -344,7 +363,8 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     );
   }
 
-  Widget _buildStatItem(BuildContext context, {
+  Widget _buildStatItem(
+    BuildContext context, {
     required String label,
     required String value,
     required Color color,
@@ -353,17 +373,16 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
       children: [
         Text(
           value,
-          style: AppTheme.headingMedium(context).copyWith(
-            color: color,
-            fontWeight: FontWeight.bold,
-          ),
+          style: AppTheme.headingMedium(
+            context,
+          ).copyWith(color: color, fontWeight: FontWeight.bold),
         ),
         SizedBox(height: MediaQuery.of(context).size.width * 0.01),
         Text(
           label,
-          style: AppTheme.bodySmall(context).copyWith(
-            color: color.withAlpha(179),
-          ),
+          style: AppTheme.bodySmall(
+            context,
+          ).copyWith(color: color.withAlpha(179)),
         ),
       ],
     );
@@ -372,6 +391,25 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   Widget _buildStatsChart(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final chartHeight = screenWidth * 0.6;
+
+    double _getStatValue(String key) {
+      final value = _todayStats[key];
+      if (value is num) return value.toDouble();
+      if (value is String) {
+        return double.tryParse(value) ?? 0;
+      }
+      return 0;
+    }
+
+    final arrival = _getStatValue('pendingArrival');
+    final departure = _getStatValue('pendingDeparture');
+    final accounts = _getStatValue('pendingAccounts');
+    final maxStat = [
+      arrival,
+      departure,
+      accounts,
+    ].reduce((a, b) => a > b ? a : b);
+    final double chartMaxY = maxStat > 0 ? maxStat * 1.2 : 10.0;
 
     return Container(
       height: chartHeight,
@@ -393,22 +431,16 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         children: [
           Text(
             _tr('statistics_overview'),
-            style: AppTheme.headingSmall(context).copyWith(
-              color: AppTheme.blackColor,
-              fontWeight: FontWeight.bold,
-            ),
+            style: AppTheme.headingSmall(
+              context,
+            ).copyWith(color: AppTheme.blackColor, fontWeight: FontWeight.bold),
           ),
           SizedBox(height: screenWidth * 0.03),
           Expanded(
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: (_todayStats.values.isNotEmpty
-                    ? (_todayStats.values
-                            .map((e) => e as int)
-                            .reduce((a, b) => a > b ? a : b) *
-                        1.2)
-                    : 10), // Default maxY if no data
+                maxY: chartMaxY,
                 barTouchData: BarTouchData(
                   enabled: true,
                   touchTooltipData: BarTouchTooltipData(
@@ -459,9 +491,9 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                         }
                         return Text(
                           title,
-                          style: AppTheme.bodySmall(context).copyWith(
-                            color: AppTheme.greyColor,
-                          ),
+                          style: AppTheme.bodySmall(
+                            context,
+                          ).copyWith(color: AppTheme.greyColor),
                         );
                       },
                     ),
@@ -473,15 +505,19 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                       getTitlesWidget: (value, meta) {
                         return Text(
                           value.toInt().toString(),
-                          style: AppTheme.bodySmall(context).copyWith(
-                            color: AppTheme.greyColor,
-                          ),
+                          style: AppTheme.bodySmall(
+                            context,
+                          ).copyWith(color: AppTheme.greyColor),
                         );
                       },
                     ),
                   ),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 gridData: FlGridData(show: false),
                 borderData: FlBorderData(show: false),
@@ -490,7 +526,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                     x: 0,
                     barRods: [
                       BarChartRodData(
-                        toY: (_todayStats['pendingArrival'] ?? 0).toDouble(),
+                        toY: arrival,
                         color: AppTheme.primaryColor,
                         width: screenWidth * 0.08,
                         borderRadius: BorderRadius.circular(4),
@@ -501,7 +537,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                     x: 1,
                     barRods: [
                       BarChartRodData(
-                        toY: (_todayStats['pendingDeparture'] ?? 0).toDouble(),
+                        toY: departure,
                         color: AppTheme.secondaryColor,
                         width: screenWidth * 0.08,
                         borderRadius: BorderRadius.circular(4),
@@ -512,7 +548,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                     x: 2,
                     barRods: [
                       BarChartRodData(
-                        toY: (_todayStats['pendingAccounts'] ?? 0).toDouble(),
+                        toY: accounts,
                         color: AppTheme.secondaryColor,
                         width: screenWidth * 0.08,
                         borderRadius: BorderRadius.circular(4),
@@ -534,9 +570,9 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
       children: [
         Text(
           _tr('create_new_report'),
-          style: AppTheme.headingSmall(context).copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: AppTheme.headingSmall(
+            context,
+          ).copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
         Row(
@@ -545,7 +581,9 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.calendar_today),
                 label: Text(_tr('daily_report')),
-                onPressed: _isGeneratingReport ? null : () => _generateReport('daily'),
+                onPressed: _isGeneratingReport
+                    ? null
+                    : () => _generateReport('daily'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -559,7 +597,9 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.calendar_view_month),
                 label: Text(_tr('monthly_report_type')),
-                onPressed: _isGeneratingReport ? null : () => _generateReport('monthly'),
+                onPressed: _isGeneratingReport
+                    ? null
+                    : () => _generateReport('monthly'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -574,7 +614,8 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     );
   }
 
-  Widget _buildReportHistoryItem(BuildContext context, {
+  Widget _buildReportHistoryItem(
+    BuildContext context, {
     ReportModel? report,
     String? title,
     String? createdBy,
@@ -619,9 +660,9 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                   SizedBox(height: screenWidth * 0.01),
                   Text(
                     '${_tr('created_by')} $displayCreatedBy',
-                    style: AppTheme.bodySmall(context).copyWith(
-                      color: AppTheme.greyColor,
-                    ),
+                    style: AppTheme.bodySmall(
+                      context,
+                    ).copyWith(color: AppTheme.greyColor),
                   ),
                 ],
               ),
