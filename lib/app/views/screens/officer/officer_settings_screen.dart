@@ -45,10 +45,9 @@ class OfficerSettingsScreen extends StatelessWidget {
           if (!authSnapshot.hasData || authSnapshot.data == null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!context.mounted) return;
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                AppRoutes.login,
-                (route) => false,
-              );
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
             });
             return const SizedBox.shrink();
           }
@@ -62,26 +61,31 @@ class OfficerSettingsScreen extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
               if (userSnapshot.hasError) {
-                return Center(
-                    child: Text(_tr(context, 'error_loading_user_data')));
-              }
-              if (!userSnapshot.hasData || userSnapshot.data == null) {
-                return Center(
-                    child: Text(_tr(context, 'user_data_not_found')));
+                LoggingService().error(
+                  'Error loading officer data',
+                  userSnapshot.error,
+                );
               }
 
-              final userAccount = userSnapshot.data!;
-              final photoURL = userAccount.photoURL;
-              final corporateName = userAccount.corporateName.trim();
-              final fullName = userAccount.fullName.trim();
+              final userAccount = userSnapshot.data;
+              final photoURL = userAccount?.photoURL ?? user.photoURL;
+              final corporateName =
+                  userAccount?.corporateName.trim() ?? user.displayName ?? '';
+              final fullName =
+                  userAccount?.fullName.trim() ?? user.displayName ?? '';
+              final fallbackEmail = user.email ?? userAccount?.email ?? '';
               final primaryName = corporateName.isNotEmpty
                   ? corporateName
                   : fullName.isNotEmpty
-                      ? fullName
-                      : userAccount.email;
+                  ? fullName
+                  : fallbackEmail;
               final secondaryName =
-                  corporateName.isNotEmpty && fullName.isNotEmpty ? fullName : null;
-              LoggingService().info('Officer Settings Screen: photoURL = $photoURL');
+                  corporateName.isNotEmpty && fullName.isNotEmpty
+                  ? fullName
+                  : null;
+              LoggingService().info(
+                'Officer Settings Screen: photoURL = ${photoURL ?? 'N/A'}',
+              );
               return SingleChildScrollView(
                 padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                 child: Column(
@@ -100,15 +104,19 @@ class OfficerSettingsScreen extends StatelessWidget {
                                   width: screenWidth * 0.24,
                                   height: screenWidth * 0.24,
                                   errorBuilder: (context, error, stackTrace) {
-                                    return Icon(Icons.person,
-                                        size: screenWidth * 0.12,
-                                        color: AppTheme.greyColor);
+                                    return Icon(
+                                      Icons.person,
+                                      size: screenWidth * 0.12,
+                                      color: AppTheme.greyColor,
+                                    );
                                   },
                                 ),
                               )
-                            : Icon(Icons.person,
+                            : Icon(
+                                Icons.person,
                                 size: screenWidth * 0.12,
-                                color: AppTheme.greyColor),
+                                color: AppTheme.greyColor,
+                              ),
                       ),
                     ),
                     SizedBox(height: verticalSpacing),
@@ -124,153 +132,170 @@ class OfficerSettingsScreen extends StatelessWidget {
                       SizedBox(height: screenWidth * 0.01),
                       Text(
                         secondaryName,
-                        style: AppTheme.bodyMedium(context)
-                            .copyWith(color: AppTheme.greyShade600),
+                        style: AppTheme.bodyMedium(
+                          context,
+                        ).copyWith(color: AppTheme.greyShade600),
                         textAlign: TextAlign.center,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
                     SizedBox(height: screenWidth * 0.01),
                     Text(
-                      userAccount.email,
-                      style: AppTheme.bodySmall(context).copyWith(
-                        color: AppTheme.greyShade600,
-                      ),
+                      fallbackEmail,
+                      style: AppTheme.bodySmall(
+                        context,
+                      ).copyWith(color: AppTheme.greyShade600),
                       textAlign: TextAlign.center,
                     ),
-            SizedBox(height: verticalSpacing * 2),
+                    SizedBox(height: verticalSpacing * 2),
 
-            // Menu Items
-            _buildMenuItem(
-              context,
-              icon: Icons.edit,
-              title: _tr(context, 'editProfile'),
-              onTap: () {
-                Navigator.pushNamed(context, AppRoutes.editOfficerProfile);
-              },
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.language,
-              title: _tr(context, 'language'),
-              onTap: () {
-                Navigator.pushNamed(context, AppRoutes.languageSelection);
-              },
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.notifications_none_outlined,
-              title: _tr(context, 'notifications'),
-              onTap: () {
-                Navigator.pushNamed(context, AppRoutes.notificationSettings);
-              },
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.lock_outline,
-              title: _tr(context, 'privacy_security'),
-              onTap: () {
-                Navigator.pushNamed(context, AppRoutes.privacySecurity);
-              },
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.password_outlined,
-              title: _tr(context, 'change_password'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChangePasswordScreen(
-                      initialLanguage: Provider.of<LanguageProvider>(context,
-                              listen: false)
-                          .locale
-                          .languageCode,
+                    // Menu Items
+                    _buildMenuItem(
+                      context,
+                      icon: Icons.edit,
+                      title: _tr(context, 'editProfile'),
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.editOfficerProfile,
+                        );
+                      },
                     ),
-                  ),
-                );
-              },
-            ),
-            _buildMenuItem(
-              context,
-              icon: Icons.logout,
-              title: _tr(context, 'logout'),
-              textColor: AppTheme.errorColor,
-              onTap: () async {
-                final bool? shouldLogout = await showDialog<bool>(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16.0),
-                      ),
-                      title: Text(
-                        _tr(context, 'logout_confirm_title'),
-                        style: AppTheme.headingSmall(context),
-                        textAlign: TextAlign.center,
-                      ),
-                      content: Text(
-                        _tr(context, 'logout_confirm_body'),
-                        style: AppTheme.bodyMedium(context),
-                        textAlign: TextAlign.center,
-                      ),
-                      actions: <Widget>[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            TextButton(
-                              child: Text(
-                                _tr(context, 'no'),
-                                style: AppTheme.bodyMedium(context).copyWith(
-                                  color: AppTheme.primaryColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              onPressed: () {
-                                Navigator.of(context).pop(false);
-                              },
+                    _buildMenuItem(
+                      context,
+                      icon: Icons.language,
+                      title: _tr(context, 'language'),
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.languageSelection,
+                        );
+                      },
+                    ),
+                    _buildMenuItem(
+                      context,
+                      icon: Icons.notifications_none_outlined,
+                      title: _tr(context, 'notifications'),
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.notificationSettings,
+                        );
+                      },
+                    ),
+                    _buildMenuItem(
+                      context,
+                      icon: Icons.lock_outline,
+                      title: _tr(context, 'privacy_security'),
+                      onTap: () {
+                        Navigator.pushNamed(context, AppRoutes.privacySecurity);
+                      },
+                    ),
+                    _buildMenuItem(
+                      context,
+                      icon: Icons.password_outlined,
+                      title: _tr(context, 'change_password'),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChangePasswordScreen(
+                              initialLanguage: Provider.of<LanguageProvider>(
+                                context,
+                                listen: false,
+                              ).locale.languageCode,
                             ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.primaryColor,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8.0),
-                                ),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildMenuItem(
+                      context,
+                      icon: Icons.logout,
+                      title: _tr(context, 'logout'),
+                      textColor: AppTheme.errorColor,
+                      onTap: () async {
+                        final bool? shouldLogout = await showDialog<bool>(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16.0),
                               ),
-                              child: Text(
-                                _tr(context, 'yes'),
-                                style: AppTheme.bodyMedium(context).copyWith(
-                                  color: AppTheme.whiteColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              title: Text(
+                                _tr(context, 'logout_confirm_title'),
+                                style: AppTheme.headingSmall(context),
+                                textAlign: TextAlign.center,
                               ),
-                              onPressed: () {
-                                Navigator.of(context).pop(true);
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
-                );
+                              content: Text(
+                                _tr(context, 'logout_confirm_body'),
+                                style: AppTheme.bodyMedium(context),
+                                textAlign: TextAlign.center,
+                              ),
+                              actions: <Widget>[
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    TextButton(
+                                      child: Text(
+                                        _tr(context, 'no'),
+                                        style: AppTheme.bodyMedium(context)
+                                            .copyWith(
+                                              color: AppTheme.primaryColor,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.of(context).pop(false);
+                                      },
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.primaryColor,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8.0,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _tr(context, 'yes'),
+                                        style: AppTheme.bodyMedium(context)
+                                            .copyWith(
+                                              color: AppTheme.whiteColor,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.of(context).pop(true);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
+                        );
 
-                if (shouldLogout == true) {
-                  await authService.signOut();
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                      AppRoutes.login, (route) => false);
-                }
-              },
-            ),
-              ],
-            ),
+                        if (shouldLogout == true) {
+                          await authService.signOut();
+                          Navigator.of(context).pushNamedAndRemoveUntil(
+                            AppRoutes.login,
+                            (route) => false,
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
           );
         },
-      );
-    },
-  ),
-);
-}
+      ),
+    );
+  }
 
   Widget _buildMenuItem(
     BuildContext context, {
@@ -290,8 +315,11 @@ class OfficerSettingsScreen extends StatelessWidget {
     final verticalPadding = screenWidth * 0.01;
 
     return ListTile(
-      leading:
-          Icon(icon, color: textColor ?? AppTheme.blackColor, size: iconSize),
+      leading: Icon(
+        icon,
+        color: textColor ?? AppTheme.blackColor,
+        size: iconSize,
+      ),
       title: Text(
         title,
         style: TextStyle(
@@ -303,8 +331,10 @@ class OfficerSettingsScreen extends StatelessWidget {
       ),
       trailing: Icon(Icons.arrow_forward_ios, size: iconSize * 0.5),
       onTap: onTap,
-      contentPadding:
-          EdgeInsets.symmetric(horizontal: 0, vertical: verticalPadding * 1.5),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 0,
+        vertical: verticalPadding * 1.5,
+      ),
       dense: true,
     );
   }

@@ -249,7 +249,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
         padding: EdgeInsets.all(horizontalPadding),
         child: FutureBuilder(
           future: currentUser != null
-              ? _authService.getUserData(currentUser.uid)
+              ? _authService.getUserData(currentUser.uid, forceRefresh: true)
               : null,
           builder: (context, userSnapshot) {
             final userRole = userSnapshot.data?.role ?? 'officer';

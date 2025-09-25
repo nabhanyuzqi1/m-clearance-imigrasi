@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart' as shimmer;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
@@ -53,7 +54,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _performLogin() async {
     if (_formKey.currentState!.validate()) {
-      LoggingService().info('Login attempt for email: ${_emailController.text}');
+      LoggingService().info(
+        'Login attempt for email: ${_emailController.text}',
+      );
       setState(() {
         _isLoading = true;
       });
@@ -63,17 +66,25 @@ class _LoginScreenState extends State<LoginScreen> {
           _passwordController.text,
         );
         if (userModel != null) {
-          LoggingService().info('Login successful for user: ${userModel.email}, status: ${userModel.status}');
+          LoggingService().info(
+            'Login successful for user: ${userModel.email}, status: ${userModel.status}',
+          );
           switch (userModel.status) {
             case 'approved':
               if (userModel.role == 'admin' || userModel.role == 'officer') {
                 if (mounted) {
-                  LoggingService().info('Navigating to admin home for officer/admin: ${userModel.email}');
+                  LoggingService().info(
+                    'Navigating to admin home for officer/admin: ${userModel.email}',
+                  );
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setInt('officer_selected_index', 0);
                   final corporateName = userModel.corporateName.trim();
                   final fullName = userModel.fullName.trim();
                   final displayName = fullName.isNotEmpty
                       ? fullName
-                      : (corporateName.isNotEmpty ? corporateName : userModel.username);
+                      : (corporateName.isNotEmpty
+                            ? corporateName
+                            : userModel.username);
 
                   Navigator.pushReplacementNamed(
                     context,
@@ -88,47 +99,72 @@ class _LoginScreenState extends State<LoginScreen> {
                 }
               } else {
                 if (mounted) {
-                  LoggingService().info('Navigating to user home for user: ${userModel.email}');
+                  LoggingService().info(
+                    'Navigating to user home for user: ${userModel.email}',
+                  );
                   Navigator.pushReplacementNamed(context, AppRoutes.userHome);
                 }
               }
               break;
             case 'pending_email_verification':
               if (mounted) {
-                LoggingService().info('Navigating to email verification for user: ${userModel.email}');
-                Navigator.pushNamed(context, AppRoutes.confirmation, arguments: {
-                  'userData': {'email': userModel.email},
-                });
+                LoggingService().info(
+                  'Navigating to email verification for user: ${userModel.email}',
+                );
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.confirmation,
+                  arguments: {
+                    'userData': {'email': userModel.email},
+                  },
+                );
               }
               break;
             case 'pending_documents':
               if (mounted) {
-                LoggingService().info('Navigating to document upload for user: ${userModel.email}');
-                Navigator.pushNamed(context, AppRoutes.uploadDocuments, arguments: {'uid': userModel.uid});
+                LoggingService().info(
+                  'Navigating to document upload for user: ${userModel.email}',
+                );
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.uploadDocuments,
+                  arguments: {'uid': userModel.uid},
+                );
               }
               break;
             case 'pending_approval':
               if (mounted) {
-                LoggingService().info('Navigating to registration pending for user: ${userModel.email}');
+                LoggingService().info(
+                  'Navigating to registration pending for user: ${userModel.email}',
+                );
                 Navigator.pushNamed(context, AppRoutes.registrationPending);
               }
               break;
             case 'rejected':
-              LoggingService().warning('Login attempt for rejected user: ${userModel.email}');
+              LoggingService().warning(
+                'Login attempt for rejected user: ${userModel.email}',
+              );
               _showErrorSnackbar(_tr('account_rejected_full'));
               await _authService.signOut();
               break;
             default:
-              LoggingService().error('Unknown user status for user: ${userModel.email}, status: ${userModel.status}');
+              LoggingService().error(
+                'Unknown user status for user: ${userModel.email}, status: ${userModel.status}',
+              );
               _showErrorSnackbar(_tr('unknown_user_status'));
               await _authService.signOut();
           }
         } else {
-          LoggingService().warning('Login failed: Invalid credentials for email: ${_emailController.text}');
+          LoggingService().warning(
+            'Login failed: Invalid credentials for email: ${_emailController.text}',
+          );
           _showErrorSnackbar(_tr('invalid_credentials'));
         }
       } on FirebaseAuthException catch (e) {
-        LoggingService().error('Login failed with FirebaseAuthException: ${e.message}', e);
+        LoggingService().error(
+          'Login failed with FirebaseAuthException: ${e.message}',
+          e,
+        );
         _showErrorSnackbar(e.message ?? _tr('unknown_error'));
       } finally {
         if (mounted) {
@@ -193,13 +229,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: SingleChildScrollView(
                       child: Padding(
                         padding: EdgeInsets.symmetric(
-                            horizontal: responsivePadding * 2),
+                          horizontal: responsivePadding * 2,
+                        ),
                         child: Container(
                           padding: EdgeInsets.all(responsivePadding * 2),
                           decoration: BoxDecoration(
                             color: AppTheme.whiteColor,
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusLarge),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusLarge,
+                            ),
                           ),
                           child: _buildLoginForm(),
                         ),
@@ -208,13 +246,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + AppTheme.paddingSmall,
+                  top:
+                      MediaQuery.of(context).padding.top +
+                      AppTheme.paddingSmall,
                   left: responsivePadding * 2,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.whiteColor,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusMedium,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: AppTheme.blackColor.withAlpha(64),
@@ -235,7 +280,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + AppTheme.paddingSmall,
+                  top:
+                      MediaQuery.of(context).padding.top +
+                      AppTheme.paddingSmall,
                   right: responsivePadding * 2,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -324,9 +371,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   'assets/images/logo.png',
                   height: AppTheme.fontSizeXXXXLarge * 3,
                   errorBuilder: (context, error, stackTrace) => Icon(
-                      Icons.directions_boat,
-                      size: AppTheme.fontSizeXXXXLarge * 2,
-                      color: AppTheme.primaryColor),
+                    Icons.directions_boat,
+                    size: AppTheme.fontSizeXXXXLarge * 2,
+                    color: AppTheme.primaryColor,
+                  ),
                 ),
               ),
               const SizedBox(height: AppTheme.paddingLarge),
@@ -338,8 +386,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) {
                   if (v!.isEmpty) return _tr('email_req');
-                  if (!RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
-                      .hasMatch(v)) {
+                  if (!RegExp(
+                    r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                  ).hasMatch(v)) {
                     return _tr('email_invalid');
                   }
                   return null;
@@ -354,10 +403,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: !_isPasswordVisible,
                 suffixIcon: IconButton(
                   icon: Icon(
-                      _isPasswordVisible
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: AppTheme.subtitleColor),
+                    _isPasswordVisible
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: AppTheme.subtitleColor,
+                  ),
                   onPressed: () =>
                       setState(() => _isPasswordVisible = !_isPasswordVisible),
                 ),
@@ -365,11 +415,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(),
               Padding(
-                padding: EdgeInsets.only(top: AppTheme.paddingMedium,bottom: AppTheme.paddingSmall),
+                padding: EdgeInsets.only(
+                  top: AppTheme.paddingMedium,
+                  bottom: AppTheme.paddingSmall,
+                ),
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, AppRoutes.forgotPassword),
+                    onTap: () =>
+                        Navigator.pushNamed(context, AppRoutes.forgotPassword),
                     child: Text(
                       _tr('forgot_password'),
                       style: AppTheme.linkPrimary(context),
@@ -388,19 +442,19 @@ class _LoginScreenState extends State<LoginScreen> {
               Center(
                 child: RichText(
                   text: TextSpan(
-                    style: AppTheme.linkSecondary(context).copyWith(
-                      color: AppTheme.blackColor54,
-                    ),
+                    style: AppTheme.linkSecondary(
+                      context,
+                    ).copyWith(color: AppTheme.blackColor54),
                     children: [
                       TextSpan(text: _tr('not_a_member')),
                       TextSpan(
                         text: _tr('register_now'),
-                        style: AppTheme.linkPrimary(context).copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: AppTheme.linkPrimary(
+                          context,
+                        ).copyWith(fontWeight: FontWeight.bold),
                         recognizer: TapGestureRecognizer()
-                          ..onTap =
-                              () => Navigator.pushNamed(context, AppRoutes.register),
+                          ..onTap = () =>
+                              Navigator.pushNamed(context, AppRoutes.register),
                       ),
                     ],
                   ),
@@ -417,18 +471,15 @@ class _LoginScreenState extends State<LoginScreen> {
     return PopupMenuButton<String>(
       icon: const Icon(Icons.language, color: AppTheme.whiteColor),
       onSelected: (String newValue) {
-        final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+        final languageProvider = Provider.of<LanguageProvider>(
+          context,
+          listen: false,
+        );
         languageProvider.setLocale(Locale(newValue.toLowerCase()));
       },
       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        PopupMenuItem<String>(
-          value: 'EN',
-          child: Text(_tr('english')),
-        ),
-        PopupMenuItem<String>(
-          value: 'ID',
-          child: Text(_tr('indonesian')),
-        ),
+        PopupMenuItem<String>(value: 'EN', child: Text(_tr('english'))),
+        PopupMenuItem<String>(value: 'ID', child: Text(_tr('indonesian'))),
       ],
       color: AppTheme.whiteColor,
       shape: RoundedRectangleBorder(

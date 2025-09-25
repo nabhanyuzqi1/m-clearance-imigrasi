@@ -106,21 +106,28 @@ class AuthService {
     }
   }
 
-  Future<UserModel?> getUserData(String uid) async {
+  Future<UserModel?> getUserData(String uid, {bool forceRefresh = false}) async {
     final startTime = DateTime.now();
 
-    // Try to get from cache first
-    final cachedData = _cacheManager.getCachedUserData();
-    if (cachedData != null && cachedData['uid'] == uid) {
-      try {
-        final userModel = UserModel.fromJson(cachedData);
-        final cacheTime = DateTime.now().difference(startTime);
-        LoggingService().debug('Cache hit - getUserData took ${cacheTime.inMilliseconds}ms');
-        return userModel;
-      } catch (e) {
-        LoggingService().warning('Cache data corrupted, fetching from server', e);
-        await _cacheManager.clearUserDataCache();
+    final shouldSkipCache = forceRefresh || kDebugMode;
+
+    if (!shouldSkipCache) {
+      final cachedData = _cacheManager.getCachedUserData();
+      if (cachedData != null && cachedData['uid'] == uid) {
+        try {
+          final userModel = UserModel.fromJson(cachedData);
+          final cacheTime = DateTime.now().difference(startTime);
+          LoggingService()
+              .debug('Cache hit - getUserData took ${cacheTime.inMilliseconds}ms');
+          return userModel;
+        } catch (e) {
+          LoggingService().warning('Cache data corrupted, fetching from server', e);
+          await _cacheManager.clearUserDataCache();
+        }
       }
+    } else {
+      LoggingService().debug('Skipping cache for getUserData due to forceRefresh/debug');
+      await _cacheManager.clearUserDataCache();
     }
 
     // Fetch from server with retry logic
@@ -144,8 +151,10 @@ class AuthService {
         shouldRetry: NetworkUtils.isRetryableError,
       );
 
-      // Cache the result
-      await _cacheManager.cacheUserData(userModel.toJson());
+      // Cache the result unless explicitly skipped
+      if (!shouldSkipCache) {
+        await _cacheManager.cacheUserData(userModel.toJson());
+      }
 
       final totalTime = DateTime.now().difference(startTime);
       LoggingService().debug('getUserData took ${totalTime.inMilliseconds}ms (with caching)');
