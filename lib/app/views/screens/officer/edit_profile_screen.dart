@@ -29,7 +29,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _currentProfileImageUrl;
   String _initialEmail = '';
 
-  String _tr(String key) => AppLocalizations.of(context).get('editOfficerProfile.$key');
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('editOfficerProfile.$key');
 
   @override
   void initState() {
@@ -54,8 +55,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (currentUser != null) {
         final corporateName = currentUser.corporateName;
         final fullName = currentUser.fullName;
-        _corporateNameController.text =
-            corporateName.isNotEmpty ? corporateName : fullName;
+        _corporateNameController.text = corporateName.isNotEmpty
+            ? corporateName
+            : fullName;
         _fullNameController.text = fullName;
         _emailController.text = currentUser.email;
         _initialEmail = currentUser.email;
@@ -115,7 +117,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         return Container(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: Text(
               _tr('permission_required'),
               style: TextStyle(
@@ -174,7 +178,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         return Container(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: Text(
               _tr('pick_image_source'),
               style: TextStyle(
@@ -236,7 +242,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final corporateName = _corporateNameController.text.trim();
       final fullName = _fullNameController.text.trim();
       final newEmail = _emailController.text.trim();
-      final emailChanged = _initialEmail.trim().toLowerCase() != newEmail.toLowerCase();
+      final emailChanged =
+          _initialEmail.trim().toLowerCase() != newEmail.toLowerCase();
 
       final updatedUser = await _userService.updateUserProfile(
         corporateName: corporateName,
@@ -268,7 +275,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.of(context).pop(updatedUser);
+        Navigator.of(context).pop(true);
       } else {
         throw Exception('Update failed');
       }
@@ -276,10 +283,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       LoggingService().error('Error updating profile: $e', e);
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text(_tr('error')),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text(_tr('error')), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -300,7 +304,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       builder: (context) => Container(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Text(
             _tr('email_changed_title'),
             style: TextStyle(
@@ -321,7 +327,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               onPressed: () async {
                 await AuthService().signOut();
                 if (!mounted) return;
-                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/login', (route) => false);
               },
               child: Text(
                 _tr('ok'),
@@ -345,8 +353,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     String? Function(String?)? validator,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final bottomPadding =
-        screenWidth > 600 ? AppTheme.spacing24 : AppTheme.spacing16;
+    final bottomPadding = screenWidth > 600
+        ? AppTheme.spacing24
+        : AppTheme.spacing16;
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
@@ -438,27 +447,36 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             child: UserService.currentProfileImagePath != null
                                 ? ClipOval(
                                     child: Image.file(
-                                      File(UserService.currentProfileImagePath!),
+                                      File(
+                                        UserService.currentProfileImagePath!,
+                                      ),
                                       fit: BoxFit.cover,
                                       width: avatarRadius * 2,
                                       height: avatarRadius * 2,
                                     ),
                                   )
                                 : (_currentProfileImageUrl != null
-                                    ? ClipOval(
-                                        child: Image.network(
-                                          _currentProfileImageUrl!,
-                                          fit: BoxFit.cover,
-                                          width: avatarRadius * 2,
-                                          height: avatarRadius * 2,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Icon(Icons.person,
-                                                size: avatarRadius, color: Colors.grey);
-                                          },
-                                        ),
-                                      )
-                                    : Icon(Icons.person,
-                                        size: avatarRadius, color: Colors.grey)),
+                                      ? ClipOval(
+                                          child: Image.network(
+                                            _currentProfileImageUrl!,
+                                            fit: BoxFit.cover,
+                                            width: avatarRadius * 2,
+                                            height: avatarRadius * 2,
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                                  return Icon(
+                                                    Icons.person,
+                                                    size: avatarRadius,
+                                                    color: Colors.grey,
+                                                  );
+                                                },
+                                          ),
+                                        )
+                                      : Icon(
+                                          Icons.person,
+                                          size: avatarRadius,
+                                          color: Colors.grey,
+                                        )),
                           ),
                           InkWell(
                             onTap: _showImageSourceDialog,
@@ -466,10 +484,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               decoration: BoxDecoration(
                                 color: Colors.blue,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
                               ),
-                              padding: EdgeInsets.all(screenWidth > 600 ? 10 : 8),
-                              child: Icon(Icons.camera_alt, color: Colors.white, size: iconSize),
+                              padding: EdgeInsets.all(
+                                screenWidth > 600 ? 10 : 8,
+                              ),
+                              child: Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: iconSize,
+                              ),
                             ),
                           ),
                         ],
@@ -513,9 +540,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       keyboardType: TextInputType.emailAddress,
                       validator: (value) {
                         final trimmed = value?.trim() ?? '';
-                        if (trimmed.isEmpty) return _tr('email_empty');
-                        final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                        if (!emailRegex.hasMatch(trimmed)) return _tr('email_invalid');
+                        if (trimmed.isEmpty) {
+                          return _tr('email_empty');
+                        }
+                        final emailRegex = RegExp(
+                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                        );
+                        if (!emailRegex.hasMatch(trimmed)) {
+                          return _tr('email_invalid');
+                        }
                         return null;
                       },
                     ),
@@ -525,7 +558,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _saveProfile,
                         style: ElevatedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: buttonPadding),
+                          padding: EdgeInsets.symmetric(
+                            vertical: buttonPadding,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),

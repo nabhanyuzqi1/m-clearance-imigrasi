@@ -26,13 +26,16 @@ class ClearanceResultScreen extends StatelessWidget {
         AppLocalizations.of(context).get('clearanceResult.$key');
     final isArrival = application.type == ApplicationType.kedatangan;
 
+    final appName = AppLocalizations.of(context).get('splash.app_name');
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: CustomAppBar(
-        titleText: tr('title'),
+        title: LogoTitle(text: appName),
         backgroundColor: AppTheme.whiteColor,
         foregroundColor: AppTheme.blackColor,
         elevation: 0,
+        centerTitle: false,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(AppTheme.spacing16),
@@ -640,11 +643,7 @@ class ClearanceResultScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildFileCard(
-    String fileName,
-    String Function(String) tr,
-    BuildContext context,
-  ) {
+  Widget _buildFileCard(String label, String fileName, BuildContext context) {
     String filename = _extractFilename(fileName);
 
     return Container(
@@ -681,13 +680,23 @@ class ClearanceResultScreen extends StatelessWidget {
           ),
         ),
         title: Text(
-          filename,
+          label,
           style: TextStyle(
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: AppTheme.onSurface,
             fontFamily: 'Poppins',
             fontSize: AppTheme.fontSizeBody1,
           ),
+        ),
+        subtitle: Text(
+          filename,
+          style: TextStyle(
+            color: AppTheme.subtitleColor,
+            fontFamily: 'Poppins',
+            fontSize: AppTheme.fontSizeBody2,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         trailing: IconButton(
           onPressed: () async {
@@ -736,16 +745,28 @@ class ClearanceResultScreen extends StatelessWidget {
     List<Widget> widgets = [];
     if (application.portClearanceFile != null &&
         application.portClearanceFile!.isNotEmpty) {
-      widgets.add(_buildFileCard(application.portClearanceFile!, tr, context));
+      widgets.add(
+        _buildFileCard(
+          tr('port_clearance'),
+          application.portClearanceFile!,
+          context,
+        ),
+      );
     }
     if (application.crewListFile != null &&
         application.crewListFile!.isNotEmpty) {
-      widgets.add(_buildFileCard(application.crewListFile!, tr, context));
+      widgets.add(
+        _buildFileCard(tr('crew_list'), application.crewListFile!, context),
+      );
     }
     if (application.notificationLetterFile != null &&
         application.notificationLetterFile!.isNotEmpty) {
       widgets.add(
-        _buildFileCard(application.notificationLetterFile!, tr, context),
+        _buildFileCard(
+          tr('notification_letter'),
+          application.notificationLetterFile!,
+          context,
+        ),
       );
     }
     if (widgets.isEmpty) {

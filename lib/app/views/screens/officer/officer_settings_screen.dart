@@ -1,22 +1,91 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-import '../../../models/user_model.dart';
-import '../../../services/logging_service.dart';
-import '../../../repositories/user_repository.dart';
-import '../../../config/theme.dart';
-import '../../../services/auth_service.dart';
+
 import '../../../config/routes.dart';
-import '../../../providers/language_provider.dart';
+import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
+import '../../../models/user_model.dart';
+import '../../../providers/language_provider.dart';
+import '../../../repositories/user_repository.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/logging_service.dart';
 import '../auth/change_password_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 
-class OfficerSettingsScreen extends StatelessWidget {
+class OfficerSettingsScreen extends StatefulWidget {
   const OfficerSettingsScreen({super.key});
 
-  String _tr(BuildContext context, String key) {
-    return AppLocalizations.of(context).get('officerSettings.$key');
+  @override
+  State<OfficerSettingsScreen> createState() => _OfficerSettingsScreenState();
+}
+
+class _OfficerSettingsScreenState extends State<OfficerSettingsScreen> {
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('officerSettings.$key');
+
+  Future<void> _handleLogout(AuthService authService) async {
+    final bool? shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          title: Text(
+            _tr('logout_confirm_title'),
+            style: AppTheme.headingSmall(context),
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            _tr('logout_confirm_body'),
+            style: AppTheme.bodyMedium(context),
+            textAlign: TextAlign.center,
+          ),
+          actions: <Widget>[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text(
+                    _tr('no'),
+                    style: AppTheme.bodyMedium(context).copyWith(
+                      color: AppTheme.primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: Text(
+                    _tr('yes'),
+                    style: AppTheme.bodyMedium(context).copyWith(
+                      color: AppTheme.whiteColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLogout == true) {
+      await authService.signOut();
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+    }
   }
 
   @override
@@ -29,7 +98,7 @@ class OfficerSettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
       appBar: CustomAppBar(
-        titleText: _tr(context, 'title'),
+        titleText: _tr('title'),
         centerTitle: true,
         toolbarHeight: 60,
       ),
@@ -40,11 +109,11 @@ class OfficerSettingsScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (authSnapshot.hasError) {
-            return Center(child: Text(_tr(context, 'error_loading_user')));
+            return Center(child: Text(_tr('error_loading_user')));
           }
           if (!authSnapshot.hasData || authSnapshot.data == null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!context.mounted) return;
+              if (!mounted) return;
               Navigator.of(
                 context,
               ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
@@ -86,6 +155,7 @@ class OfficerSettingsScreen extends StatelessWidget {
               LoggingService().info(
                 'Officer Settings Screen: photoURL = ${photoURL ?? 'N/A'}',
               );
+
               return SingleChildScrollView(
                 padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                 child: Column(
@@ -153,18 +223,20 @@ class OfficerSettingsScreen extends StatelessWidget {
                     _buildMenuItem(
                       context,
                       icon: Icons.edit,
-                      title: _tr(context, 'editProfile'),
-                      onTap: () {
-                        Navigator.pushNamed(
+                      title: _tr('editProfile'),
+                      onTap: () async {
+                        final result = await Navigator.pushNamed(
                           context,
                           AppRoutes.editOfficerProfile,
                         );
+                        if (!mounted || result != true) return;
+                        setState(() {});
                       },
                     ),
                     _buildMenuItem(
                       context,
                       icon: Icons.language,
-                      title: _tr(context, 'language'),
+                      title: _tr('language'),
                       onTap: () {
                         Navigator.pushNamed(
                           context,
@@ -175,7 +247,7 @@ class OfficerSettingsScreen extends StatelessWidget {
                     _buildMenuItem(
                       context,
                       icon: Icons.notifications_none_outlined,
-                      title: _tr(context, 'notifications'),
+                      title: _tr('notifications'),
                       onTap: () {
                         Navigator.pushNamed(
                           context,
@@ -186,7 +258,7 @@ class OfficerSettingsScreen extends StatelessWidget {
                     _buildMenuItem(
                       context,
                       icon: Icons.lock_outline,
-                      title: _tr(context, 'privacy_security'),
+                      title: _tr('privacy_security'),
                       onTap: () {
                         Navigator.pushNamed(context, AppRoutes.privacySecurity);
                       },
@@ -194,16 +266,17 @@ class OfficerSettingsScreen extends StatelessWidget {
                     _buildMenuItem(
                       context,
                       icon: Icons.password_outlined,
-                      title: _tr(context, 'change_password'),
+                      title: _tr('change_password'),
                       onTap: () {
+                        final languageCode = Provider.of<LanguageProvider>(
+                          context,
+                          listen: false,
+                        ).locale.languageCode;
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => ChangePasswordScreen(
-                              initialLanguage: Provider.of<LanguageProvider>(
-                                context,
-                                listen: false,
-                              ).locale.languageCode,
+                              initialLanguage: languageCode,
                             ),
                           ),
                         );
@@ -212,80 +285,9 @@ class OfficerSettingsScreen extends StatelessWidget {
                     _buildMenuItem(
                       context,
                       icon: Icons.logout,
-                      title: _tr(context, 'logout'),
+                      title: _tr('logout'),
                       textColor: AppTheme.errorColor,
-                      onTap: () async {
-                        final bool? shouldLogout = await showDialog<bool>(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return AlertDialog(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16.0),
-                              ),
-                              title: Text(
-                                _tr(context, 'logout_confirm_title'),
-                                style: AppTheme.headingSmall(context),
-                                textAlign: TextAlign.center,
-                              ),
-                              content: Text(
-                                _tr(context, 'logout_confirm_body'),
-                                style: AppTheme.bodyMedium(context),
-                                textAlign: TextAlign.center,
-                              ),
-                              actions: <Widget>[
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    TextButton(
-                                      child: Text(
-                                        _tr(context, 'no'),
-                                        style: AppTheme.bodyMedium(context)
-                                            .copyWith(
-                                              color: AppTheme.primaryColor,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                      ),
-                                      onPressed: () {
-                                        Navigator.of(context).pop(false);
-                                      },
-                                    ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppTheme.primaryColor,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8.0,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        _tr(context, 'yes'),
-                                        style: AppTheme.bodyMedium(context)
-                                            .copyWith(
-                                              color: AppTheme.whiteColor,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                      ),
-                                      onPressed: () {
-                                        Navigator.of(context).pop(true);
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            );
-                          },
-                        );
-
-                        if (shouldLogout == true) {
-                          await authService.signOut();
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            AppRoutes.login,
-                            (route) => false,
-                          );
-                        }
-                      },
+                      onTap: () => _handleLogout(authService),
                     ),
                   ],
                 ),

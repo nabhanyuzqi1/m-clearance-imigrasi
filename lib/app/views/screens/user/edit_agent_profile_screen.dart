@@ -47,7 +47,9 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
   @override
   void initState() {
     super.initState();
-    LoggingService().info('EditAgentProfileScreen initialized for user: ${widget.username}');
+    LoggingService().info(
+      'EditAgentProfileScreen initialized for user: ${widget.username}',
+    );
     _corporateNameController.text = widget.currentCorporateName;
     _fullNameController.text = widget.currentFullName;
     _emailController.text = widget.currentEmail;
@@ -80,7 +82,9 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               return Container(
                 constraints: BoxConstraints(maxWidth: maxWidth),
                 child: AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   title: Text(
                     _tr(context, 'permission_required'),
                     style: TextStyle(
@@ -100,7 +104,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
                       child: Text(
-                        _tr(context,'cancel'),
+                        _tr(context, 'cancel'),
                         style: TextStyle(
                           color: AppTheme.primaryColor,
                           fontSize: screenWidth * 0.04,
@@ -113,7 +117,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                         openAppSettings();
                       },
                       child: Text(
-                        _tr(context,'open_settings'),
+                        _tr(context, 'open_settings'),
                         style: TextStyle(
                           color: AppTheme.primaryColor,
                           fontSize: screenWidth * 0.04,
@@ -142,9 +146,11 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               return Container(
                 constraints: BoxConstraints(maxWidth: maxWidth),
                 child: AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   title: Text(
-                    _tr(context,'permission_required'),
+                    _tr(context, 'permission_required'),
                     style: TextStyle(
                       fontSize: screenWidth * 0.045,
                       fontWeight: FontWeight.bold,
@@ -152,7 +158,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                     ),
                   ),
                   content: Text(
-                    _tr(context,'storage_permission_message'),
+                    _tr(context, 'storage_permission_message'),
                     style: TextStyle(
                       fontSize: screenWidth * 0.04,
                       color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
@@ -162,7 +168,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
                       child: Text(
-                        _tr(context,'cancel'),
+                        _tr(context, 'cancel'),
                         style: TextStyle(
                           color: AppTheme.primaryColor,
                           fontSize: screenWidth * 0.04,
@@ -175,7 +181,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                         openAppSettings();
                       },
                       child: Text(
-                        _tr(context,'open_settings'),
+                        _tr(context, 'open_settings'),
                         style: TextStyle(
                           color: AppTheme.primaryColor,
                           fontSize: screenWidth * 0.04,
@@ -203,9 +209,9 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to pick image: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
       }
     }
   }
@@ -221,9 +227,11 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
         return Container(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: Text(
-              _tr(context,'select_image_source'),
+              _tr(context, 'select_image_source'),
               style: TextStyle(
                 fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
@@ -234,13 +242,15 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               TextButton(
                 onPressed: () async {
                   Navigator.of(context).pop();
-                  final hasPermission = await _requestPermission(ImageSource.camera);
+                  final hasPermission = await _requestPermission(
+                    ImageSource.camera,
+                  );
                   if (hasPermission) {
                     _pickImage(ImageSource.camera);
                   }
                 },
                 child: Text(
-                  _tr(context,'camera'),
+                  _tr(context, 'camera'),
                   style: TextStyle(
                     color: AppTheme.primaryColor,
                     fontSize: screenWidth * 0.04,
@@ -250,13 +260,15 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               TextButton(
                 onPressed: () async {
                   Navigator.of(context).pop();
-                  final hasPermission = await _requestPermission(ImageSource.gallery);
+                  final hasPermission = await _requestPermission(
+                    ImageSource.gallery,
+                  );
                   if (hasPermission) {
                     _pickImage(ImageSource.gallery);
                   }
                 },
                 child: Text(
-                  _tr(context,'gallery'),
+                  _tr(context, 'gallery'),
                   style: TextStyle(
                     color: AppTheme.primaryColor,
                     fontSize: screenWidth * 0.04,
@@ -266,7 +278,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(
-                  _tr(context,'cancel'),
+                  _tr(context, 'cancel'),
                   style: TextStyle(
                     color: AppTheme.greyColor,
                     fontSize: screenWidth * 0.04,
@@ -325,9 +337,11 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
             builder: (context) => Container(
               constraints: BoxConstraints(maxWidth: maxWidth),
               child: AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 title: Text(
-                  _tr(context,'email_changed_title'),
+                  _tr(context, 'email_changed_title'),
                   style: TextStyle(
                     fontSize: screenWidth * 0.045,
                     fontWeight: FontWeight.bold,
@@ -335,7 +349,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                   ),
                 ),
                 content: Text(
-                  _tr(context,'email_changed_body'),
+                  _tr(context, 'email_changed_body'),
                   style: TextStyle(
                     fontSize: screenWidth * 0.04,
                     color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
@@ -345,10 +359,13 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                   TextButton(
                     onPressed: () async {
                       await AuthService().signOut();
-                      Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+                      Navigator.of(context).pushNamedAndRemoveUntil(
+                        AppRoutes.login,
+                        (route) => false,
+                      );
                     },
                     child: Text(
-                      _tr(context,'ok'),
+                      _tr(context, 'ok'),
                       style: TextStyle(
                         color: AppTheme.primaryColor,
                         fontSize: screenWidth * 0.04,
@@ -363,11 +380,11 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_tr(context,'success')),
+              content: Text(_tr(context, 'success')),
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.of(context).pop(updatedUser);
+          Navigator.of(context).pop(true);
         }
       } else {
         throw Exception('Update failed');
@@ -377,7 +394,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_tr(context,'error')),
+            content: Text(_tr(context, 'error')),
             backgroundColor: Colors.red,
           ),
         );
@@ -394,199 +411,236 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.06; // 6% of screen width
     final verticalPadding = screenWidth * 0.04; // 4% of screen width
-    final avatarRadius = screenWidth > 600 ? 80.0 : 60.0; // Larger avatar on tablets
+    final avatarRadius = screenWidth > 600
+        ? 80.0
+        : 60.0; // Larger avatar on tablets
     final iconSize = screenWidth > 600 ? 24.0 : 20.0; // Larger icons on tablets
-    final buttonPadding = screenWidth > 600 ? 20.0 : 16.0; // Larger button padding on tablets
+    final buttonPadding = screenWidth > 600
+        ? 20.0
+        : 16.0; // Larger button padding on tablets
 
     return Consumer<LanguageProvider>(
       builder: (context, languageProvider, child) {
         return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          _tr(context,'title'),
-          style: TextStyle(
-            fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeH6, tablet: AppTheme.fontSizeH5, desktop: AppTheme.fontSizeH4),
-            fontWeight: FontWeight.w600,
-            fontFamily: 'Poppins',
+          backgroundColor: Colors.white,
+          appBar: AppBar(
+            title: Text(
+              _tr(context, 'title'),
+              style: TextStyle(
+                fontSize: AppTheme.responsiveFontSize(
+                  context,
+                  mobile: AppTheme.fontSizeH6,
+                  tablet: AppTheme.fontSizeH5,
+                  desktop: AppTheme.fontSizeH4,
+                ),
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Poppins',
+              ),
+            ),
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 0,
+            actions: [
+              IconButton(
+                onPressed: _isLoading ? null : _saveProfile,
+                icon: _isLoading
+                    ? SizedBox(
+                        width: iconSize,
+                        height: iconSize,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.blue,
+                        ),
+                      )
+                    : Icon(Icons.save, color: Colors.blue, size: iconSize),
+                tooltip: _tr(context, 'save_changes'),
+              ),
+            ],
           ),
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: _isLoading ? null : _saveProfile,
-            icon: _isLoading
-                ? SizedBox(
-                    width: iconSize,
-                    height: iconSize,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.blue,
-                    ),
-                  )
-                : Icon(
-                    Icons.save,
-                    color: Colors.blue,
-                    size: iconSize,
-                  ),
-            tooltip: _tr(context,'save_changes'),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              // Profile Picture Section
-              Center(
-                child: Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    CircleAvatar(
-                      radius: avatarRadius,
-                      backgroundColor: Colors.grey.shade200,
-                      child: UserService.currentProfileImagePath != null
-                          ? ClipOval(
-                              child: Image.file(
-                                File(UserService.currentProfileImagePath!),
-                                fit: BoxFit.cover,
-                                width: avatarRadius * 2,
-                                height: avatarRadius * 2,
-                              ),
-                            )
-                          : (widget.currentProfileImageUrl != null
+          body: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: verticalPadding,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  // Profile Picture Section
+                  Center(
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: avatarRadius,
+                          backgroundColor: Colors.grey.shade200,
+                          child: UserService.currentProfileImagePath != null
                               ? ClipOval(
-                                  child: Image.network(
-                                    widget.currentProfileImageUrl!,
+                                  child: Image.file(
+                                    File(UserService.currentProfileImagePath!),
                                     fit: BoxFit.cover,
                                     width: avatarRadius * 2,
                                     height: avatarRadius * 2,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Icon(Icons.person,
-                                          size: avatarRadius,
-                                          color: Colors.grey);
-                                    },
                                   ),
                                 )
-                              : Icon(Icons.person,
-                                  size: avatarRadius, color: Colors.grey)),
+                              : (widget.currentProfileImageUrl != null
+                                    ? ClipOval(
+                                        child: Image.network(
+                                          widget.currentProfileImageUrl!,
+                                          fit: BoxFit.cover,
+                                          width: avatarRadius * 2,
+                                          height: avatarRadius * 2,
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                                return Icon(
+                                                  Icons.person,
+                                                  size: avatarRadius,
+                                                  color: Colors.grey,
+                                                );
+                                              },
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.person,
+                                        size: avatarRadius,
+                                        color: Colors.grey,
+                                      )),
+                        ),
+                        InkWell(
+                          onTap: _showImageSourceDialog,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            padding: EdgeInsets.all(screenWidth > 600 ? 10 : 8),
+                            child: Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: iconSize,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    InkWell(
-                      onTap: _showImageSourceDialog,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  SizedBox(height: verticalPadding),
+                  TextButton(
+                    onPressed: _showImageSourceDialog,
+                    child: Text(
+                      _tr(context, 'change_profile_photo'),
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontSize: AppTheme.responsiveFontSize(
+                          context,
+                          mobile: AppTheme.fontSizeBody1,
+                          tablet: AppTheme.fontSizeH6,
+                          desktop: AppTheme.fontSizeH6,
                         ),
-                        padding: EdgeInsets.all(screenWidth > 600 ? 10 : 8),
-                        child: Icon(
-                          Icons.camera_alt,
-                          color: Colors.white,
-                          size: iconSize,
-                        ),
+                        fontFamily: 'Poppins',
                       ),
                     ),
-                  ],
-                ),
-              ),
-              SizedBox(height: verticalPadding),
-              TextButton(
-                onPressed: _showImageSourceDialog,
-                child: Text(
-                  _tr(context,'change_profile_photo'),
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6),
-                    fontFamily: 'Poppins',
                   ),
-                ),
-              ),
 
-              SizedBox(height: verticalPadding * 2),
+                  SizedBox(height: verticalPadding * 2),
 
-              // Form Fields
-              _buildTextField(
-                _tr(context, 'corporate_name'),
-                _corporateNameController,
-                validator: (value) =>
-                    value?.trim().isNotEmpty ?? false ? null : _tr(context, 'corporate_name_req'),
-              ),
-
-              _buildTextField(
-                _tr(context, 'full_name'),
-                _fullNameController,
-                validator: (value) =>
-                    value?.trim().isNotEmpty ?? false ? null : _tr(context, 'full_name_empty'),
-              ),
-
-              _buildTextField(
-                _tr(context,'email_address'),
-                _emailController,
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value?.isEmpty ?? true) return _tr(context,'email_empty');
-                  final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                  if (!emailRegex.hasMatch(value!)) return _tr(context,'email_invalid');
-                  return null;
-                },
-              ),
-
-              SizedBox(height: verticalPadding * 2),
-
-              // Save Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: buttonPadding),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  // Form Fields
+                  _buildTextField(
+                    _tr(context, 'corporate_name'),
+                    _corporateNameController,
+                    validator: (value) => value?.trim().isNotEmpty ?? false
+                        ? null
+                        : _tr(context, 'corporate_name_req'),
                   ),
-                  child: _isLoading
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: iconSize,
-                              height: iconSize,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              _tr(context,'saving'),
+
+                  _buildTextField(
+                    _tr(context, 'full_name'),
+                    _fullNameController,
+                    validator: (value) => value?.trim().isNotEmpty ?? false
+                        ? null
+                        : _tr(context, 'full_name_empty'),
+                  ),
+
+                  _buildTextField(
+                    _tr(context, 'email_address'),
+                    _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return _tr(context, 'email_empty');
+                      }
+                      final emailRegex = RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      );
+                      if (!emailRegex.hasMatch(value!)) {
+                        return _tr(context, 'email_invalid');
+                      }
+                      return null;
+                    },
+                  ),
+
+                  SizedBox(height: verticalPadding * 2),
+
+                  // Save Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _saveProfile,
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: buttonPadding),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: iconSize,
+                                  height: iconSize,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  _tr(context, 'saving'),
+                                  style: TextStyle(
+                                    fontSize: AppTheme.responsiveFontSize(
+                                      context,
+                                      mobile: AppTheme.fontSizeButton,
+                                      tablet: AppTheme.fontSizeBody1,
+                                      desktop: AppTheme.fontSizeBody1,
+                                    ),
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              _tr(context, 'save'),
                               style: TextStyle(
-                                fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeButton, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1),
+                                fontSize: AppTheme.responsiveFontSize(
+                                  context,
+                                  mobile: AppTheme.fontSizeButton,
+                                  tablet: AppTheme.fontSizeBody1,
+                                  desktop: AppTheme.fontSizeBody1,
+                                ),
                                 fontFamily: 'Poppins',
                               ),
                             ),
-                          ],
-                        )
-                      : Text(
-                          _tr(context,'save'),
-                          style: TextStyle(
-                            fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeButton, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1),
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                ),
-              ),
+                    ),
+                  ),
 
-              SizedBox(height: verticalPadding),
-            ],
+                  SizedBox(height: verticalPadding),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        );
       },
     );
   }
@@ -598,7 +652,9 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
     String? Function(String?)? validator,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final bottomPadding = screenWidth > 600 ? AppTheme.spacing24 : AppTheme.spacing16; // More spacing on tablets
+    final bottomPadding = screenWidth > 600
+        ? AppTheme.spacing24
+        : AppTheme.spacing16; // More spacing on tablets
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
@@ -608,7 +664,12 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(
-            fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody2, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1),
+            fontSize: AppTheme.responsiveFontSize(
+              context,
+              mobile: AppTheme.fontSizeBody2,
+              tablet: AppTheme.fontSizeBody1,
+              desktop: AppTheme.fontSizeBody1,
+            ),
             fontFamily: 'Poppins',
           ),
           border: OutlineInputBorder(
@@ -618,7 +679,12 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
           fillColor: AppTheme.greyShade50,
         ),
         style: TextStyle(
-          fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6),
+          fontSize: AppTheme.responsiveFontSize(
+            context,
+            mobile: AppTheme.fontSizeBody1,
+            tablet: AppTheme.fontSizeH6,
+            desktop: AppTheme.fontSizeH6,
+          ),
           fontFamily: 'Poppins',
         ),
         validator: validator,

@@ -261,12 +261,30 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   ) async {
     return NetworkUtils.executeWithRetry(() async {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileExtension = fileName.split('.').last;
+      final originalName = fileName.split('/').last;
+      final extensionIndex = originalName.lastIndexOf('.');
+      final fileExtension = extensionIndex != -1
+          ? originalName.substring(extensionIndex + 1)
+          : '';
+      final baseName = extensionIndex != -1
+          ? originalName.substring(0, extensionIndex)
+          : originalName;
+      final sanitizedBaseName = baseName
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+          .replaceAll(RegExp(r'_+'), '_')
+          .replaceAll(RegExp(r'^_+|_+$'), '');
       final sanitizedDocType = docType
-          .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
+          .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
           .toLowerCase();
+      final baseSegment = sanitizedBaseName.isNotEmpty
+          ? sanitizedBaseName
+          : 'document';
+      final extensionPart = fileExtension.isNotEmpty
+          ? '.${fileExtension.toLowerCase()}'
+          : '';
       final uniqueFileName =
-          '${sanitizedDocType}_${userId}_$timestamp.$fileExtension';
+          '${sanitizedDocType}_${baseSegment}_$timestamp$extensionPart';
 
       final storageRef = FirebaseStorage.instance.ref();
       final documentRef = storageRef.child(
