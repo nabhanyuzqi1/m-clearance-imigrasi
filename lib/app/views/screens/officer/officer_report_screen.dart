@@ -335,7 +335,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     required Map<String, dynamic> stats,
     required Color color,
   }) {
-    String _formatStat(String key) {
+    String formatStat(String key) {
       final value = stats[key];
       if (value is num) return value.toStringAsFixed(0);
       if (value is String) {
@@ -367,19 +367,19 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                 _buildStatItem(
                   context,
                   label: _tr('arrival'),
-                  value: _formatStat('pendingArrival'),
+                  value: formatStat('pendingArrival'),
                   color: color,
                 ),
                 _buildStatItem(
                   context,
                   label: _tr('departure'),
-                  value: _formatStat('pendingDeparture'),
+                  value: formatStat('pendingDeparture'),
                   color: color,
                 ),
                 _buildStatItem(
                   context,
                   label: _tr('registration'),
-                  value: _formatStat('pendingAccounts'),
+                  value: formatStat('pendingAccounts'),
                   color: color,
                 ),
               ],
@@ -419,7 +419,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final chartHeight = screenWidth * 0.6;
 
-    double _getStatValue(String key) {
+    double getStatValue(String key) {
       final value = _todayStats[key];
       if (value is num) return value.toDouble();
       if (value is String) {
@@ -428,9 +428,9 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
       return 0;
     }
 
-    final arrival = _getStatValue('pendingArrival');
-    final departure = _getStatValue('pendingDeparture');
-    final accounts = _getStatValue('pendingAccounts');
+    final arrival = getStatValue('pendingArrival');
+    final departure = getStatValue('pendingDeparture');
+    final accounts = getStatValue('pendingAccounts');
     final maxStat = [
       arrival,
       departure,

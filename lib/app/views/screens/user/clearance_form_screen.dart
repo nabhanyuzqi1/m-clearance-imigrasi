@@ -6,7 +6,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:typed_data';
-import 'dart:io';
 import 'package:shimmer/shimmer.dart' as shimmer;
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import '../../../config/theme.dart';
@@ -114,7 +113,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       final app = widget.existingApplication!;
       LoggingService().debug('Loading existing application: ${app.id}');
       _shipNameController.text = app.shipName;
-      _selectedFlag = app.flag;
+      _selectedFlag = _countryFlags.contains(app.flag)
+          ? app.flag
+          : _countryFlags.first;
       _agentNameController.text = app.agentName;
       _portController.text = app.port ?? '';
       _dateController.text = app.date ?? '';
@@ -129,6 +130,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       LoggingService().debug('Creating new application form');
       _agentNameController.text = widget.agentName;
       _selectedLocation = _locations.first;
+      _selectedFlag = _countryFlags.first;
       _dateController.text = DateFormat('dd MMMM yyyy').format(DateTime.now());
     }
   }
@@ -137,9 +139,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _cacheTranslations();
-    if (widget.existingApplication == null) {
-      _selectedFlag = _tr('indonesia');
-    }
   }
 
   @override
@@ -328,19 +327,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           child: Wrap(
             children: <Widget>[
               ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: Text(_tr('gallery')),
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  final hasPermission = await _requestPermissions(
-                    ImageSource.gallery,
-                  );
-                  if (hasPermission) {
-                    _pickImageFile(ImageSource.gallery, docType);
-                  }
-                },
-              ),
-              ListTile(
                 leading: const Icon(Icons.photo_camera),
                 title: Text(_tr('camera')),
                 onTap: () async {
@@ -372,20 +358,29 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final XFile? pickedFile = await _picker.pickImage(source: source);
     if (!context.mounted) return;
     if (pickedFile != null) {
-      final minifiedFile = await minifyImage(File(pickedFile.path));
-      final bytes = await minifiedFile.readAsBytes();
+      final bytes = await pickedFile.readAsBytes();
+      final extension = _extensionFromName(pickedFile.name).isNotEmpty
+          ? _extensionFromName(pickedFile.name)
+          : 'jpg';
+      final processedBytes = await minifyImageData(
+        bytes,
+        fileExtension: extension,
+      );
       setState(() {
-        final fileName = pickedFile.name;
+        final fileName = _ensureExtension(
+          pickedFile.name.isNotEmpty ? pickedFile.name : 'document.$extension',
+          extension,
+        );
         if (documentType == _tr('port_clearance')) {
-          _portClearanceFileData = bytes;
+          _portClearanceFileData = processedBytes;
           _portClearanceFileName = fileName;
         }
         if (documentType == _tr('crew_list')) {
-          _crewListFileData = bytes;
+          _crewListFileData = processedBytes;
           _crewListFileName = fileName;
         }
         if (documentType == _tr('notification_letter')) {
-          _notificationLetterFileData = bytes;
+          _notificationLetterFileData = processedBytes;
           _notificationLetterFileName = fileName;
         }
       });
@@ -427,18 +422,27 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         return;
       }
 
-      final name = picked.name.isNotEmpty ? picked.name : 'document.pdf';
+      final extension = _extensionFromName(picked.name).isNotEmpty
+          ? _extensionFromName(picked.name)
+          : _extensionFromName('document.pdf');
+      final processedBytes = _isImageExtension(extension)
+          ? await minifyImageData(picked.bytes!, fileExtension: extension)
+          : picked.bytes!;
+      final name = _ensureExtension(
+        picked.name.isNotEmpty ? picked.name : 'document.$extension',
+        extension,
+      );
       setState(() {
         if (documentType == _tr('port_clearance')) {
-          _portClearanceFileData = picked.bytes;
+          _portClearanceFileData = processedBytes;
           _portClearanceFileName = name;
         }
         if (documentType == _tr('crew_list')) {
-          _crewListFileData = picked.bytes;
+          _crewListFileData = processedBytes;
           _crewListFileName = name;
         }
         if (documentType == _tr('notification_letter')) {
-          _notificationLetterFileData = picked.bytes;
+          _notificationLetterFileData = processedBytes;
           _notificationLetterFileName = name;
         }
       });
@@ -456,6 +460,29 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         ),
       );
     }
+  }
+
+  String _extensionFromName(String name) {
+    final index = name.lastIndexOf('.');
+    if (index == -1 || index == name.length - 1) {
+      return '';
+    }
+    return name.substring(index + 1).toLowerCase();
+  }
+
+  bool _isImageExtension(String extension) {
+    final normalized = extension.toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'webp', 'heic'].contains(normalized);
+  }
+
+  String _ensureExtension(String name, String extension) {
+    if (extension.isEmpty) return name;
+    if (name.toLowerCase().endsWith('.$extension')) {
+      return name;
+    }
+    final index = name.lastIndexOf('.');
+    final baseName = index == -1 ? name : name.substring(0, index);
+    return '$baseName.$extension';
   }
 
   void _submitApplication() {
@@ -930,7 +957,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 SizedBox(height: screenWidth * 0.02),
                 DropdownButtonFormField<String>(
                   key: const ValueKey('flag_selector'),
-                  initialValue: _selectedFlag,
+                  // ignore: deprecated_member_use
+                  value: _selectedFlag,
                   decoration: InputDecoration(
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -948,6 +976,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     );
                   }).toList(),
                   onChanged: (newValue) {
+                    if (newValue == null) return;
                     setState(() {
                       _selectedFlag = newValue;
                     });

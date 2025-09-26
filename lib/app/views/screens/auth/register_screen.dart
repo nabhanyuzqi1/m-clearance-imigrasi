@@ -18,12 +18,14 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
-  final TextEditingController _corporateNameController = TextEditingController();
+  final TextEditingController _corporateNameController =
+      TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
@@ -45,12 +47,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _goToNextStep() {
-    LoggingService().info('Registration next step attempted, terms agreed: $_agreeToTerms');
+    LoggingService().info(
+      'Registration next step attempted, terms agreed: $_agreeToTerms',
+    );
     if (!_agreeToTerms) {
       LoggingService().warning('Terms not agreed to during registration');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('terms_req')), backgroundColor: AppTheme.errorColor),
+          SnackBar(
+            content: Text(_tr('terms_req')),
+            backgroundColor: AppTheme.errorColor,
+          ),
         );
       }
       return;
@@ -64,7 +71,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _performRegistration() async {
-    LoggingService().info('Starting user registration for email: ${_emailController.text}');
+    LoggingService().info(
+      'Starting user registration for email: ${_emailController.text}',
+    );
     try {
       final UserModel? user = await _authService.registerWithEmailAndPassword(
         _emailController.text,
@@ -75,18 +84,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
         '', // nationality removed from UI; pass empty to keep function signature unchanged
       );
       if (user != null) {
-        LoggingService().info('Registration successful for user: ${user.email}, navigating to email verification');
+        LoggingService().info(
+          'Registration successful for user: ${user.email}, navigating to email verification',
+        );
         if (mounted) {
           Navigator.pushReplacementNamed(
             context,
             AppRoutes.confirmation,
             arguments: {
-              'userData': {'email': _emailController.text}
+              'userData': {'email': _emailController.text},
             },
           );
         }
       } else {
-        LoggingService().warning('Registration failed - no user returned for email: ${_emailController.text}');
+        LoggingService().warning(
+          'Registration failed - no user returned for email: ${_emailController.text}',
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -97,7 +110,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
     } on FirebaseAuthException catch (e) {
-      LoggingService().error('Registration failed with FirebaseAuthException: ${e.code} - ${e.message}', e);
+      LoggingService().error(
+        'Registration failed with FirebaseAuthException: ${e.code} - ${e.message}',
+        e,
+      );
       String errorMessage;
       switch (e.code) {
         case 'email-already-in-use':
@@ -133,40 +149,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_tr('sign_up')),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text(_tr('sign_up')), centerTitle: true),
       backgroundColor: AppTheme.whiteColor,
       body: Form(
         key: _formKey,
         child: ListView(
           padding: EdgeInsets.all(AppTheme.spacing24),
           children: [
-            Text(_tr('create_account_subtitle'), style: TextStyle(fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.blackColor54)),
-            const SizedBox(height: 10),
+            Text(
+              _tr('create_account_subtitle'),
+              style: TextStyle(
+                fontSize: AppTheme.responsiveFontSize(context),
+                color: AppTheme.blackColor54,
+              ),
+            ),
+            SizedBox(height: AppTheme.spacing12),
             _buildLabel(_tr('corporate_name')),
             TextFormField(
               controller: _corporateNameController,
-              decoration:
-                  _buildInputDecoration(hintText: _tr('corporate_name_hint')),
+              decoration: _buildInputDecoration(
+                hintText: _tr('corporate_name_hint'),
+              ),
               validator: (v) => v!.isEmpty ? _tr('corporate_name_req') : null,
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spacing20),
             _buildLabel(_tr('username')),
             TextFormField(
               controller: _usernameController,
               decoration: _buildInputDecoration(hintText: _tr('username_hint')),
               validator: (v) => v!.isEmpty ? _tr('username_req') : null,
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spacing20),
             _buildLabel(_tr('full_name')),
             TextFormField(
               controller: _fullNameController,
-              decoration: _buildInputDecoration(hintText: _tr('full_name_hint')),
+              decoration: _buildInputDecoration(
+                hintText: _tr('full_name_hint'),
+              ),
               validator: (v) => v!.isEmpty ? _tr('full_name_req') : null,
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spacing20),
             // Nationality field removed per requirement.
             _buildLabel(_tr('email')),
             TextFormField(
@@ -174,12 +196,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
               keyboardType: TextInputType.emailAddress,
               decoration: _buildInputDecoration(hintText: _tr('email_hint')),
               validator: (v) {
-                if (v!.isEmpty) return _tr('email_req');
-                if (!RegExp(r"^[a-zA-Z0-9.+]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(v)) return _tr('email_invalid');
+                if (v!.isEmpty) {
+                  return _tr('email_req');
+                }
+                if (!RegExp(
+                  r"^[a-zA-Z0-9.+]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                ).hasMatch(v)) {
+                  return _tr('email_invalid');
+                }
                 return null;
               },
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spacing20),
             _buildLabel(_tr('password')),
             TextFormField(
               controller: _passwordController,
@@ -187,17 +215,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: _buildInputDecoration(
                 hintText: _tr('password_hint'),
                 suffixIcon: IconButton(
-                  icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: AppTheme.greyColor),
-                  onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                  icon: Icon(
+                    _isPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: AppTheme.greyColor,
+                  ),
+                  onPressed: () =>
+                      setState(() => _isPasswordVisible = !_isPasswordVisible),
                 ),
               ),
               validator: (v) {
-                if (v!.isEmpty) return _tr('password_req');
-                if (v.length < 6) return _tr('password_length');
+                if (v!.isEmpty) {
+                  return _tr('password_req');
+                }
+                if (v.length < 6) {
+                  return _tr('password_length');
+                }
                 return null;
               },
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spacing20),
             _buildLabel(_tr('confirm_password')),
             TextFormField(
               controller: _confirmPasswordController,
@@ -205,26 +243,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: _buildInputDecoration(
                 hintText: _tr('confirm_password_hint'),
                 suffixIcon: IconButton(
-                  icon: Icon(_isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off, color: AppTheme.greyColor),
-                  onPressed: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
+                  icon: Icon(
+                    _isConfirmPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: AppTheme.greyColor,
+                  ),
+                  onPressed: () => setState(
+                    () =>
+                        _isConfirmPasswordVisible = !_isConfirmPasswordVisible,
+                  ),
                 ),
               ),
               validator: (v) {
-                if (v!.isEmpty) return _tr('confirm_password_req');
-                if (v != _passwordController.text) return _tr('password_mismatch');
+                if (v!.isEmpty) {
+                  return _tr('confirm_password_req');
+                }
+                if (v != _passwordController.text) {
+                  return _tr('password_mismatch');
+                }
                 return null;
               },
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spacing20),
             _buildTermsCheckbox(),
-            const SizedBox(height: 10),
+            SizedBox(height: AppTheme.spacing12),
             ElevatedButton(
               onPressed: _goToNextStep,
-              child: Text(_tr('continue'), style: TextStyle(fontSize: AppTheme.responsiveFontSize(context))),
+              child: Text(
+                _tr('continue'),
+                style: TextStyle(
+                  fontSize: AppTheme.responsiveFontSize(context),
+                ),
+              ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: AppTheme.spacing12),
             _buildLoginRedirect(),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spacing20),
           ],
         ),
       ),
@@ -233,8 +288,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(text, style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.blackColor87)),
+      padding: EdgeInsets.only(bottom: AppTheme.spacing8),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: AppTheme.responsiveFontSize(context),
+          color: AppTheme.blackColor87,
+        ),
+      ),
     );
   }
 
@@ -244,24 +306,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         Checkbox(
           value: _agreeToTerms,
-          onChanged: (value) => setState(() => _agreeToTerms = value!),
+          onChanged: (value) => setState(() => _agreeToTerms = value ?? false),
           activeColor: AppTheme.primaryColor,
         ),
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: TextStyle(fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.blackColor54),
+              style: TextStyle(
+                fontSize: AppTheme.responsiveFontSize(context),
+                color: AppTheme.blackColor54,
+              ),
               children: [
                 TextSpan(text: _tr('terms_agree')),
                 TextSpan(
                   text: _tr('terms_and_conditions'),
-                  style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: AppTheme.primaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                   recognizer: TapGestureRecognizer()..onTap = () {},
                 ),
                 TextSpan(text: _tr('and')),
                 TextSpan(
                   text: _tr('privacy_policy'),
-                  style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: AppTheme.primaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                   recognizer: TapGestureRecognizer()..onTap = () {},
                 ),
                 const TextSpan(text: '.'),
@@ -277,13 +348,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Center(
       child: RichText(
         text: TextSpan(
-          style: TextStyle(fontSize: AppTheme.responsiveFontSize(context), color: AppTheme.blackColor54),
+          style: TextStyle(
+            fontSize: AppTheme.responsiveFontSize(context),
+            color: AppTheme.blackColor54,
+          ),
           children: [
             TextSpan(text: _tr('already_have_account')),
             TextSpan(
               text: _tr('login'),
-              style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
-              recognizer: TapGestureRecognizer()..onTap = () => Navigator.pop(context),
+              style: TextStyle(
+                color: AppTheme.primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
+              recognizer: TapGestureRecognizer()
+                ..onTap = () => Navigator.pop(context),
             ),
           ],
         ),
@@ -291,14 +369,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  InputDecoration _buildInputDecoration({String? hintText, Widget? suffixIcon}) {
+  InputDecoration _buildInputDecoration({
+    String? hintText,
+    Widget? suffixIcon,
+  }) {
     return InputDecoration(
       hintText: hintText,
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: AppTheme.greyShade100,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
     );
   }
 }

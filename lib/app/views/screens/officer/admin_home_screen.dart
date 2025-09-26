@@ -196,9 +196,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
   void _listenToNotifications() {
     _notificationSubscription = _notificationService.getUnreadCount().listen(
-      (count) {
+      (unreadTotal) {
         if (!mounted) return;
-        setState(() => _unreadNotifications = count);
+        setState(() => _unreadNotifications = unreadTotal);
       },
       onError: (error) {
         LoggingService().error('Error listening to notification count', error);

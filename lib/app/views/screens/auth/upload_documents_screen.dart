@@ -12,7 +12,6 @@ import '../../../localization/app_localizations.dart';
 import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'dart:io';
 
 class UploadDocumentsScreen extends StatefulWidget {
   final String initialLanguage;
@@ -162,182 +161,56 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   }
 
   Future<void> _pickNibFile() async {
-    _showSourceActionSheet('NIB', (sourceType) => _handleNibFile(sourceType));
+    _showSourceActionSheet((sourceType) => _handleNibFile(sourceType));
+  }
+
+  Future<void> _pickKtpFile() async {
+    _showSourceActionSheet((sourceType) => _handleKtpFile(sourceType));
   }
 
   Future<void> _handleNibFile(String sourceType) async {
     try {
-      if (sourceType == 'camera' || sourceType == 'gallery') {
-        final source = sourceType == 'camera'
-            ? ImageSource.camera
-            : ImageSource.gallery;
-        final hasPermission = await _requestPermissions(source);
-        if (!hasPermission) return;
-
-        final XFile? pickedFile = await _picker.pickImage(source: source);
-        if (pickedFile != null) {
-          final minifiedFile = await minifyImage(File(pickedFile.path));
-          final bytes = await minifiedFile.readAsBytes();
-          final name = pickedFile.name.isNotEmpty ? pickedFile.name : 'nib.jpg';
-          setState(() {
-            _nibFile = bytes;
-            _nibFileName = name;
-          });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${_tr('nib')} ${_tr('upload_success')}'),
-                backgroundColor: AppTheme.successColor,
-              ),
+      final payload = sourceType == 'camera'
+          ? await _captureImage(fallbackName: 'nib.jpg')
+          : await _pickFromFiles(
+              allowedExtensions: const ['pdf'],
+              fallbackName: 'nib.pdf',
             );
-          }
-        }
-      } else {
-        // File picker
-        final result = await FilePicker.platform.pickFiles(
-          allowMultiple: false,
-          type: FileType.custom,
-          allowedExtensions: const ['pdf'],
-          withData: true,
-        );
-        if (result == null || result.files.isEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(_tr('select_file_failed')),
-                backgroundColor: AppTheme.errorColor,
-              ),
-            );
-          }
-          return;
-        }
 
-        final picked = result.files.single;
-        if (picked.bytes == null) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(_tr('select_file_failed')),
-                backgroundColor: AppTheme.errorColor,
-              ),
-            );
-          }
-          return;
-        }
+      if (payload == null) return;
 
-        final name = picked.name.isNotEmpty ? picked.name : 'nib.pdf';
-        setState(() {
-          _nibFile = picked.bytes;
-          _nibFileName = name;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${_tr('nib')} ${_tr('upload_success')}'),
-              backgroundColor: AppTheme.successColor,
-            ),
-          );
-        }
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('select_file_failed')),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
+      setState(() {
+        _nibFile = payload.bytes;
+        _nibFileName = payload.name;
+      });
+
+      _showSuccessSnack(_tr('nib'));
+    } catch (e) {
+      LoggingService().error('Failed to handle NIB file', e);
+      _showPickError();
     }
-  }
-
-  Future<void> _pickKtpFile() async {
-    _showSourceActionSheet('KTP', (sourceType) => _handleKtpFile(sourceType));
   }
 
   Future<void> _handleKtpFile(String sourceType) async {
     try {
-      if (sourceType == 'camera' || sourceType == 'gallery') {
-        final source = sourceType == 'camera'
-            ? ImageSource.camera
-            : ImageSource.gallery;
-        final hasPermission = await _requestPermissions(source);
-        if (!hasPermission) return;
-
-        final XFile? pickedFile = await _picker.pickImage(source: source);
-        if (pickedFile != null) {
-          final minifiedFile = await minifyImage(File(pickedFile.path));
-          final bytes = await minifiedFile.readAsBytes();
-          final name = pickedFile.name.isNotEmpty ? pickedFile.name : 'ktp.jpg';
-          setState(() {
-            _ktpFile = bytes;
-            _ktpFileName = name;
-          });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${_tr('ktp')} ${_tr('upload_success')}'),
-                backgroundColor: AppTheme.successColor,
-              ),
+      final payload = sourceType == 'camera'
+          ? await _captureImage(fallbackName: 'ktp.jpg')
+          : await _pickFromFiles(
+              allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
+              fallbackName: 'ktp.jpg',
             );
-          }
-        }
-      } else {
-        // File picker
-        final result = await FilePicker.platform.pickFiles(
-          allowMultiple: false,
-          type: FileType.custom,
-          allowedExtensions: const ['jpg', 'jpeg', 'pdf'],
-          withData: true,
-        );
-        if (result == null || result.files.isEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(_tr('select_file_failed')),
-                backgroundColor: AppTheme.errorColor,
-              ),
-            );
-          }
-          return;
-        }
 
-        final picked = result.files.single;
-        if (picked.bytes == null) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(_tr('select_file_failed')),
-                backgroundColor: AppTheme.errorColor,
-              ),
-            );
-          }
-          return;
-        }
+      if (payload == null) return;
 
-        var name = picked.name.isNotEmpty ? picked.name : 'ktp.jpg';
-        setState(() {
-          _ktpFile = picked.bytes;
-          _ktpFileName = name;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${_tr('ktp')} ${_tr('upload_success')}'),
-              backgroundColor: AppTheme.successColor,
-            ),
-          );
-        }
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('select_file_failed')),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
+      setState(() {
+        _ktpFile = payload.bytes;
+        _ktpFileName = payload.name;
+      });
+
+      _showSuccessSnack(_tr('ktp'));
+    } catch (e) {
+      LoggingService().error('Failed to handle KTP file', e);
+      _showPickError();
     }
   }
 
@@ -478,24 +351,120 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     }
   }
 
-  void _showSourceActionSheet(
-    String docType,
-    Function(String) onSourceSelected,
-  ) {
+  Future<_DocumentPayload?> _captureImage({
+    required String fallbackName,
+  }) async {
+    final hasPermission = await _requestPermissions(ImageSource.camera);
+    if (!hasPermission) return null;
+
+    final XFile? pickedFile = await _picker.pickImage(
+      source: ImageSource.camera,
+    );
+    if (pickedFile == null) return null;
+
+    final bytes = await pickedFile.readAsBytes();
+    final extension = _extensionFromName(pickedFile.name).isNotEmpty
+        ? _extensionFromName(pickedFile.name)
+        : _extensionFromName(fallbackName);
+
+    final processedBytes = await minifyImageData(
+      bytes,
+      fileExtension: extension,
+    );
+
+    final normalizedName = _ensureExtension(
+      pickedFile.name.isNotEmpty ? pickedFile.name : fallbackName,
+      extension.isNotEmpty ? extension : 'jpg',
+    );
+
+    return _DocumentPayload(bytes: processedBytes, name: normalizedName);
+  }
+
+  Future<_DocumentPayload?> _pickFromFiles({
+    required List<String> allowedExtensions,
+    required String fallbackName,
+  }) async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: allowedExtensions,
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return null;
+    }
+
+    final picked = result.files.single;
+    final bytes = picked.bytes;
+    if (bytes == null) return null;
+
+    final extension = _extensionFromName(picked.name).isNotEmpty
+        ? _extensionFromName(picked.name)
+        : _extensionFromName(fallbackName);
+
+    final processedBytes = _isImageExtension(extension)
+        ? await minifyImageData(bytes, fileExtension: extension)
+        : bytes;
+
+    final normalizedName = _ensureExtension(
+      picked.name.isNotEmpty ? picked.name : fallbackName,
+      extension,
+    );
+
+    return _DocumentPayload(bytes: processedBytes, name: normalizedName);
+  }
+
+  void _showSuccessSnack(String documentLabel) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$documentLabel ${_tr('upload_success')}'),
+        backgroundColor: AppTheme.successColor,
+      ),
+    );
+  }
+
+  void _showPickError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_tr('select_file_failed')),
+        backgroundColor: AppTheme.errorColor,
+      ),
+    );
+  }
+
+  bool _isImageExtension(String extension) {
+    final normalized = extension.toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'webp', 'heic'].contains(normalized);
+  }
+
+  String _extensionFromName(String name) {
+    final index = name.lastIndexOf('.');
+    if (index == -1 || index == name.length - 1) {
+      return '';
+    }
+    return name.substring(index + 1).toLowerCase();
+  }
+
+  String _ensureExtension(String name, String extension) {
+    if (extension.isEmpty) return name;
+    if (name.toLowerCase().endsWith('.$extension')) {
+      return name;
+    }
+    final index = name.lastIndexOf('.');
+    final baseName = index == -1 ? name : name.substring(0, index);
+    return '$baseName.$extension';
+  }
+
+  void _showSourceActionSheet(Function(String) onSourceSelected) {
     showModalBottomSheet(
       context: context,
       builder: (BuildContext bc) {
         return SafeArea(
           child: Wrap(
             children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: Text(_tr('gallery')),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onSourceSelected('gallery');
-                },
-              ),
               ListTile(
                 leading: const Icon(Icons.photo_camera),
                 title: Text(_tr('camera')),
@@ -652,68 +621,75 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         iconTheme: IconThemeData(color: AppTheme.onSurface),
       ),
       backgroundColor: AppTheme.backgroundColor,
-      body: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: horizontalPadding,
-          vertical: verticalPadding,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _tr('last_step'),
-              style: TextStyle(
-                fontSize: AppTheme.fontSizeH4,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Poppins',
-                color: AppTheme.onSurface,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: verticalPadding,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _tr('last_step'),
+                    style: TextStyle(
+                      fontSize: AppTheme.fontSizeH4,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: AppTheme.onSurface,
+                    ),
+                  ),
+                  SizedBox(height: AppTheme.spacing8),
+                  Text(
+                    _tr('complete_req'),
+                    style: TextStyle(
+                      fontSize: AppTheme.fontSizeBody1,
+                      color: AppTheme.subtitleColor,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                  SizedBox(height: AppTheme.spacing32),
+                  _buildUploadCard(
+                    title: _tr('nib_title'),
+                    subtitle: _tr('nib_subtitle'),
+                    fileName: _nibFileName,
+                    onTap: busy ? null : _pickNibFile,
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: AppTheme.spacing24),
+                  _buildUploadCard(
+                    title: _tr('ktp_title'),
+                    subtitle: _tr('ktp_subtitle'),
+                    fileName: _ktpFileName,
+                    onTap: busy ? null : _pickKtpFile,
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: AppTheme.spacing32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: busy ? null : _finishRegistration,
+                      child: busy
+                          ? SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppTheme.onPrimary,
+                              ),
+                            )
+                          : Text(_tr('submit')),
+                    ),
+                  ),
+                  SizedBox(height: AppTheme.spacing20),
+                ],
               ),
             ),
-            SizedBox(height: AppTheme.spacing8),
-            Text(
-              _tr('complete_req'),
-              style: TextStyle(
-                fontSize: AppTheme.fontSizeBody1,
-                color: AppTheme.subtitleColor,
-                fontFamily: 'Poppins',
-              ),
-            ),
-            SizedBox(height: AppTheme.spacing32),
-            _buildUploadCard(
-              title: _tr('nib_title'),
-              subtitle: _tr('nib_subtitle'),
-              fileName: _nibFileName,
-              onTap: busy ? null : _pickNibFile,
-              screenWidth: screenWidth,
-            ),
-            SizedBox(height: AppTheme.spacing20),
-            _buildUploadCard(
-              title: _tr('ktp_title'),
-              subtitle: _tr('ktp_subtitle'),
-              fileName: _ktpFileName,
-              onTap: busy ? null : _pickKtpFile,
-              screenWidth: screenWidth,
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: busy ? null : _finishRegistration,
-                child: busy
-                    ? SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppTheme.onPrimary,
-                        ),
-                      )
-                    : Text(_tr('submit')),
-              ),
-            ),
-            SizedBox(height: AppTheme.spacing20),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -829,4 +805,11 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       ),
     );
   }
+}
+
+class _DocumentPayload {
+  final Uint8List bytes;
+  final String name;
+
+  const _DocumentPayload({required this.bytes, required this.name});
 }

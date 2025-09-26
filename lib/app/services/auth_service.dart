@@ -500,7 +500,8 @@ class AuthService {
       }
 
       final ref = filePathOrUrl.startsWith('https') ? _storage.refFromURL(filePathOrUrl) : _storage.ref().child(filePathOrUrl);
-      final data = await ref.getData();
+      const int maxDownloadSize = 25 * 1024 * 1024; // Cap download to 25MB
+      final data = await ref.getData(maxDownloadSize);
 
       if (data == null || data.isEmpty) {
         LoggingService().error('Downloaded file data is null or empty');
