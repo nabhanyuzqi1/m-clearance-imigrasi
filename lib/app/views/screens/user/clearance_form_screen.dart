@@ -40,7 +40,7 @@ class ClearanceFormScreen extends StatefulWidget {
 
 class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   int _currentStep = 1;
-  GlobalKey<FormState> get _formKey => GlobalKey<FormState>();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final _userService = UserService();
 
   // Form controllers
