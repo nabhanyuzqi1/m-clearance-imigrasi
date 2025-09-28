@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -5,7 +8,6 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart' as shimmer;
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import '../../../config/theme.dart';
@@ -38,7 +40,7 @@ class ClearanceFormScreen extends StatefulWidget {
 
 class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   int _currentStep = 1;
-  final _formKey = GlobalKey<FormState>();
+  GlobalKey<FormState> get _formKey => GlobalKey<FormState>();
   final _userService = UserService();
 
   // Form controllers
@@ -182,74 +184,64 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
   Future<bool> _requestPermissions(ImageSource source) async {
     if (source == ImageSource.camera) {
-      final cameraStatus = await Permission.camera.request();
-      if (cameraStatus.isGranted) {
+      final status = await Permission.camera.request();
+      if (status.isGranted) {
         return true;
-      } else if (cameraStatus.isPermanentlyDenied) {
-        // Show dialog to open app settings
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: Text(_tr('permission_required')),
-                content: Text(_tr('camera_permission_message')),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(_tr('cancel')),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      openAppSettings();
-                    },
-                    child: Text(_tr('open_settings')),
-                  ),
-                ],
-              );
-            },
-          );
-        }
-        return false;
-      } else {
-        return false;
+      }
+      if (status.isPermanentlyDenied && mounted) {
+        _showPermissionDialog(_tr('camera_permission_message'));
+      }
+      return false;
+    }
+
+    return _requestGalleryPermission();
+  }
+
+  Future<bool> _requestGalleryPermission() async {
+    PermissionStatus status;
+    if (Platform.isAndroid) {
+      status = await Permission.photos.request();
+      if (status.isDenied || status.isRestricted) {
+        status = await Permission.storage.request();
       }
     } else {
-      // For gallery, request storage permissions
-      final storageStatus = await Permission.photos.request();
-      if (storageStatus.isGranted) {
-        return true;
-      } else if (storageStatus.isPermanentlyDenied) {
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: Text(_tr('permission_required')),
-                content: Text(_tr('storage_permission_message')),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(_tr('cancel')),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      openAppSettings();
-                    },
-                    child: Text(_tr('open_settings')),
-                  ),
-                ],
-              );
-            },
-          );
-        }
-        return false;
-      } else {
-        return false;
-      }
+      status = await Permission.photos.request();
     }
+
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (status.isPermanentlyDenied && mounted) {
+      _showPermissionDialog(_tr('storage_permission_message'));
+    }
+
+    return false;
+  }
+
+  void _showPermissionDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(_tr('permission_required')),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(_tr('cancel')),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                openAppSettings();
+              },
+              child: Text(_tr('open_settings')),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<String?> _uploadDocumentToStorage(
@@ -356,7 +348,6 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
   Future<void> _pickImageFile(ImageSource source, String documentType) async {
     final XFile? pickedFile = await _picker.pickImage(source: source);
-    if (!context.mounted) return;
     if (pickedFile != null) {
       final bytes = await pickedFile.readAsBytes();
       final extension = _extensionFromName(pickedFile.name).isNotEmpty
@@ -366,6 +357,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         bytes,
         fileExtension: extension,
       );
+      if (!context.mounted) return;
       setState(() {
         final fileName = _ensureExtension(
           pickedFile.name.isNotEmpty ? pickedFile.name : 'document.$extension',
@@ -683,6 +675,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         agentName: _agentNameController.text,
         agentUid: '', // Will be set by the service
         type: widget.type,
+        location: _selectedLocation,
         port: _portController.text.trim().isEmpty
             ? null
             : _portController.text.trim(),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
@@ -25,8 +26,31 @@ class ClearanceResultScreen extends StatelessWidget {
     String tr(String key) =>
         AppLocalizations.of(context).get('clearanceResult.$key');
     final isArrival = application.type == ApplicationType.kedatangan;
-
     final appName = AppLocalizations.of(context).get('splash.app_name');
+    final createdAtLocal = application.createdAt.toLocal();
+    final submittedAtText = DateFormat(
+      'dd MMM yyyy HH:mm',
+    ).format(createdAtLocal);
+    final notProvided = tr('not_provided');
+
+    String _cleanValue(String? raw) {
+      if (raw == null) return notProvided;
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) return notProvided;
+      const invalidTokens = {
+        'n/a',
+        'na',
+        'n.a',
+        'not available',
+        'tidak tersedia',
+        '-',
+      };
+      return invalidTokens.contains(trimmed.toLowerCase())
+          ? notProvided
+          : trimmed;
+    }
+
+    String formatLocation(String? location) => _cleanValue(location);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -106,25 +130,64 @@ class ClearanceResultScreen extends StatelessWidget {
             ),
             SizedBox(height: AppTheme.spacing32),
 
-            // Key metadata row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildMetaChip(
-                  label: tr('type'),
-                  value: application.type == ApplicationType.kedatangan
-                      ? tr('arrival')
-                      : tr('departure'),
-                ),
-                _buildMetaChip(
-                  label: tr('status'),
-                  value: _getStatusText(application.status, tr),
-                  color: _getStatusColor(application.status),
-                ),
-              ],
+            // Clearance metadata overview
+            Container(
+              margin: EdgeInsets.only(bottom: AppTheme.spacing24),
+              padding: EdgeInsets.all(AppTheme.spacing16),
+              decoration: BoxDecoration(
+                color: AppTheme.whiteColor,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.greyColor.withAlpha(25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tr('overview_title'),
+                    style: TextStyle(
+                      fontSize: AppTheme.fontSizeBody1,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.onSurface,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                  SizedBox(height: AppTheme.spacing12),
+                  Wrap(
+                    spacing: AppTheme.spacing12,
+                    runSpacing: AppTheme.spacing12,
+                    children: [
+                      _buildMetaChip(
+                        label: tr('type'),
+                        value: isArrival ? tr('arrival') : tr('departure'),
+                        icon: Icons.swap_horiz,
+                      ),
+                      _buildMetaChip(
+                        label: tr('status'),
+                        value: _getStatusText(application.status, tr),
+                        color: _getStatusColor(application.status),
+                        icon: _getStatusIcon(application.status),
+                      ),
+                      _buildMetaChip(
+                        label: tr('location'),
+                        value: formatLocation(application.location),
+                        icon: Icons.place_outlined,
+                      ),
+                      _buildMetaChip(
+                        label: tr('submitted_at'),
+                        value: submittedAtText,
+                        icon: Icons.access_time,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-
-            SizedBox(height: AppTheme.spacing24),
 
             // Application Details Card
             Container(
@@ -190,7 +253,7 @@ class ClearanceResultScreen extends StatelessWidget {
 
                     _buildDetailRow(
                       isArrival ? tr('last_port') : tr('next_port'),
-                      application.port ?? 'N/A',
+                      _cleanValue(application.port),
                     ),
 
                     if (application.date != null)
@@ -207,11 +270,13 @@ class ClearanceResultScreen extends StatelessWidget {
                     if (application.officerName != null)
                       _buildDetailRow(
                         tr('officer_name'),
-                        application.officerName!,
+                        _cleanValue(application.officerName),
                       ),
 
-                    if (application.location != null)
-                      _buildDetailRow(tr('location'), application.location!),
+                    _buildDetailRow(
+                      tr('location'),
+                      formatLocation(application.location),
+                    ),
 
                     // Status with enhanced styling
                     Padding(
@@ -282,10 +347,7 @@ class ClearanceResultScreen extends StatelessWidget {
                       _buildDetailRow(tr('notes'), tr('no_notes')),
 
                     // Submitted At
-                    _buildDetailRow(
-                      tr('submitted_at'),
-                      '${application.createdAt.day}/${application.createdAt.month}/${application.createdAt.year} ${application.createdAt.hour}:${application.createdAt.minute.toString().padLeft(2, '0')}',
-                    ),
+                    _buildDetailRow(tr('submitted_at'), submittedAtText),
 
                     // File attachments section
                     SizedBox(height: AppTheme.spacing16),
@@ -524,6 +586,7 @@ class ClearanceResultScreen extends StatelessWidget {
     required String label,
     required String value,
     Color? color,
+    IconData? icon,
   }) {
     final resolvedColor = color ?? AppTheme.primaryColor;
     return Container(
@@ -540,14 +603,23 @@ class ClearanceResultScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: AppTheme.fontSizeBody2,
-              fontWeight: FontWeight.w500,
-              color: resolvedColor.withAlpha(179),
-              fontFamily: 'Poppins',
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 16, color: resolvedColor),
+                SizedBox(width: AppTheme.spacing4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: AppTheme.fontSizeBody2,
+                  fontWeight: FontWeight.w500,
+                  color: resolvedColor.withAlpha(179),
+                  fontFamily: 'Poppins',
+                ),
+              ),
+            ],
           ),
           SizedBox(height: AppTheme.spacing4),
           Text(
@@ -643,8 +715,11 @@ class ClearanceResultScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildFileCard(String label, String fileName, BuildContext context) {
-    String filename = _extractFilename(fileName);
+  Widget _buildFileCard(String label, String? fileUrl, BuildContext context) {
+    final resolvedFileUrl = fileUrl ?? '';
+    final hasFile = resolvedFileUrl.isNotEmpty;
+    final filename = hasFile ? _extractFilename(resolvedFileUrl) : '';
+    final isPdf = hasFile && filename.toLowerCase().endsWith('.pdf');
 
     return Container(
       margin: EdgeInsets.only(bottom: AppTheme.spacing12),
@@ -664,18 +739,20 @@ class ClearanceResultScreen extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: filename.toLowerCase().endsWith('.pdf')
-                ? AppTheme.errorColor.withAlpha(25)
-                : AppTheme.primaryColor.withAlpha(25),
+            color: hasFile
+                ? (isPdf
+                      ? AppTheme.errorColor.withAlpha(25)
+                      : AppTheme.primaryColor.withAlpha(25))
+                : AppTheme.greyShade200,
             borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
           ),
           child: Icon(
-            filename.toLowerCase().endsWith('.pdf')
-                ? Icons.picture_as_pdf
-                : Icons.image,
-            color: filename.toLowerCase().endsWith('.pdf')
-                ? AppTheme.errorColor
-                : AppTheme.primaryColor,
+            hasFile
+                ? (isPdf ? Icons.picture_as_pdf : Icons.image)
+                : Icons.insert_drive_file,
+            color: hasFile
+                ? (isPdf ? AppTheme.errorColor : AppTheme.primaryColor)
+                : AppTheme.greyShade500,
             size: 20,
           ),
         ),
@@ -689,50 +766,61 @@ class ClearanceResultScreen extends StatelessWidget {
           ),
         ),
         subtitle: Text(
-          filename,
+          AppLocalizations.of(context).get(
+            hasFile
+                ? 'submissionDetail.file_status_uploaded'
+                : 'submissionDetail.file_status_missing',
+          ),
           style: TextStyle(
             color: AppTheme.subtitleColor,
             fontFamily: 'Poppins',
             fontSize: AppTheme.fontSizeBody2,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
-        trailing: IconButton(
-          onPressed: () async {
-            // Show loading
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Downloading file...')));
+        trailing: hasFile
+            ? IconButton(
+                onPressed: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Downloading file...')),
+                  );
 
-            try {
-              final authService = AuthService();
-              final fileData = await authService.downloadFileData(fileName);
+                  try {
+                    final authService = AuthService();
+                    final fileData = await authService.downloadFileData(
+                      resolvedFileUrl,
+                    );
 
-              if (fileData != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DocumentViewScreen(
-                      fileData: fileData,
-                      fileName: filename,
-                    ),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to download file')),
-                );
-              }
-            } catch (e) {
-              LoggingService().error('Error downloading file: $e');
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Error downloading file')));
-            }
-          },
-          icon: Icon(Icons.visibility, color: AppTheme.primaryColor, size: 24),
-        ),
+                    if (fileData != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DocumentViewScreen(
+                            fileData: fileData,
+                            fileName: filename,
+                          ),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Failed to download file'),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    LoggingService().error('Error downloading file: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Error downloading file')),
+                    );
+                  }
+                },
+                icon: Icon(
+                  Icons.visibility,
+                  color: AppTheme.primaryColor,
+                  size: 24,
+                ),
+              )
+            : null,
       ),
     );
   }
@@ -742,45 +830,17 @@ class ClearanceResultScreen extends StatelessWidget {
     String Function(String) tr,
     BuildContext context,
   ) {
-    List<Widget> widgets = [];
-    if (application.portClearanceFile != null &&
-        application.portClearanceFile!.isNotEmpty) {
-      widgets.add(
-        _buildFileCard(
-          tr('port_clearance'),
-          application.portClearanceFile!,
-          context,
-        ),
-      );
-    }
-    if (application.crewListFile != null &&
-        application.crewListFile!.isNotEmpty) {
-      widgets.add(
-        _buildFileCard(tr('crew_list'), application.crewListFile!, context),
-      );
-    }
-    if (application.notificationLetterFile != null &&
-        application.notificationLetterFile!.isNotEmpty) {
-      widgets.add(
-        _buildFileCard(
-          tr('notification_letter'),
-          application.notificationLetterFile!,
-          context,
-        ),
-      );
-    }
-    if (widgets.isEmpty) {
-      widgets.add(
-        Text(
-          tr('no_file_attached'),
-          style: TextStyle(
-            color: AppTheme.greyColor,
-            fontFamily: 'Poppins',
-            fontSize: AppTheme.fontSizeBody2,
-          ),
-        ),
-      );
-    }
-    return widgets;
+    final attachments = [
+      (label: tr('port_clearance'), file: application.portClearanceFile),
+      (label: tr('crew_list'), file: application.crewListFile),
+      (
+        label: tr('notification_letter'),
+        file: application.notificationLetterFile,
+      ),
+    ];
+
+    return attachments
+        .map((item) => _buildFileCard(item.label, item.file, context))
+        .toList();
   }
 }

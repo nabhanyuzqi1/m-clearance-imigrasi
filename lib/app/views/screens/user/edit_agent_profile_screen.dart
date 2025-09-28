@@ -66,140 +66,6 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      // Request permissions first
-      bool hasPermission = false;
-      if (source == ImageSource.camera) {
-        final cameraStatus = await Permission.camera.request();
-        hasPermission = cameraStatus.isGranted;
-        if (cameraStatus.isPermanentlyDenied && mounted) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          final isTablet = screenWidth > 600;
-          final maxWidth = isTablet ? 400.0 : double.infinity;
-
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return Container(
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: Text(
-                    _tr(context, 'permission_required'),
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.045,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.onSurface,
-                    ),
-                  ),
-                  content: Text(
-                    _tr(context, 'camera_permission_message'),
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.04,
-                      color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text(
-                        _tr(context, 'cancel'),
-                        style: TextStyle(
-                          color: AppTheme.primaryColor,
-                          fontSize: screenWidth * 0.04,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        openAppSettings();
-                      },
-                      child: Text(
-                        _tr(context, 'open_settings'),
-                        style: TextStyle(
-                          color: AppTheme.primaryColor,
-                          fontSize: screenWidth * 0.04,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-          return;
-        }
-      } else {
-        final storageStatus = await Permission.photos.request();
-        hasPermission = storageStatus.isGranted;
-        if (storageStatus.isPermanentlyDenied && mounted) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          final isTablet = screenWidth > 600;
-          final maxWidth = isTablet ? 400.0 : double.infinity;
-
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return Container(
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: Text(
-                    _tr(context, 'permission_required'),
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.045,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.onSurface,
-                    ),
-                  ),
-                  content: Text(
-                    _tr(context, 'storage_permission_message'),
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.04,
-                      color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text(
-                        _tr(context, 'cancel'),
-                        style: TextStyle(
-                          color: AppTheme.primaryColor,
-                          fontSize: screenWidth * 0.04,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        openAppSettings();
-                      },
-                      child: Text(
-                        _tr(context, 'open_settings'),
-                        style: TextStyle(
-                          color: AppTheme.primaryColor,
-                          fontSize: screenWidth * 0.04,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-          return;
-        }
-      }
-
-      if (!hasPermission) return;
-
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: source);
 
@@ -295,11 +161,103 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
   Future<bool> _requestPermission(ImageSource source) async {
     if (source == ImageSource.camera) {
       final status = await Permission.camera.request();
-      return status.isGranted;
-    } else {
-      final status = await Permission.photos.request();
-      return status.isGranted;
+      if (status.isGranted) {
+        return true;
+      }
+      if (status.isPermanentlyDenied && mounted) {
+        _showPermissionDialog(_tr(context, 'camera_permission_message'));
+      }
+      return false;
     }
+
+    final granted = await _requestGalleryPermission();
+    if (!granted && mounted) {
+      _showPermissionDialog(_tr(context, 'storage_permission_message'));
+    }
+    return granted;
+  }
+
+  Future<bool> _requestGalleryPermission() async {
+    PermissionStatus status;
+    if (Platform.isAndroid) {
+      status = await Permission.photos.request();
+      if (status.isDenied || status.isRestricted) {
+        status = await Permission.storage.request();
+      }
+    } else {
+      status = await Permission.photos.request();
+    }
+
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (status.isPermanentlyDenied && mounted) {
+      _showPermissionDialog(_tr(context, 'storage_permission_message'));
+    }
+
+    return false;
+  }
+
+  void _showPermissionDialog(String message) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+    final maxWidth = isTablet ? 400.0 : double.infinity;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              _tr(context, 'permission_required'),
+              style: TextStyle(
+                fontSize: screenWidth * 0.045,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.onSurface,
+              ),
+            ),
+            content: Text(
+              message,
+              style: TextStyle(
+                fontSize: screenWidth * 0.04,
+                color: AppTheme.onSurface.withAlpha(179),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  _tr(context, 'cancel'),
+                  style: TextStyle(
+                    color: AppTheme.primaryColor,
+                    fontSize: screenWidth * 0.04,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  openAppSettings();
+                },
+                child: Text(
+                  _tr(context, 'open_settings'),
+                  style: TextStyle(
+                    color: AppTheme.primaryColor,
+                    fontSize: screenWidth * 0.04,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _saveProfile() async {
@@ -552,6 +510,8 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                     validator: (value) => value?.trim().isNotEmpty ?? false
                         ? null
                         : _tr(context, 'corporate_name_req'),
+                    enabled: false,
+                    readOnly: true,
                   ),
 
                   _buildTextField(
@@ -578,6 +538,8 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                       }
                       return null;
                     },
+                    enabled: false,
+                    readOnly: true,
                   ),
 
                   SizedBox(height: verticalPadding * 2),
@@ -650,17 +612,23 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
     TextEditingController controller, {
     TextInputType keyboardType = TextInputType.text,
     String? Function(String?)? validator,
+    bool enabled = true,
+    bool readOnly = false,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final bottomPadding = screenWidth > 600
         ? AppTheme.spacing24
         : AppTheme.spacing16; // More spacing on tablets
 
+    final fieldValidator = enabled ? validator : null;
+
     return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
+        enabled: enabled,
+        readOnly: readOnly || !enabled,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(
@@ -687,7 +655,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
           ),
           fontFamily: 'Poppins',
         ),
-        validator: validator,
+        validator: fieldValidator,
       ),
     );
   }

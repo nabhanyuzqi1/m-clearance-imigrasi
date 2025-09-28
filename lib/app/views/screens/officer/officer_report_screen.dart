@@ -7,10 +7,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/report_service.dart';
 import '../../../models/report_model.dart';
 import '../../widgets/custom_app_bar.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../user/document_view_screen.dart';
 
 class OfficerReportScreen extends StatefulWidget {
   final String initialLanguage;
@@ -50,7 +53,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           .doc('dashboard')
           .get();
 
-      Map<String, dynamic> todayStats = {
+      Map<String, int> todayStats = {
         'pendingArrival': 0,
         'pendingDeparture': 0,
         'pendingAccounts': 0,
@@ -64,37 +67,65 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         };
       }
 
-      final monthStats = await _functionsService.getOfficerMonthlyStats();
-      final normalizedMonthStats = {
-        'pendingArrival': (monthStats['pendingArrival'] as num?)?.toInt() ?? 0,
-        'pendingDeparture':
-            (monthStats['pendingDeparture'] as num?)?.toInt() ?? 0,
-        'pendingAccounts':
-            (monthStats['pendingAccounts'] as num?)?.toInt() ?? 0,
-      };
+      Map<String, dynamic>? monthStats;
+      try {
+        monthStats = await _functionsService.getOfficerMonthlyStats();
+      } catch (e, stack) {
+        LoggingService().warning(
+          'Failed to fetch monthly stats via Cloud Function, falling back to dashboard counters.',
+          e,
+          stack,
+        );
+        monthStats = null;
+      }
 
-      setState(() {
-        _todayStats = todayStats;
-        _monthStats = normalizedMonthStats;
-        _isLoadingStats = false;
-      });
+      final normalizedMonthStats = _normalizeStats(monthStats, todayStats);
+
+      if (mounted) {
+        setState(() {
+          _todayStats = todayStats;
+          _monthStats = normalizedMonthStats;
+          _isLoadingStats = false;
+        });
+      }
     } catch (e) {
       LoggingService().error('Error loading stats: $e', e);
       // Provide default values if stats loading fails
-      setState(() {
-        _todayStats = {
-          'pendingArrival': 0,
-          'pendingDeparture': 0,
-          'pendingAccounts': 0,
-        };
-        _monthStats = {
-          'pendingArrival': 0,
-          'pendingDeparture': 0,
-          'pendingAccounts': 0,
-        };
-        _isLoadingStats = false;
-      });
+      if (mounted) {
+        setState(() {
+          _todayStats = const {
+            'pendingArrival': 0,
+            'pendingDeparture': 0,
+            'pendingAccounts': 0,
+          };
+          _monthStats = _todayStats;
+          _isLoadingStats = false;
+        });
+      }
     }
+  }
+
+  Map<String, int> _normalizeStats(
+    Map<String, dynamic>? raw,
+    Map<String, int> fallback,
+  ) {
+    if (raw == null || raw.isEmpty) {
+      return Map<String, int>.from(fallback);
+    }
+    return {
+      'pendingArrival':
+          (raw['pendingArrival'] as num?)?.toInt() ??
+          fallback['pendingArrival'] ??
+          0,
+      'pendingDeparture':
+          (raw['pendingDeparture'] as num?)?.toInt() ??
+          fallback['pendingDeparture'] ??
+          0,
+      'pendingAccounts':
+          (raw['pendingAccounts'] as num?)?.toInt() ??
+          fallback['pendingAccounts'] ??
+          0,
+    };
   }
 
   Future<void> _loadReports() async {
@@ -115,32 +146,8 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   }
 
   Future<void> _downloadReport(ReportModel report) async {
-    if (report.pdfUrl != null) {
-      try {
-        await _reportService.downloadReport(
-          report.pdfUrl!,
-          '${report.title}.pdf',
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_tr('report_downloaded_successfully')),
-              backgroundColor: AppTheme.successColor,
-            ),
-          );
-        }
-      } catch (e) {
-        LoggingService().error('Error downloading report', e);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_tr('error_downloading_report')),
-              backgroundColor: AppTheme.errorColor,
-            ),
-          );
-        }
-      }
-    } else {
+    final pdfUrl = report.pdfUrl;
+    if (pdfUrl == null || pdfUrl.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -149,57 +156,85 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           ),
         );
       }
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
+    void showSnack(SnackBar snackBar) {
+      if (!mounted) return;
+      messenger?.showSnackBar(snackBar);
+    }
+
+    try {
+      final fileData = await AuthService().downloadFileData(pdfUrl);
+
+      if (!mounted) {
+        await _openReportExternally(pdfUrl);
+        return;
+      }
+
+      if (fileData == null) {
+        showSnack(
+          SnackBar(
+            content: Text(_tr('error_downloading_report')),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        await _openReportExternally(pdfUrl);
+        return;
+      }
+
+      showSnack(
+        SnackBar(
+          content: Text(_tr('opening_report')),
+          backgroundColor: AppTheme.primaryColor,
+        ),
+      );
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => DocumentViewScreen(
+            fileData: fileData,
+            fileName: '${report.title}.pdf',
+          ),
+        ),
+      );
+    } catch (e) {
+      LoggingService().error('Error downloading report', e);
+      if (mounted) {
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(_tr('error_downloading_report')),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+      await _openReportExternally(pdfUrl);
     }
   }
 
   Future<void> _generateReport(String type) async {
     setState(() => _isGeneratingReport = true);
     try {
-      if (type == 'monthly') {
-        final result = await _functionsService.generateMonthlyReport(
-          _monthStats,
-        );
-        if (result['success'] == true && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_tr('report_generated_successfully')),
-              backgroundColor: AppTheme.successColor,
-            ),
-          );
-          await _loadReports();
-        } else if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_tr('error_generating_report')),
-              backgroundColor: AppTheme.errorColor,
-            ),
-          );
-        }
-      } else {
-        final newReport = await _reportService.generateReport(
-          type,
-          _todayStats,
-        );
+      final stats = type == 'monthly' ? _monthStats : _todayStats;
+      final newReport = await _reportService.generateReport(type, stats);
 
-        if (newReport != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_tr('report_generated_successfully')),
-              backgroundColor: AppTheme.successColor,
-            ),
-          );
-          // Add the new report to the top of the list
-          setState(() {
-            _reports.insert(0, newReport);
-          });
-        } else if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_tr('error_generating_report')),
-              backgroundColor: AppTheme.errorColor,
-            ),
-          );
-        }
+      if (newReport != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_tr('report_generated_successfully')),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        await _loadReports();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_tr('error_generating_report')),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
       }
     } catch (e) {
       LoggingService().error('Error generating report: $e', e);
@@ -213,6 +248,16 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
       }
     } finally {
       setState(() => _isGeneratingReport = false);
+    }
+  }
+
+  Future<void> _openReportExternally(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      LoggingService().warning('Unable to launch external viewer for $url', e);
     }
   }
 

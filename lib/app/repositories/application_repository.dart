@@ -3,10 +3,12 @@ import '../models/clearance_application.dart';
 import 'firestore_provider.dart';
 import '../services/logging_service.dart';
 import '../services/notification_service.dart';
+import '../services/officer_service.dart';
 
 class ApplicationRepository {
   final FirebaseFirestore _db;
-  ApplicationRepository({FirebaseFirestore? db}) : _db = db ?? FirestoreProvider.db;
+  ApplicationRepository({FirebaseFirestore? db})
+    : _db = db ?? FirestoreProvider.db;
 
   /// Streams applications filtered by type and status.
   /// type: 'arrival' | 'departure' (accepts legacy 'kedatangan' | 'keberangkatan')
@@ -21,10 +23,11 @@ class ApplicationRepository {
     final normalizedType = type == 'kedatangan'
         ? 'arrival'
         : type == 'keberangkatan'
-            ? 'departure'
-            : type;
+        ? 'departure'
+        : type;
 
-    Query query = _db.collection('applications')
+    Query query = _db
+        .collection('applications')
         .where('type', isEqualTo: normalizedType)
         .orderBy('updatedAt', descending: true);
     if (agentUid != null) {
@@ -32,9 +35,11 @@ class ApplicationRepository {
     }
     if (limit != null) query = query.limit(limit);
 
-    return query.snapshots().map((snap) => snap.docs.map((d) {
-          return ClearanceApplication.fromFirestore(d);
-        }).toList());
+    return query.snapshots().map(
+      (snap) => snap.docs.map((d) {
+        return ClearanceApplication.fromFirestore(d);
+      }).toList(),
+    );
   }
 
   /// Create a new application (agent side). Returns created doc id.
@@ -53,7 +58,9 @@ class ApplicationRepository {
     int? wnaCrew,
   }) async {
     try {
-      LoggingService().info('Creating new application for ship: $shipName, type: $type');
+      LoggingService().info(
+        'Creating new application for ship: $shipName, type: $type',
+      );
       final doc = await _db.collection('applications').add({
         'agentUid': agentUid,
         'agentName': agentName,
@@ -71,10 +78,15 @@ class ApplicationRepository {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      LoggingService().info('Application created successfully with ID: ${doc.id}');
+      LoggingService().info(
+        'Application created successfully with ID: ${doc.id}',
+      );
       return doc.id;
     } catch (e) {
-      LoggingService().error('Error creating application for ship: $shipName', e);
+      LoggingService().error(
+        'Error creating application for ship: $shipName',
+        e,
+      );
       rethrow;
     }
   }
@@ -117,8 +129,13 @@ class ApplicationRepository {
     String? note,
     String? officerName,
   }) async {
+    final notificationService = NotificationService();
+    final officerService = OfficerService();
+
     try {
-      LoggingService().info('Officer decision on application $appId: $decision');
+      LoggingService().info(
+        'Officer decision on application $appId: $decision',
+      );
       final updates = <String, dynamic>{
         'status': decision,
         if (note != null) 'notes': note,
@@ -127,31 +144,48 @@ class ApplicationRepository {
       };
       await _db.collection('applications').doc(appId).update(updates);
       LoggingService().info('Application $appId status updated to $decision');
+
+      final application = await _db.collection('applications').doc(appId).get();
+      final shipName = application.data()?['shipName'] as String? ?? '';
+
+      final statusEnum = decision == 'approved'
+          ? ApplicationStatus.approved
+          : decision == 'revision'
+          ? ApplicationStatus.revision
+          : ApplicationStatus.declined;
+
+      await notificationService.createApplicationNotification(
+        appId,
+        shipName,
+        statusEnum,
+      );
+
+      final description = shipName.isNotEmpty
+          ? 'Application for $shipName marked as ${decision.toUpperCase()}.'
+          : 'Application status updated to ${decision.toUpperCase()}.';
+      await officerService.logActivity(
+        title: shipName.isNotEmpty ? shipName : 'Application Update',
+        description: description,
+        type: 'applicationReview',
+        status: decision,
+        iconData: 'document',
+      );
     } catch (e) {
       LoggingService().error('Error updating application $appId status', e);
       rethrow;
-    } finally {
-       // Create application status notification
-      final notificationService = NotificationService();
-      // Get shipName from application
-      final application = await _db.collection('applications').doc(appId).get();
-      final shipName = application.data()?['shipName'] ?? '';
-      notificationService.createApplicationNotification(
-        appId,
-        shipName,
-        decision == 'approved'
-            ? ApplicationStatus.approved
-            : decision == 'revision'
-                ? ApplicationStatus.revision
-                : ApplicationStatus.declined,
-      );
     }
   }
 
-  Future<void> updateApplication(String appId, ClearanceApplication application) async {
+  Future<void> updateApplication(
+    String appId,
+    ClearanceApplication application,
+  ) async {
     try {
       LoggingService().info('Updating application $appId');
-      await _db.collection('applications').doc(appId).update(application.toFirestore());
+      await _db
+          .collection('applications')
+          .doc(appId)
+          .update(application.toFirestore());
       LoggingService().info('Application $appId updated successfully');
     } catch (e) {
       LoggingService().error('Error updating application $appId', e);

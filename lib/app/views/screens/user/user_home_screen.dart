@@ -596,7 +596,7 @@ class UserMenuScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: titleFontSize,
                       fontWeight: FontWeight.bold,
-                      color: isPrimary ? Colors.white : color,
+                      color: isPrimary ? Colors.white : AppTheme.blackColor,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -618,7 +618,7 @@ class UserMenuScreen extends StatelessWidget {
             Icon(
               serviceIcon,
               size: iconSize,
-              color: isPrimary ? Colors.white : color,
+              color: isPrimary ? Colors.white : AppTheme.primaryColor,
             ),
           ],
         ),

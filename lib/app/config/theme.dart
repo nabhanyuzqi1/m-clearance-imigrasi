@@ -11,7 +11,8 @@ class AppTheme {
   static const double tabletBreakpoint = 1024.0;
 
   // Responsive padding based on screen size
-  static double responsivePadding(BuildContext context, {
+  static double responsivePadding(
+    BuildContext context, {
     double mobile = paddingSmall,
     double tablet = paddingMedium,
     double desktop = paddingLarge,
@@ -23,7 +24,8 @@ class AppTheme {
   }
 
   // Responsive font size based on screen size
-  static double responsiveFontSize(BuildContext context, {
+  static double responsiveFontSize(
+    BuildContext context, {
     double mobile = fontSizeMedium,
     double tablet = fontSizeLarge,
     double desktop = fontSizeExtraLarge,
@@ -41,6 +43,7 @@ class AppTheme {
     if (screenWidth >= mobileBreakpoint) return ScreenType.tablet;
     return ScreenType.mobile;
   }
+
   // --- MATERIAL DESIGN COLOR PALETTE ---
   // Primary colors
   static const Color primaryColor = Color(0xFF1976D2); // Blue 700
@@ -153,7 +156,8 @@ class AppTheme {
   // Heading styles with responsive font sizes
   static TextStyle headingLarge(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeH4,
         tablet: fontSizeH3,
         desktop: fontSizeH2,
@@ -166,7 +170,8 @@ class AppTheme {
 
   static TextStyle headingMedium(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeH5,
         tablet: fontSizeH4,
         desktop: fontSizeH3,
@@ -179,7 +184,8 @@ class AppTheme {
 
   static TextStyle headingSmall(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeH6,
         tablet: fontSizeH5,
         desktop: fontSizeH4,
@@ -193,7 +199,8 @@ class AppTheme {
   // Body text styles
   static TextStyle bodyLarge(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeBody1,
         tablet: fontSizeBody1,
         desktop: fontSizeH6,
@@ -206,7 +213,8 @@ class AppTheme {
 
   static TextStyle bodyMedium(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeBody2,
         tablet: fontSizeBody1,
         desktop: fontSizeBody1,
@@ -219,7 +227,8 @@ class AppTheme {
 
   static TextStyle bodySmall(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeCaption,
         tablet: fontSizeBody2,
         desktop: fontSizeBody2,
@@ -233,7 +242,8 @@ class AppTheme {
   // Link styles
   static TextStyle linkPrimary(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeLarge,
         tablet: fontSizeExtraLarge,
         desktop: fontSizeH6,
@@ -246,7 +256,8 @@ class AppTheme {
 
   static TextStyle linkSecondary(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeBody2,
         tablet: fontSizeBody1,
         desktop: fontSizeBody1,
@@ -260,7 +271,8 @@ class AppTheme {
   // Button text styles
   static TextStyle buttonText(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeButton,
         tablet: fontSizeBody1,
         desktop: fontSizeBody1,
@@ -274,7 +286,8 @@ class AppTheme {
   // Label text styles
   static TextStyle labelLarge(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeBody1,
         tablet: fontSizeH6,
         desktop: fontSizeH6,
@@ -287,7 +300,8 @@ class AppTheme {
 
   static TextStyle labelMedium(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeBody2,
         tablet: fontSizeBody1,
         desktop: fontSizeBody1,
@@ -300,7 +314,8 @@ class AppTheme {
 
   static TextStyle labelSmall(BuildContext context) {
     return TextStyle(
-      fontSize: responsiveFontSize(context,
+      fontSize: responsiveFontSize(
+        context,
         mobile: fontSizeCaption,
         tablet: fontSizeBody2,
         desktop: fontSizeBody2,
@@ -358,7 +373,10 @@ class AppTheme {
           foregroundColor: onPrimary,
           elevation: 0,
           shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(vertical: spacing12, horizontal: spacing24),
+          padding: const EdgeInsets.symmetric(
+            vertical: spacing12,
+            horizontal: spacing24,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusLarge),
           ),
@@ -390,7 +408,10 @@ class AppTheme {
         ),
         filled: true,
         fillColor: greyShade50,
-        contentPadding: const EdgeInsets.symmetric(vertical: spacing16, horizontal: spacing16),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: spacing16,
+          horizontal: spacing16,
+        ),
         labelStyle: TextStyle(
           color: subtitleColor,
           fontSize: fontSizeBody2,
@@ -416,30 +437,128 @@ class AppTheme {
 
       // Text Theme (Material Design 3 Typography)
       textTheme: TextTheme(
-        displayLarge: TextStyle(fontSize: fontSizeH1, fontWeight: FontWeight.w400, color: onSurface, fontFamily: 'Poppins'),
-        displayMedium: TextStyle(fontSize: fontSizeH2, fontWeight: FontWeight.w400, color: onSurface, fontFamily: 'Poppins'),
-        displaySmall: TextStyle(fontSize: fontSizeH3, fontWeight: FontWeight.w400, color: onSurface, fontFamily: 'Poppins'),
-        headlineLarge: TextStyle(fontSize: fontSizeH4, fontWeight: FontWeight.w400, color: onSurface, fontFamily: 'Poppins'),
-        headlineMedium: TextStyle(fontSize: fontSizeH5, fontWeight: FontWeight.w400, color: onSurface, fontFamily: 'Poppins'),
-        headlineSmall: TextStyle(fontSize: fontSizeH6, fontWeight: FontWeight.w400, color: onSurface, fontFamily: 'Poppins'),
-        titleLarge: TextStyle(fontSize: fontSizeBody1, fontWeight: FontWeight.w500, color: onSurface, fontFamily: 'Poppins'),
-        titleMedium: TextStyle(fontSize: fontSizeBody2, fontWeight: FontWeight.w500, color: onSurface, fontFamily: 'Poppins'),
-        titleSmall: TextStyle(fontSize: fontSizeCaption, fontWeight: FontWeight.w500, color: onSurface, fontFamily: 'Poppins'),
-        bodyLarge: TextStyle(fontSize: fontSizeBody1, fontWeight: FontWeight.w400, color: onSurface, fontFamily: 'Poppins'),
-        bodyMedium: TextStyle(fontSize: fontSizeBody2, fontWeight: FontWeight.w400, color: onSurface, fontFamily: 'Poppins'),
-        bodySmall: TextStyle(fontSize: fontSizeCaption, fontWeight: FontWeight.w400, color: onSurface, fontFamily: 'Poppins'),
-        labelLarge: TextStyle(fontSize: fontSizeButton, fontWeight: FontWeight.w500, color: onPrimary, fontFamily: 'Poppins'),
-        labelMedium: TextStyle(fontSize: fontSizeCaption, fontWeight: FontWeight.w500, color: onSurface, fontFamily: 'Poppins'),
-        labelSmall: TextStyle(fontSize: fontSizeCaption, fontWeight: FontWeight.w500, color: onSurface, fontFamily: 'Poppins'),
+        displayLarge: TextStyle(
+          fontSize: fontSizeH1,
+          fontWeight: FontWeight.w400,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        displayMedium: TextStyle(
+          fontSize: fontSizeH2,
+          fontWeight: FontWeight.w400,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        displaySmall: TextStyle(
+          fontSize: fontSizeH3,
+          fontWeight: FontWeight.w400,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        headlineLarge: TextStyle(
+          fontSize: fontSizeH4,
+          fontWeight: FontWeight.w400,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        headlineMedium: TextStyle(
+          fontSize: fontSizeH5,
+          fontWeight: FontWeight.w400,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        headlineSmall: TextStyle(
+          fontSize: fontSizeH6,
+          fontWeight: FontWeight.w400,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        titleLarge: TextStyle(
+          fontSize: fontSizeBody1,
+          fontWeight: FontWeight.w500,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        titleMedium: TextStyle(
+          fontSize: fontSizeBody2,
+          fontWeight: FontWeight.w500,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        titleSmall: TextStyle(
+          fontSize: fontSizeCaption,
+          fontWeight: FontWeight.w500,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        bodyLarge: TextStyle(
+          fontSize: fontSizeBody1,
+          fontWeight: FontWeight.w400,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        bodyMedium: TextStyle(
+          fontSize: fontSizeBody2,
+          fontWeight: FontWeight.w400,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        bodySmall: TextStyle(
+          fontSize: fontSizeCaption,
+          fontWeight: FontWeight.w400,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        labelLarge: TextStyle(
+          fontSize: fontSizeButton,
+          fontWeight: FontWeight.w500,
+          color: onPrimary,
+          fontFamily: 'Poppins',
+        ),
+        labelMedium: TextStyle(
+          fontSize: fontSizeCaption,
+          fontWeight: FontWeight.w500,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
+        labelSmall: TextStyle(
+          fontSize: fontSizeCaption,
+          fontWeight: FontWeight.w500,
+          color: onSurface,
+          fontFamily: 'Poppins',
+        ),
       ),
     );
   }
 }
 
 /// Screen type enum for responsive design
-enum ScreenType {
-  mobile,
-  tablet,
-  desktop,
-}
+enum ScreenType { mobile, tablet, desktop }
 
+/// Global scroll configuration that removes the default glow effect on
+/// Android while preserving platform-appropriate physics.
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
+  }
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    switch (getPlatform(context)) {
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+        return const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        );
+      default:
+        return const ClampingScrollPhysics();
+    }
+  }
+}

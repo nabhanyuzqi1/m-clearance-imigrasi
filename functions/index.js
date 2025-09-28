@@ -1264,6 +1264,151 @@ exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
   }
 });
 
+exports.logOfficerActivity = functions.https.onCall(async (data, context) => {
+  try {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
+
+    const uid = context.auth.uid;
+    const rawTitle = data && typeof data.title === "string" ? data.title : "";
+    const rawDescription =
+      data && typeof data.description === "string" ? data.description : "";
+
+    const title = rawTitle.trim();
+    if (!title) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "title is required",
+      );
+    }
+
+    const description = rawDescription.trim() || "No additional details";
+    const type =
+      data && typeof data.type === "string" && data.type.trim()
+        ? data.type.trim()
+        : "activity";
+    const status =
+      data && typeof data.status === "string" && data.status.trim()
+        ? data.status.trim()
+        : null;
+    const iconData =
+      data && typeof data.iconData === "string" && data.iconData.trim()
+        ? data.iconData.trim()
+        : null;
+
+    const activityDoc = {
+      userId: uid,
+      title,
+      description,
+      type,
+      date: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    };
+
+    if (status) activityDoc.status = status;
+    if (iconData) activityDoc.iconData = iconData;
+
+    const metadata = data && typeof data.metadata === "object" ? data.metadata : null;
+    if (metadata && metadata !== null) {
+      const sanitized = {};
+      Object.keys(metadata).forEach((key) => {
+        const value = metadata[key];
+        if (
+          value === null ||
+          typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean"
+        ) {
+          sanitized[key] = value;
+        }
+      });
+      if (Object.keys(sanitized).length > 0) {
+        activityDoc.metadata = sanitized;
+      }
+    }
+
+    const activityRef = db.collection("officer_activities").doc();
+    await activityRef.set(activityDoc, { merge: false });
+
+    try {
+      await db
+        .collection("users")
+        .doc(uid)
+        .collection("activity_logs")
+        .doc(activityRef.id)
+        .set(activityDoc, { merge: false });
+    } catch (fallbackError) {
+      logger.warn(
+        "[logOfficerActivity] Failed to write fallback activity log",
+        fallbackError,
+      );
+    }
+
+    return { success: true, id: activityRef.id };
+  } catch (error) {
+    logger.error("[logOfficerActivity] Unexpected error", error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      "internal",
+      error?.message || "Failed to log officer activity.",
+    );
+  }
+});
+
+exports.getOfficerActivities = functions.https.onCall(async (data, context) => {
+  try {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
+
+    const uid = context.auth.uid;
+    const rawLimit = data && typeof data.limit !== "undefined" ? Number(data.limit) : 10;
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(Math.max(Math.floor(rawLimit), 1), 50)
+      : 10;
+
+    const buildQuery = (ref) =>
+      ref.where("userId", "==", uid).orderBy("date", "desc").limit(limit);
+
+    const serializeDoc = (doc) => {
+      const payload = doc.data() || {};
+      const result = {
+        id: doc.id,
+        ...payload,
+      };
+
+      if (payload.date instanceof Timestamp) {
+        result.date = payload.date.toMillis();
+      }
+      if (payload.createdAt instanceof Timestamp) {
+        result.createdAt = payload.createdAt.toMillis();
+      }
+
+      return result;
+    };
+
+    let snapshot = await buildQuery(db.collection("officer_activities")).get();
+
+    if (snapshot.empty) {
+      snapshot = await buildQuery(
+        db.collection("users").doc(uid).collection("activity_logs"),
+      ).get();
+    }
+
+    return snapshot.docs.map(serializeDoc);
+  } catch (error) {
+    logger.error("[getOfficerActivities] Unexpected error", error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      "internal",
+      error?.message || "Failed to load officer activities.",
+    );
+  }
+});
+
 /**
  * - pendingArrival/pendingDeparture: applications awaiting review by type
  */

@@ -35,12 +35,33 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  String _tr(String key) => AppLocalizations.of(context).get('userHistory.$key');
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('userHistory.$key');
+
+  String _formatField(String? value) {
+    final fallback = AppLocalizations.of(
+      context,
+    ).get('clearanceResult.not_provided');
+    if (value == null) return fallback;
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return fallback;
+    const invalidTokens = {
+      'n/a',
+      'na',
+      'n.a',
+      'not available',
+      'tidak tersedia',
+      '-',
+    };
+    return invalidTokens.contains(trimmed.toLowerCase()) ? fallback : trimmed;
+  }
 
   @override
   void initState() {
     super.initState();
-    LoggingService().info('UserHistoryScreen initialized for user: ${widget.userAccount.name}');
+    LoggingService().info(
+      'UserHistoryScreen initialized for user: ${widget.userAccount.name}',
+    );
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text;
@@ -65,31 +86,58 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     final isSelected = _currentFilter == filter;
     return Expanded(
       child: GestureDetector(
-        onTap: () { setState(() { _currentFilter = filter; }); },
+        onTap: () {
+          setState(() {
+            _currentFilter = filter;
+          });
+        },
         child: Container(
           padding: EdgeInsets.symmetric(vertical: AppTheme.spacing12),
           decoration: BoxDecoration(
             color: isSelected ? AppTheme.whiteColor : Colors.transparent,
             borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
-            boxShadow: isSelected ? [BoxShadow(color: AppTheme.blackColor.withAlpha(25), blurRadius: 5, spreadRadius: 1)] : [],
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: AppTheme.blackColor.withAlpha(25),
+                      blurRadius: 5,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : [],
           ),
-          child: Center(child: Text(text, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: AppTheme.onSurface, fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily))),
+          child: Center(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: AppTheme.onSurface,
+                fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily,
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  List<ClearanceApplication> _filterApplications(List<ClearanceApplication> applications) {
+  List<ClearanceApplication> _filterApplications(
+    List<ClearanceApplication> applications,
+  ) {
     List<ClearanceApplication> filteredList;
     switch (_currentFilter) {
       case HistoryFilter.arrival:
-        filteredList = applications.where((app) => app.type == ApplicationType.kedatangan).toList();
+        filteredList = applications
+            .where((app) => app.type == ApplicationType.kedatangan)
+            .toList();
         break;
       case HistoryFilter.departure:
-        filteredList = applications.where((app) => app.type == ApplicationType.keberangkatan).toList();
+        filteredList = applications
+            .where((app) => app.type == ApplicationType.keberangkatan)
+            .toList();
         break;
       case HistoryFilter.all:
-      filteredList = applications;
+        filteredList = applications;
     }
 
     if (_searchQuery.isNotEmpty) {
@@ -131,14 +179,27 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
   Widget _buildStatusChip(ApplicationStatus status) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: AppTheme.spacing12, vertical: AppTheme.spacing8),
-      decoration: BoxDecoration(color: _getStatusColor(status).withAlpha(25), borderRadius: BorderRadius.circular(AppTheme.radiusLarge)),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppTheme.spacing12,
+        vertical: AppTheme.spacing8,
+      ),
+      decoration: BoxDecoration(
+        color: _getStatusColor(status).withAlpha(25),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.circle, color: _getStatusColor(status), size: 10),
           SizedBox(width: AppTheme.spacing8),
-          Text(_getStatusText(status), style: TextStyle(color: _getStatusColor(status), fontWeight: FontWeight.bold, fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily)),
+          Text(
+            _getStatusText(status),
+            style: TextStyle(
+              color: _getStatusColor(status),
+              fontWeight: FontWeight.bold,
+              fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily,
+            ),
+          ),
         ],
       ),
     );
@@ -169,39 +230,184 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   }
 
   Widget _buildDialogTitle(ClearanceApplication app) {
-    final title = app.type == ApplicationType.kedatangan ? _tr('arrival_detail') : _tr('departure_detail');
-    return Center(child: Column(children: [Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface)), Text(app.shipName, style: TextStyle(fontSize: AppTheme.fontSizeBody2, color: AppTheme.subtitleColor, fontFamily: 'Poppins')), const Divider()]));
+    final title = app.type == ApplicationType.kedatangan
+        ? _tr('arrival_detail')
+        : _tr('departure_detail');
+    return Center(
+      child: Column(
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Poppins',
+              color: AppTheme.onSurface,
+            ),
+          ),
+          Text(
+            app.shipName,
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeBody2,
+              color: AppTheme.subtitleColor,
+              fontFamily: 'Poppins',
+            ),
+          ),
+          const Divider(),
+        ],
+      ),
+    );
   }
 
   Widget _buildAboutSection(ClearanceApplication app) {
     final isArrival = app.type == ApplicationType.kedatangan;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_tr('about'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTheme.fontSizeBody1, fontFamily: 'Poppins', color: AppTheme.onSurface)), SizedBox(height: AppTheme.spacing8), Text("${isArrival ? _tr('last_port') : _tr('next_port')}: ${app.port ?? 'N/A'}, ${app.flag}", style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)), Text("${_tr('crewlist')}: ${app.wniCrew ?? '0'} WNI - ${app.wnaCrew ?? '0'} WNA", style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface))]);
+    final port = _formatField(app.port);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _tr('about'),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: AppTheme.fontSizeBody1,
+            fontFamily: 'Poppins',
+            color: AppTheme.onSurface,
+          ),
+        ),
+        SizedBox(height: AppTheme.spacing8),
+        Text(
+          '${isArrival ? _tr('last_port') : _tr('next_port')}: $port, ${app.flag}',
+          style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface),
+        ),
+        Text(
+          "${_tr('crewlist')}: ${app.wniCrew ?? '0'} WNI - ${app.wnaCrew ?? '0'} WNA",
+          style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface),
+        ),
+      ],
+    );
   }
 
   Widget _buildAgentSection(ClearanceApplication app) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_tr('agent'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTheme.fontSizeBody1, fontFamily: 'Poppins', color: AppTheme.onSurface)), SizedBox(height: AppTheme.spacing8), Row(children: [const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 14)), SizedBox(width: AppTheme.spacing8), Text(app.agentName, style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface))])]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _tr('agent'),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: AppTheme.fontSizeBody1,
+            fontFamily: 'Poppins',
+            color: AppTheme.onSurface,
+          ),
+        ),
+        SizedBox(height: AppTheme.spacing8),
+        Row(
+          children: [
+            const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 14)),
+            SizedBox(width: AppTheme.spacing8),
+            Text(
+              app.agentName,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: AppTheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   Widget _buildNoteSection(ClearanceApplication app) {
-    if (app.status == ApplicationStatus.waiting || app.status == ApplicationStatus.approved) {
+    if (app.status == ApplicationStatus.waiting ||
+        app.status == ApplicationStatus.approved) {
       return const SizedBox.shrink();
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_tr('note_by_officer'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppTheme.fontSizeBody1, fontFamily: 'Poppins', color: AppTheme.onSurface)), SizedBox(height: AppTheme.spacing8), Text(app.status == ApplicationStatus.revision ? "${_tr('need_fix')} - ${app.notes ?? _tr('no_notes')}" : app.status == ApplicationStatus.declined ? "${_tr('declined')} - ${app.notes ?? _tr('no_notes')}" : "", style: TextStyle(color: AppTheme.errorColor, fontFamily: 'Poppins'))]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _tr('note_by_officer'),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: AppTheme.fontSizeBody1,
+            fontFamily: 'Poppins',
+            color: AppTheme.onSurface,
+          ),
+        ),
+        SizedBox(height: AppTheme.spacing8),
+        Text(
+          app.status == ApplicationStatus.revision
+              ? "${_tr('need_fix')} - ${app.notes ?? _tr('no_notes')}"
+              : app.status == ApplicationStatus.declined
+              ? "${_tr('declined')} - ${app.notes ?? _tr('no_notes')}"
+              : "",
+          style: TextStyle(color: AppTheme.errorColor, fontFamily: 'Poppins'),
+        ),
+      ],
+    );
   }
 
   Widget _buildDialogActions(ClearanceApplication app) {
     switch (app.status) {
       case ApplicationStatus.revision:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.warningColor), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceFormScreen(type: app.type, agentName: widget.userAccount.name, existingApplication: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('fix_button')));
+        return ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.warningColor,
+          ),
+          onPressed: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ClearanceFormScreen(
+                  type: app.type,
+                  agentName: widget.userAccount.name,
+                  existingApplication: app,
+                  initialLanguage: widget.initialLanguage,
+                ),
+              ),
+            );
+          },
+          child: Text(_tr('fix_button')),
+        );
       case ApplicationStatus.declined:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor), onPressed: () => Navigator.pop(context), child: Text(_tr('done_button')));
+        return ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+          onPressed: () => Navigator.pop(context),
+          child: Text(_tr('done_button')),
+        );
       case ApplicationStatus.approved:
-        return ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor), onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => ClearanceResultScreen(application: app, initialLanguage: widget.initialLanguage))); }, child: Text(_tr('reports_button')));
+        return ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryColor,
+          ),
+          onPressed: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ClearanceResultScreen(
+                  application: app,
+                  initialLanguage: widget.initialLanguage,
+                ),
+              ),
+            );
+          },
+          child: Text(_tr('reports_button')),
+        );
       case ApplicationStatus.waiting:
-      return TextButton(onPressed: () => Navigator.pop(context), child: Text("OK", style: TextStyle(fontFamily: 'Poppins', color: AppTheme.primaryColor)));
+        return TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            "OK",
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              color: AppTheme.primaryColor,
+            ),
+          ),
+        );
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -229,7 +435,9 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                 hintText: _tr('search_hint'),
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.radiusExtraLarge,
+                  ),
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
@@ -238,9 +446,15 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             ),
           ),
           Padding(
-            padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8, horizontal: AppTheme.spacing16),
+            padding: EdgeInsets.symmetric(
+              vertical: AppTheme.spacing8,
+              horizontal: AppTheme.spacing16,
+            ),
             child: Container(
-              decoration: BoxDecoration(color: AppTheme.greyShade100, borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge)),
+              decoration: BoxDecoration(
+                color: AppTheme.greyShade100,
+                borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -261,7 +475,19 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
                 if (snapshot.hasError) {
                   return Center(
-                    child: Text('${_tr('error_loading')}: ${snapshot.error}', style: TextStyle(fontSize: AppTheme.responsiveFontSize(context, mobile: 14, tablet: 16, desktop: 18), fontFamily: 'Poppins', color: AppTheme.onSurface)),
+                    child: Text(
+                      '${_tr('error_loading')}: ${snapshot.error}',
+                      style: TextStyle(
+                        fontSize: AppTheme.responsiveFontSize(
+                          context,
+                          mobile: 14,
+                          tablet: 16,
+                          desktop: 18,
+                        ),
+                        fontFamily: 'Poppins',
+                        color: AppTheme.onSurface,
+                      ),
+                    ),
                   );
                 }
 
@@ -275,13 +501,36 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                       children: [
                         Container(
                           padding: EdgeInsets.all(AppTheme.spacing24),
-                          decoration: BoxDecoration(color: AppTheme.primaryColor.withAlpha(12), shape: BoxShape.circle),
-                          child: Icon(Icons.image_outlined, size: 60, color: AppTheme.primaryColor.withAlpha(51)),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withAlpha(12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.image_outlined,
+                            size: 60,
+                            color: AppTheme.primaryColor.withAlpha(51),
+                          ),
                         ),
                         SizedBox(height: AppTheme.spacing24),
-                        Text(_tr('empty_title'), style: TextStyle(fontSize: AppTheme.fontSizeH5, fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface)),
+                        Text(
+                          _tr('empty_title'),
+                          style: TextStyle(
+                            fontSize: AppTheme.fontSizeH5,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Poppins',
+                            color: AppTheme.onSurface,
+                          ),
+                        ),
                         SizedBox(height: AppTheme.spacing8),
-                        Text(_tr('empty_subtitle'), textAlign: TextAlign.center, style: TextStyle(color: AppTheme.subtitleColor, fontSize: AppTheme.fontSizeBody1, fontFamily: 'Poppins')),
+                        Text(
+                          _tr('empty_subtitle'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppTheme.subtitleColor,
+                            fontSize: AppTheme.fontSizeBody1,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -296,7 +545,13 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                     return GestureDetector(
                       onTap: () => _showApplicationDetail(app),
                       child: Card(
-                        elevation: 2, margin: EdgeInsets.only(bottom: AppTheme.spacing12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMedium)),
+                        elevation: 2,
+                        margin: EdgeInsets.only(bottom: AppTheme.spacing12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMedium,
+                          ),
+                        ),
                         child: Padding(
                           padding: EdgeInsets.all(AppTheme.spacing16),
                           child: Column(
@@ -304,19 +559,46 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Icon(app.type == ApplicationType.kedatangan ? Icons.anchor : Icons.directions_boat, color: AppTheme.greyShade600),
+                                  Icon(
+                                    app.type == ApplicationType.kedatangan
+                                        ? Icons.anchor
+                                        : Icons.directions_boat,
+                                    color: AppTheme.greyShade600,
+                                  ),
                                   SizedBox(width: AppTheme.spacing8),
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text(app.type == ApplicationType.kedatangan ? _tr('arrival') : _tr('departure'), style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface)),
-                                      Text("${app.shipName} - ${app.port ?? 'N/A'}", style: TextStyle(color: AppTheme.subtitleColor, fontFamily: 'Poppins')),
+                                      Text(
+                                        app.type == ApplicationType.kedatangan
+                                            ? _tr('arrival')
+                                            : _tr('departure'),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontFamily: 'Poppins',
+                                          color: AppTheme.onSurface,
+                                        ),
+                                      ),
+                                      Text(
+                                        "${app.shipName} - ${_formatField(app.port)}",
+                                        style: TextStyle(
+                                          color: AppTheme.subtitleColor,
+                                          fontFamily: 'Poppins',
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ],
                               ),
                               SizedBox(height: AppTheme.spacing8),
-                              Text(app.date ?? 'No Date', style: TextStyle(color: AppTheme.subtitleColor, fontFamily: 'Poppins')),
+                              Text(
+                                app.date ?? 'No Date',
+                                style: TextStyle(
+                                  color: AppTheme.subtitleColor,
+                                  fontFamily: 'Poppins',
+                                ),
+                              ),
                               SizedBox(height: AppTheme.spacing12),
                               _buildStatusChip(app.status),
                             ],

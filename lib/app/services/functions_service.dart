@@ -4,7 +4,8 @@ class FunctionsService {
   final FirebaseFunctions _functions;
 
   FunctionsService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance; // us-central1 by default
+    : _functions =
+          functions ?? FirebaseFunctions.instance; // us-central1 by default
 
   Future<Map<String, dynamic>> getOfficerDashboardStats() async {
     final callable = _functions.httpsCallable('getOfficerDashboardStats');
@@ -12,6 +13,7 @@ class FunctionsService {
     final data = Map<String, dynamic>.from(result.data ?? {});
     return data;
   }
+
   Future<Map<String, dynamic>> getOfficerMonthlyStats() async {
     final callable = _functions.httpsCallable('getOfficerMonthlyStats');
     final result = await callable();
@@ -58,13 +60,54 @@ class FunctionsService {
 
   Future<Map<String, dynamic>> generateHistoryPDF(String applicationId) async {
     final callable = _functions.httpsCallable('generateHistoryPDF');
-    final result = await callable(<String, dynamic>{'applicationId': applicationId});
+    final result = await callable(<String, dynamic>{
+      'applicationId': applicationId,
+    });
     return Map<String, dynamic>.from(result.data ?? {});
   }
 
-  Future<Map<String, dynamic>> generateMonthlyReport(Map<String, dynamic> stats) async {
+  Future<Map<String, dynamic>> generateMonthlyReport(
+    Map<String, dynamic> stats,
+  ) async {
     final callable = _functions.httpsCallable('generateMonthlyReport');
     final result = await callable(<String, dynamic>{'stats': stats});
     return Map<String, dynamic>.from(result.data ?? {});
+  }
+
+  Future<void> logOfficerActivity({
+    required String title,
+    required String description,
+    String type = 'activity',
+    String? status,
+    String? iconData,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final callable = _functions.httpsCallable('logOfficerActivity');
+    await callable(<String, dynamic>{
+      'title': title,
+      'description': description,
+      'type': type,
+      if (status != null) 'status': status,
+      if (iconData != null) 'iconData': iconData,
+      if (metadata != null && metadata.isNotEmpty) 'metadata': metadata,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> fetchOfficerActivities({
+    int limit = 10,
+  }) async {
+    final callable = _functions.httpsCallable('getOfficerActivities');
+    final result = await callable(<String, dynamic>{'limit': limit});
+    final data = result.data;
+    if (data is List) {
+      return data
+          .map(
+            (item) =>
+                item is Map ? Map<String, dynamic>.from(item as Map) : null,
+          )
+          .whereType<Map<String, dynamic>>()
+          .toList();
+    }
+    return const [];
   }
 }

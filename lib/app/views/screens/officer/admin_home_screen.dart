@@ -114,6 +114,8 @@ class AdminMenuScreen extends StatefulWidget {
   State<AdminMenuScreen> createState() => _AdminMenuScreenState();
 }
 
+enum _PendingAction { arrival, departure, account }
+
 class _AdminMenuScreenState extends State<AdminMenuScreen> {
   final FunctionsService _functionsService = FunctionsService();
   final AuthService _authService = AuthService();
@@ -125,6 +127,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
   Map<String, dynamic>? _stats;
   bool _isLoadingStats = true;
   int _unreadNotifications = 0;
+  _PendingAction? _pendingAction;
 
   bool get _showSkeleton =>
       _isLoadingStats && (_stats == null || _stats!.isEmpty);
@@ -204,6 +207,23 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
         LoggingService().error('Error listening to notification count', error);
       },
     );
+  }
+
+  Future<void> _navigateWithGuard(
+    _PendingAction action,
+    Widget Function() builder,
+  ) async {
+    if (_pendingAction != null) return;
+    setState(() => _pendingAction = action);
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => builder()),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() => _pendingAction = null);
+    }
   }
 
   int _statValue(String key) {
@@ -312,7 +332,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${tr('welcome')},',
+                            '${tr('welcome')}',
                             style: AppTheme.bodyMedium(
                               context,
                             ).copyWith(color: AppTheme.greyColor),
@@ -356,16 +376,11 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   iconData: Icons.anchor,
                   color: AppTheme.infoColor,
                   badgeCount: _statValue('pendingArrival'),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ArrivalVerificationScreen(
-                          adminName: officerFullName,
-                        ),
-                      ),
-                    );
-                  },
+                  isBusy: _pendingAction == _PendingAction.arrival,
+                  onTap: () => _navigateWithGuard(
+                    _PendingAction.arrival,
+                    () => ArrivalVerificationScreen(adminName: officerFullName),
+                  ),
                 ),
                 SizedBox(height: verticalSpacing),
                 _buildStatsAwareCard(
@@ -376,16 +391,12 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   iconData: Icons.directions_boat,
                   color: AppTheme.secondaryColor,
                   badgeCount: _statValue('pendingDeparture'),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DepartureVerificationScreen(
-                          adminName: officerFullName,
-                        ),
-                      ),
-                    );
-                  },
+                  isBusy: _pendingAction == _PendingAction.departure,
+                  onTap: () => _navigateWithGuard(
+                    _PendingAction.departure,
+                    () =>
+                        DepartureVerificationScreen(adminName: officerFullName),
+                  ),
                 ),
                 SizedBox(height: verticalSpacing),
                 _buildStatsAwareCard(
@@ -396,15 +407,11 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   iconData: Icons.person_search,
                   color: AppTheme.secondaryColor,
                   badgeCount: _statValue('pendingAccounts'),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            const AccountVerificationListScreen(),
-                      ),
-                    );
-                  },
+                  isBusy: _pendingAction == _PendingAction.account,
+                  onTap: () => _navigateWithGuard(
+                    _PendingAction.account,
+                    () => const AccountVerificationListScreen(),
+                  ),
                 ),
                 if (userRole == 'admin') ...[
                   SizedBox(height: verticalSpacing),
@@ -578,6 +585,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     required bool isPrimary,
     required int badgeCount,
     required VoidCallback onTap,
+    bool isBusy = false,
   }) {
     if (_showSkeleton) {
       final screenWidth = MediaQuery.of(context).size.width;
@@ -589,18 +597,16 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
       );
     }
 
-    final subtitle = badgeCount > 0
-        ? '$baseSubtitle ($badgeCount)'
-        : baseSubtitle;
     return _buildServiceCard(
       context,
       title: title,
-      subtitle: subtitle,
+      subtitle: baseSubtitle,
       iconData: iconData,
       color: color,
       isPrimary: isPrimary,
       badgeCount: badgeCount,
       onTap: onTap,
+      isBusy: isBusy,
     );
   }
 
@@ -613,6 +619,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     required bool isPrimary,
     required VoidCallback onTap,
     int badgeCount = 0,
+    bool isBusy = false,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final cardPadding = screenWidth * 0.05;
@@ -630,72 +637,98 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
       desktop: AppTheme.fontSizeBody1,
     );
 
-    final card = InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: EdgeInsets.all(cardPadding),
-        decoration: BoxDecoration(
-          color: isPrimary ? color : AppTheme.whiteColor,
-          borderRadius: BorderRadius.circular(16),
-          border: isPrimary ? null : Border.all(color: AppTheme.greyShade300),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.greyColor.withAlpha(25),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: titleFontSize,
-                      fontWeight: FontWeight.bold,
-                      color: isPrimary ? Colors.white : color,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: screenWidth * 0.01),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: subtitleFontSize,
-                      color: isPrimary
-                          ? AppTheme.whiteColor70
-                          : AppTheme.greyColor,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+    final progressColor = isPrimary ? Colors.white : AppTheme.primaryColor;
+    final trailingWidget = isBusy
+        ? SizedBox(
+            width: iconSize,
+            height: iconSize,
+            child: Center(
+              child: SizedBox(
+                width: iconSize * 0.6,
+                height: iconSize * 0.6,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                ),
               ),
             ),
-            SizedBox(width: screenWidth * 0.02),
-            Icon(
-              iconData,
-              size: iconSize,
-              color: isPrimary ? Colors.white : color,
+          )
+        : Icon(
+            iconData,
+            size: iconSize,
+            color: isPrimary ? Colors.white : AppTheme.primaryColor,
+          );
+
+    final cardContent = Container(
+      padding: EdgeInsets.all(cardPadding),
+      decoration: BoxDecoration(
+        color: isPrimary ? color : AppTheme.whiteColor,
+        borderRadius: BorderRadius.circular(16),
+        border: isPrimary ? null : Border.all(color: AppTheme.greyShade300),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.greyColor.withAlpha(25),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: titleFontSize,
+                    fontWeight: FontWeight.bold,
+                    color: isPrimary ? Colors.white : AppTheme.blackColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: screenWidth * 0.01),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: subtitleFontSize,
+                    color: isPrimary
+                        ? AppTheme.whiteColor70
+                        : AppTheme.greyColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          SizedBox(width: screenWidth * 0.02),
+          trailingWidget,
+        ],
       ),
     );
 
+    final card = InkWell(
+      onTap: isBusy ? null : onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: cardContent,
+    );
+
+    final animatedCard = AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: isBusy ? 0.7 : 1.0,
+      child: card,
+    );
+
     if (badgeCount <= 0) {
-      return card;
+      return animatedCard;
     }
 
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        card,
+        animatedCard,
         Positioned(
           top: -8,
           right: -8,

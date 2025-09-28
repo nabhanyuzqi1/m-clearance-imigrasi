@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
+import 'package:m_clearance_imigrasi/app/services/officer_service.dart';
 import 'package:m_clearance_imigrasi/app/views/screens/user/document_view_screen.dart';
 
 import '../../../config/theme.dart';
@@ -22,15 +23,20 @@ class AccountDetailScreen extends StatefulWidget {
 class _AccountDetailScreenState extends State<AccountDetailScreen> {
   final _repo = UserRepository();
   final _fx = FunctionsService();
+  final OfficerService _officerService = OfficerService();
   late final Future<UserModel?> _userFuture;
   final TextEditingController _reasonController = TextEditingController();
   String? _rejectionReason;
   bool _loadingAction = false;
+  UserModel? _userModel;
 
   @override
   void initState() {
     super.initState();
-    _userFuture = _repo.getUser(widget.uid);
+    _userFuture = _repo.getUser(widget.uid).then((user) {
+      _userModel = user;
+      return user;
+    });
   }
 
   @override
@@ -75,6 +81,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       LoggingService().info(
         'Officer decision processed successfully: $decision for UID: ${widget.uid}',
       );
+
+      await _logAccountActivity(decision);
 
       if (!mounted) return;
       final key = decision == 'approved'
@@ -129,6 +137,42 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
 
   String _tr(String key) =>
       AppLocalizations.of(context).get('accountDetail.$key');
+
+  Future<void> _logAccountActivity(String decision) async {
+    try {
+      final subject = _deriveAccountSubject();
+      final descriptionBuffer = StringBuffer(
+        'Account $subject marked as ${decision.toUpperCase()}.',
+      );
+      if (decision != 'approved' &&
+          _rejectionReason != null &&
+          _rejectionReason!.isNotEmpty) {
+        descriptionBuffer.write(' Reason: $_rejectionReason.');
+      }
+      await _officerService.logActivity(
+        title: subject,
+        description: descriptionBuffer.toString(),
+        type: 'accountVerification',
+        status: decision,
+        iconData: 'person',
+      );
+    } catch (e) {
+      LoggingService().warning('Failed to log account activity', e);
+    }
+  }
+
+  String _deriveAccountSubject() {
+    final user = _userModel;
+    if (user != null) {
+      final corporate = user.corporateName.trim();
+      if (corporate.isNotEmpty) return corporate;
+      final fullName = user.fullName.trim();
+      if (fullName.isNotEmpty) return fullName;
+      final email = user.email.trim();
+      if (email.isNotEmpty) return email;
+    }
+    return widget.uid;
+  }
 
   String _formatTimestamp(dynamic value) {
     if (value == null) return _tr('N/A');

@@ -8,7 +8,6 @@ import '../auth/change_password_screen.dart';
 import 'language_selection_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 
-
 class UserSettingsScreen extends StatelessWidget {
   final UserAccount userAccount;
   final VoidCallback onRefresh;
@@ -32,6 +31,27 @@ class UserSettingsScreen extends StatelessWidget {
     final horizontalPadding = screenWidth * 0.04;
     final verticalSpacing = screenWidth * 0.02;
 
+    final trimmedCorporateName = userAccount.corporateName.trim();
+    final trimmedFullName = userAccount.fullName.trim();
+    final trimmedEmail = userAccount.email.trim();
+    final notAvailable = AppLocalizations.of(
+      context,
+    ).get('officerSettings.N/A');
+
+    final identityValues = <String>[
+      if (trimmedCorporateName.isNotEmpty) trimmedCorporateName,
+      if (trimmedFullName.isNotEmpty) trimmedFullName,
+    ];
+
+    // Ensure we still show a fallback name when data is missing
+    final primaryName = identityValues.isNotEmpty
+        ? identityValues.first
+        : (userAccount.name.isNotEmpty ? userAccount.name : trimmedEmail);
+
+    final secondaryLines = identityValues
+        .where((value) => value != primaryName)
+        .toList(growable: false);
+
     return Scaffold(
       backgroundColor: AppTheme.whiteColor,
       appBar: CustomAppBar(
@@ -40,7 +60,10 @@ class UserSettingsScreen extends StatelessWidget {
         toolbarHeight: 60,
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalSpacing),
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: verticalSpacing,
+        ),
         child: Column(
           children: [
             // Profile Picture Section
@@ -59,15 +82,19 @@ class UserSettingsScreen extends StatelessWidget {
                               width: screenWidth * 0.24,
                               height: screenWidth * 0.24,
                               errorBuilder: (context, error, stackTrace) {
-                                return Icon(Icons.person,
-                                    size: screenWidth * 0.12,
-                                    color: AppTheme.greyColor);
+                                return Icon(
+                                  Icons.person,
+                                  size: screenWidth * 0.12,
+                                  color: AppTheme.greyColor,
+                                );
                               },
                             ),
                           )
-                        : Icon(Icons.person,
+                        : Icon(
+                            Icons.person,
                             size: screenWidth * 0.12,
-                            color: AppTheme.greyColor),
+                            color: AppTheme.greyColor,
+                          ),
                   ),
                 ],
               ),
@@ -76,18 +103,31 @@ class UserSettingsScreen extends StatelessWidget {
 
             // User Info
             Text(
-              userAccount.name,
+              primaryName,
               style: AppTheme.headingSmall(context),
               textAlign: TextAlign.center,
             ),
+            for (final value in secondaryLines) ...[
+              SizedBox(height: screenWidth * 0.01),
+              Text(
+                value,
+                style: AppTheme.bodyMedium(
+                  context,
+                ).copyWith(color: AppTheme.greyShade600),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
             SizedBox(height: screenWidth * 0.01),
             Text(
-              userAccount.email,
-              style: AppTheme.bodySmall(context).copyWith(
-                color: AppTheme.greyShade600,
-              ),
+              trimmedEmail.isNotEmpty ? trimmedEmail : notAvailable,
+              style: AppTheme.bodySmall(
+                context,
+              ).copyWith(color: AppTheme.greyShade600),
               textAlign: TextAlign.center,
             ),
+            SizedBox(height: verticalSpacing * 2),
+
             SizedBox(height: verticalSpacing),
 
             // Menu Items
@@ -96,7 +136,9 @@ class UserSettingsScreen extends StatelessWidget {
               icon: Icons.edit,
               title: _tr(context, 'userProfile', 'edit_profile'),
               onTap: () {
-                LoggingService().info('Navigating to editAgentProfile with language: $initialLanguage');
+                LoggingService().info(
+                  'Navigating to editAgentProfile with language: $initialLanguage',
+                );
                 Navigator.pushNamed(
                   context,
                   AppRoutes.editAgentProfile,
@@ -154,11 +196,12 @@ class UserSettingsScreen extends StatelessWidget {
               title: _tr(context, 'userProfile', 'change_password'),
               onTap: () {
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => ChangePasswordScreen(
-                              initialLanguage: initialLanguage,
-                            )));
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        ChangePasswordScreen(initialLanguage: initialLanguage),
+                  ),
+                );
               },
             ),
 
@@ -185,24 +228,44 @@ class UserSettingsScreen extends StatelessWidget {
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final iconSize = screenWidth * 0.05;
-    final fontSize = AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeBody1);
+    final fontSize = AppTheme.responsiveFontSize(
+      context,
+      mobile: AppTheme.fontSizeBody1,
+      tablet: AppTheme.fontSizeBody1,
+      desktop: AppTheme.fontSizeBody1,
+    );
     final verticalPadding = screenWidth * 0.01;
 
     return ListTile(
-      leading: Icon(icon, color: textColor ?? AppTheme.blackColor, size: iconSize),
+      leading: Icon(
+        icon,
+        color: textColor ?? AppTheme.blackColor,
+        size: iconSize,
+      ),
       title: Text(
         title,
         style: TextStyle(
           color: textColor ?? AppTheme.blackColor,
           fontSize: fontSize,
+          fontWeight: FontWeight.w500,
         ),
         overflow: TextOverflow.ellipsis,
       ),
       trailing: trailing != null
-          ? Text(trailing, style: TextStyle(color: AppTheme.greyShade600, fontSize: fontSize))
+          ? Text(
+              trailing,
+              style: TextStyle(
+                color: AppTheme.greyShade600,
+                fontSize: fontSize,
+              ),
+            )
           : Icon(Icons.arrow_forward_ios, size: iconSize * 0.5),
       onTap: onTap,
-      contentPadding: EdgeInsets.symmetric(horizontal: 0, vertical: verticalPadding * 1.5),
+      dense: true,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 0,
+        vertical: verticalPadding * 1.5,
+      ),
     );
   }
 }

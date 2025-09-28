@@ -25,7 +25,9 @@ void main() async {
       );
       debugPrint('[Startup] Firebase.initializeApp executed');
     } else {
-      debugPrint('[Startup] Firebase already initialized, skipping initializeApp');
+      debugPrint(
+        '[Startup] Firebase already initialized, skipping initializeApp',
+      );
     }
   } on FirebaseException catch (e) {
     // Ignore duplicate-app errors but rethrow others
@@ -52,10 +54,14 @@ void main() async {
 
   // Diagnostics: print effective Firebase options for the named app.
   final opts = appClient.options;
-  final safeKey = (opts.apiKey.length > 6) ? '${opts.apiKey.substring(0, 6)}...' : opts.apiKey;
-  debugPrint('[Startup] FirebaseOptions(client): projectId=${opts.projectId}, appId=${opts.appId}, apiKey=$safeKey, '
-      'storageBucket=${opts.storageBucket}, authDomain=${opts.authDomain}, '
-      'messagingSenderId=${opts.messagingSenderId}, measurementId=${opts.measurementId}');
+  final safeKey = (opts.apiKey.length > 6)
+      ? '${opts.apiKey.substring(0, 6)}...'
+      : opts.apiKey;
+  debugPrint(
+    '[Startup] FirebaseOptions(client): projectId=${opts.projectId}, appId=${opts.appId}, apiKey=$safeKey, '
+    'storageBucket=${opts.storageBucket}, authDomain=${opts.authDomain}, '
+    'messagingSenderId=${opts.messagingSenderId}, measurementId=${opts.measurementId}',
+  );
 
   // Note: Using firebasestorage.app bucket as specified by user
   if (opts.storageBucket != null) {
@@ -64,7 +70,9 @@ void main() async {
 
   // Initialize Firebase Crashlytics (only on mobile platforms)
   if (!kIsWeb) {
-    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
+    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+      !kDebugMode,
+    );
     debugPrint('[Startup] Crashlytics collection enabled: ${!kDebugMode}');
 
     // Set up error reporting to Crashlytics
@@ -116,7 +124,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         await Future.wait([
           precacheImage(const AssetImage('assets/images/logo.png'), context),
           precacheImage(const AssetImage('assets/images/dermaga.png'), context),
-          precacheImage(const AssetImage('assets/images/shipping.png'), context),
+          precacheImage(
+            const AssetImage('assets/images/shipping.png'),
+            context,
+          ),
         ]);
         debugPrint('[Startup] Critical assets preloaded successfully');
       } catch (e) {
@@ -165,11 +176,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           title: 'M-Clearance ISAM',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.themeData,
+          scrollBehavior: const AppScrollBehavior(),
           locale: languageProvider.locale,
-          supportedLocales: const [
-            Locale('en', 'US'),
-            Locale('id', 'ID'),
-          ],
+          supportedLocales: const [Locale('en', 'US'), Locale('id', 'ID')],
           localizationsDelegates: const [
             AppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,

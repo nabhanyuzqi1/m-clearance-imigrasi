@@ -38,6 +38,29 @@ class OfficerActivity {
     );
   }
 
+  factory OfficerActivity.fromMap(String id, Map<String, dynamic> data) {
+    DateTime resolveDate(dynamic value) {
+      if (value is Timestamp) return value.toDate();
+      if (value is num) {
+        return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+      }
+      if (value is String) {
+        return DateTime.tryParse(value) ?? DateTime.now();
+      }
+      return DateTime.now();
+    }
+
+    return OfficerActivity(
+      id: id,
+      type: _parseActivityType(data['type'] as String?),
+      title: (data['title'] as String?) ?? '',
+      description: (data['description'] as String?) ?? '',
+      date: resolveDate(data['date']),
+      status: data['status'] as String?,
+      iconData: data['iconData'] as String?,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'type': type.toString().split('.').last,

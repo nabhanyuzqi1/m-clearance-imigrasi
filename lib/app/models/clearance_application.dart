@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum ApplicationType { kedatangan, keberangkatan }
+
 enum ApplicationStatus { waiting, revision, approved, declined }
 
 class ClearanceApplication {
@@ -45,7 +46,7 @@ class ClearanceApplication {
     DateTime? createdAt,
     DateTime? updatedAt,
   }) : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+       updatedAt = updatedAt ?? DateTime.now();
 
   factory ClearanceApplication.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -73,7 +74,9 @@ class ClearanceApplication {
       flag: data['flag'] ?? '',
       agentName: data['agentName'] ?? '',
       agentUid: data['agentUid'] ?? '',
-      type: data['type'] == 'arrival' ? ApplicationType.kedatangan : ApplicationType.keberangkatan,
+      type: data['type'] == 'arrival'
+          ? ApplicationType.kedatangan
+          : ApplicationType.keberangkatan,
       status: status,
       notes: data['notes'],
       port: data['port'],
@@ -81,7 +84,14 @@ class ClearanceApplication {
       wniCrew: data['wniCrew'],
       wnaCrew: data['wnaCrew'],
       officerName: data['officerName'],
-      location: data['location'],
+      location: _normalizeLocation(
+        data['location'] ??
+            data['locationName'] ??
+            data['location_name'] ??
+            data['portLocation'] ??
+            data['locationDisplay'] ??
+            data['lokasi'],
+      ),
       portClearanceFile: data['portClearanceFile'],
       crewListFile: data['crewListFile'],
       notificationLetterFile: data['notificationLetterFile'],
@@ -110,7 +120,9 @@ class ClearanceApplication {
     };
 
     print('DEBUG: ClearanceApplication.toFirestore() data: $data');
-    print('DEBUG: Type enum value: $type (string: ${type == ApplicationType.kedatangan ? 'arrival' : 'departure'})');
+    print(
+      'DEBUG: Type enum value: $type (string: ${type == ApplicationType.kedatangan ? 'arrival' : 'departure'})',
+    );
     print('DEBUG: Status enum value: $status (name: ${status.name})');
 
     return data;
@@ -144,9 +156,27 @@ class ClearanceApplication {
       location: location ?? this.location,
       portClearanceFile: portClearanceFile ?? this.portClearanceFile,
       crewListFile: crewListFile ?? this.crewListFile,
-      notificationLetterFile: notificationLetterFile ?? this.notificationLetterFile,
+      notificationLetterFile:
+          notificationLetterFile ?? this.notificationLetterFile,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
   }
+}
+
+String? _normalizeLocation(dynamic value) {
+  if (value is! String) return null;
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+  final normalized = trimmed.toLowerCase();
+  const invalidTokens = {
+    'n/a',
+    'na',
+    'n.a',
+    'not available',
+    'tidak tersedia',
+    '-',
+  };
+  if (invalidTokens.contains(normalized)) return null;
+  return trimmed;
 }

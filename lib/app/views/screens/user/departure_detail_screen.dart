@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '../../../models/clearance_application.dart';
 import '../../../localization/app_strings.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/auth_service.dart';
@@ -21,17 +22,50 @@ class DepartureDetailScreen extends StatelessWidget {
   });
 
   String _tr(BuildContext context, String key) => AppStrings.tr(
-        screenKey: 'userHistory',
-        stringKey: key,
-        langCode: initialLanguage,
-      );
+    screenKey: 'userHistory',
+    stringKey: key,
+    langCode: initialLanguage,
+  );
 
+  String _formatLocation(BuildContext context, String? location) {
+    if (location != null && location.trim().isNotEmpty) {
+      return location.trim();
+    }
+    return AppLocalizations.of(
+      context,
+    ).get('submissionDetail.location_not_provided');
+  }
+
+  String _formatField(BuildContext context, String? value) {
+    if (value == null) {
+      return AppLocalizations.of(context).get('clearanceResult.not_provided');
+    }
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return AppLocalizations.of(context).get('clearanceResult.not_provided');
+    }
+    const invalidTokens = {
+      'n/a',
+      'na',
+      'n.a',
+      'not available',
+      'tidak tersedia',
+      '-',
+    };
+    return invalidTokens.contains(trimmed.toLowerCase())
+        ? AppLocalizations.of(context).get('clearanceResult.not_provided')
+        : trimmed;
+  }
 
   @override
   Widget build(BuildContext context) {
-    LoggingService().debug('Building DepartureDetailScreen for application: ${application.id}');
+    LoggingService().debug(
+      'Building DepartureDetailScreen for application: ${application.id}',
+    );
     final screenWidth = MediaQuery.of(context).size.width;
-    final responsivePadding = screenWidth > 600 ? AppTheme.spacing16 : screenWidth * 0.04;
+    final responsivePadding = screenWidth > 600
+        ? AppTheme.spacing16
+        : screenWidth * 0.04;
     return Scaffold(
       backgroundColor: AppTheme.greyShade50,
       appBar: CustomAppBar(
@@ -50,7 +84,10 @@ class DepartureDetailScreen extends StatelessWidget {
               padding: EdgeInsets.all(AppTheme.spacing16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppTheme.secondaryColor, (AppTheme.secondaryColor).withAlpha(204)],
+                  colors: [
+                    AppTheme.secondaryColor,
+                    (AppTheme.secondaryColor).withAlpha(204),
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -155,7 +192,9 @@ class DepartureDetailScreen extends StatelessWidget {
                       color: _getStatusColor(application.status).withAlpha(25),
                       borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
                       border: Border.all(
-                        color: _getStatusColor(application.status).withAlpha(51),
+                        color: _getStatusColor(
+                          application.status,
+                        ).withAlpha(51),
                         width: 1,
                       ),
                     ),
@@ -225,17 +264,50 @@ class DepartureDetailScreen extends StatelessWidget {
                   SizedBox(height: AppTheme.spacing16),
                   _buildDetailItem(context, 'Ship Name', application.shipName),
                   _buildDetailItem(context, 'Flag', application.flag),
-                  _buildDetailItem(context, 'Next Port', application.port ?? 'N/A'),
-                  _buildDetailItem(context, 'ETD', application.date ?? 'N/A'),
-                  _buildDetailItem(context, 'WNI Crew', application.wniCrew?.toString() ?? '0'),
-                  _buildDetailItem(context, 'WNA Crew', application.wnaCrew?.toString() ?? '0'),
+                  _buildDetailItem(
+                    context,
+                    'Next Port',
+                    _formatField(context, application.port),
+                  ),
+                  _buildDetailItem(
+                    context,
+                    'ETD',
+                    _formatField(context, application.date),
+                  ),
+                  _buildDetailItem(
+                    context,
+                    'WNI Crew',
+                    application.wniCrew?.toString() ?? '0',
+                  ),
+                  _buildDetailItem(
+                    context,
+                    'WNA Crew',
+                    application.wnaCrew?.toString() ?? '0',
+                  ),
                   _buildDetailItem(context, 'Agent', application.agentName),
-                  _buildDetailItem(context, 'Location', application.location ?? 'N/A'),
-                  _buildDetailItem(context, 'Submitted At', '${application.createdAt.day}/${application.createdAt.month}/${application.createdAt.year} ${application.createdAt.hour}:${application.createdAt.minute.toString().padLeft(2, '0')}'),
+                  _buildDetailItem(
+                    context,
+                    'Location',
+                    _formatLocation(context, application.location),
+                  ),
+                  _buildDetailItem(
+                    context,
+                    'Submitted At',
+                    '${application.createdAt.day}/${application.createdAt.month}/${application.createdAt.year} ${application.createdAt.hour}:${application.createdAt.minute.toString().padLeft(2, '0')}',
+                  ),
                   if (application.officerName != null)
-                    _buildDetailItem(context, 'Reviewed By', application.officerName!),
-                  if (application.notes != null && application.notes!.isNotEmpty)
-                    _buildDetailItem(context, 'Officer Notes', application.notes!),
+                    _buildDetailItem(
+                      context,
+                      'Reviewed By',
+                      application.officerName!,
+                    ),
+                  if (application.notes != null &&
+                      application.notes!.isNotEmpty)
+                    _buildDetailItem(
+                      context,
+                      'Officer Notes',
+                      application.notes!,
+                    ),
                 ],
               ),
             ),
@@ -243,54 +315,60 @@ class DepartureDetailScreen extends StatelessWidget {
             SizedBox(height: AppTheme.spacing24),
 
             // File Attachments
-            if ((application.portClearanceFile?.isNotEmpty ?? false) ||
-                (application.crewListFile?.isNotEmpty ?? false) ||
-                (application.notificationLetterFile?.isNotEmpty ?? false))
-              Container(
-                padding: EdgeInsets.all(AppTheme.spacing16),
-                decoration: BoxDecoration(
-                  color: AppTheme.whiteColor,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.greyColor.withAlpha(25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.attach_file,
-                          color: AppTheme.primaryColor,
-                          size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
-                        ),
-                        SizedBox(width: AppTheme.spacing12),
-                        Text(
-                          'Attached Documents',
-                          style: TextStyle(
-                            fontSize: AppTheme.fontSizeH6,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.onSurface,
-                            fontFamily: 'Poppins',
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: AppTheme.spacing16),
-                    if (application.portClearanceFile?.isNotEmpty ?? false)
-                      _buildFileItem(context, 'Port Clearance', application.portClearanceFile!),
-                    if (application.crewListFile?.isNotEmpty ?? false)
-                      _buildFileItem(context, 'Crew List', application.crewListFile!),
-                    if (application.notificationLetterFile?.isNotEmpty ?? false)
-                      _buildFileItem(context, 'Notification Letter', application.notificationLetterFile!),
-                  ],
-                ),
+            Container(
+              padding: EdgeInsets.all(AppTheme.spacing16),
+              decoration: BoxDecoration(
+                color: AppTheme.whiteColor,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.greyColor.withAlpha(25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.attach_file,
+                        color: AppTheme.primaryColor,
+                        size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
+                      ),
+                      SizedBox(width: AppTheme.spacing12),
+                      Text(
+                        'Attached Documents',
+                        style: TextStyle(
+                          fontSize: AppTheme.fontSizeH6,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.onSurface,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: AppTheme.spacing16),
+                  _buildFileItem(
+                    context,
+                    'Port Clearance',
+                    application.portClearanceFile,
+                  ),
+                  _buildFileItem(
+                    context,
+                    'Crew List',
+                    application.crewListFile,
+                  ),
+                  _buildFileItem(
+                    context,
+                    'Notification Letter',
+                    application.notificationLetterFile,
+                  ),
+                ],
+              ),
+            ),
 
             SizedBox(height: AppTheme.spacing24),
 
@@ -393,9 +471,9 @@ class DepartureDetailScreen extends StatelessWidget {
         final pdfUrl = result['pdfUrl'];
 
         // Show loading for download
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloading PDF...')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Downloading PDF...')));
 
         try {
           // Download PDF data
@@ -414,15 +492,15 @@ class DepartureDetailScreen extends StatelessWidget {
               ),
             );
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to download PDF')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Failed to download PDF')));
           }
         } catch (e) {
           LoggingService().error('Error downloading PDF: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error downloading PDF')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error downloading PDF')));
         }
       } else {
         throw Exception('PDF generation failed');
@@ -454,20 +532,34 @@ class DepartureDetailScreen extends StatelessWidget {
             width: screenWidth > 600 ? 120.0 : screenWidth * 0.25,
             child: Text(
               label,
-              style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Poppins',
+                color: AppTheme.onSurface,
+              ),
             ),
           ),
           SizedBox(width: AppTheme.spacing16),
           Expanded(
-            child: Text(value, style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                color: AppTheme.onSurface,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFileItem(BuildContext context, String label, String fileName) {
+  Widget _buildFileItem(BuildContext context, String label, String? fileUrl) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final resolvedFileUrl = fileUrl ?? '';
+    final hasFile = resolvedFileUrl.isNotEmpty;
+    final displayName = hasFile ? getFileNameFromUrl(resolvedFileUrl) : '';
+    final isPdf = hasFile && displayName.toLowerCase().endsWith('.pdf');
     return Padding(
       padding: EdgeInsets.only(bottom: AppTheme.spacing12),
       child: Row(
@@ -476,18 +568,20 @@ class DepartureDetailScreen extends StatelessWidget {
             width: screenWidth > 600 ? 40.0 : screenWidth * 0.1,
             height: screenWidth > 600 ? 40.0 : screenWidth * 0.1,
             decoration: BoxDecoration(
-              color: fileName.toLowerCase().endsWith('.pdf')
-                  ? AppTheme.errorColor.withAlpha(25)
-                  : AppTheme.primaryColor.withAlpha(25),
+              color: hasFile
+                  ? (isPdf
+                        ? AppTheme.errorColor.withAlpha(25)
+                        : AppTheme.primaryColor.withAlpha(25))
+                  : AppTheme.greyShade200,
               borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
             ),
             child: Icon(
-              fileName.toLowerCase().endsWith('.pdf')
-                  ? Icons.picture_as_pdf
-                  : Icons.image,
-              color: fileName.toLowerCase().endsWith('.pdf')
-                  ? AppTheme.errorColor
-                  : AppTheme.primaryColor,
+              hasFile
+                  ? (isPdf ? Icons.picture_as_pdf : Icons.image)
+                  : Icons.insert_drive_file,
+              color: hasFile
+                  ? (isPdf ? AppTheme.errorColor : AppTheme.primaryColor)
+                  : AppTheme.greyShade500,
               size: screenWidth > 600 ? 20.0 : screenWidth * 0.05,
             ),
           ),
@@ -506,7 +600,13 @@ class DepartureDetailScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  getFileNameFromUrl(fileName),
+                  hasFile
+                      ? AppLocalizations.of(
+                          context,
+                        ).get('submissionDetail.file_status_uploaded')
+                      : AppLocalizations.of(
+                          context,
+                        ).get('submissionDetail.file_status_missing'),
                   style: TextStyle(
                     color: AppTheme.subtitleColor,
                     fontFamily: 'Poppins',
@@ -516,45 +616,47 @@ class DepartureDetailScreen extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            onPressed: () async {
-              // Show loading
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Downloading file...')),
-              );
+          if (hasFile)
+            IconButton(
+              onPressed: () async {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Downloading file...')));
 
-              try {
-                final authService = AuthService();
-                final fileData = await authService.downloadFileData(fileName);
-
-                if (fileData != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DocumentViewScreen(
-                        fileData: fileData,
-                        fileName: getFileNameFromUrl(fileName),
-                      ),
-                    ),
+                try {
+                  final authService = AuthService();
+                  final fileData = await authService.downloadFileData(
+                    resolvedFileUrl,
                   );
-                } else {
+
+                  if (fileData != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DocumentViewScreen(
+                          fileData: fileData,
+                          fileName: displayName,
+                        ),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to download file')),
+                    );
+                  }
+                } catch (e) {
+                  LoggingService().error('Error downloading file: $e');
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to download file')),
+                    SnackBar(content: Text('Error downloading file')),
                   );
                 }
-              } catch (e) {
-                LoggingService().error('Error downloading file: $e');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error downloading file')),
-                );
-              }
-            },
-            icon: Icon(
-              Icons.visibility,
-              color: AppTheme.primaryColor,
-              size: screenWidth > 600 ? 20.0 : screenWidth * 0.05,
+              },
+              icon: Icon(
+                Icons.visibility,
+                color: AppTheme.primaryColor,
+                size: screenWidth > 600 ? 20.0 : screenWidth * 0.05,
+              ),
             ),
-          ),
         ],
       ),
     );
