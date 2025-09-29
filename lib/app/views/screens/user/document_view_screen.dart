@@ -3,15 +3,22 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:universal_html/html.dart' as html;
+
+import '../../../services/auth_service.dart';
+import '../../../services/logging_service.dart';
 
 class DocumentViewScreen extends StatefulWidget {
   final String? storagePath;
   final Uint8List? fileData;
   final String? fileName;
 
-  const DocumentViewScreen({super.key, this.storagePath, this.fileData, this.fileName});
+  const DocumentViewScreen({
+    super.key,
+    this.storagePath,
+    this.fileData,
+    this.fileName,
+  });
 
   @override
   State<DocumentViewScreen> createState() => _DocumentViewScreenState();
@@ -25,23 +32,48 @@ class _DocumentViewScreenState extends State<DocumentViewScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.storagePath != null) {
-      _loadDocumentFromStorage();
-    } else if (widget.fileData != null) {
-      _documentData = widget.fileData;
-      _isLoading = false;
-    }
+    _initialiseDocument();
   }
 
-  Future<void> _loadDocumentFromStorage() async {
+  Future<void> _initialiseDocument() async {
+    if (widget.fileData != null) {
+      setState(() {
+        _documentData = widget.fileData;
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final path = widget.storagePath;
+    if (path == null || path.isEmpty) {
+      setState(() {
+        _error = 'No document reference provided.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    await _loadDocumentFromStorage(path);
+  }
+
+  Future<void> _loadDocumentFromStorage(String reference) async {
     try {
-      final ref = FirebaseStorage.instance.ref().child(widget.storagePath!);
-      final data = await ref.getData();
+      final data = await AuthService().downloadFileData(reference);
+      if (!mounted) return;
+      if (data == null || data.isEmpty) {
+        setState(() {
+          _error = 'Unable to download document.';
+          _isLoading = false;
+        });
+        return;
+      }
       setState(() {
         _documentData = data;
         _isLoading = false;
       });
     } catch (e) {
+      LoggingService().error('Error loading document $reference', e);
+      if (!mounted) return;
       setState(() {
         _error = 'Error loading document: $e';
         _isLoading = false;
@@ -70,9 +102,9 @@ class _DocumentViewScreenState extends State<DocumentViewScreen> {
         SnackBar(content: Text('Document downloaded to $filePath')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error downloading document: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error downloading document: $e')));
     }
   }
 
@@ -93,7 +125,9 @@ class _DocumentViewScreenState extends State<DocumentViewScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.download),
-            onPressed: _isLoading || _documentData == null ? null : _downloadDocument,
+            onPressed: _isLoading || _documentData == null
+                ? null
+                : _downloadDocument,
           ),
         ],
       ),
@@ -114,17 +148,14 @@ class _DocumentViewScreenState extends State<DocumentViewScreen> {
       return const Center(child: Text('No document to display.'));
     }
 
-    final isPdf = (widget.fileName?.toLowerCase().endsWith('.pdf') ?? false) ||
+    final isPdf =
+        (widget.fileName?.toLowerCase().endsWith('.pdf') ?? false) ||
         (widget.storagePath?.toLowerCase().endsWith('.pdf') ?? false);
 
     if (isPdf) {
-      return PDFView(
-        pdfData: _documentData,
-      );
+      return PDFView(pdfData: _documentData);
     } else {
-      return Center(
-        child: Image.memory(_documentData!),
-      );
+      return Center(child: Image.memory(_documentData!));
     }
   }
 }

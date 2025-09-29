@@ -1,29 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/theme.dart';
+import '../../localization/app_localizations.dart';
 import '../../providers/connectivity_provider.dart';
-import '../screens/system/no_connection_screen.dart';
 
-class ConnectivityGate extends StatelessWidget {
+class ConnectivityGate extends StatefulWidget {
   const ConnectivityGate({super.key, required this.child});
 
   final Widget child;
 
   @override
+  State<ConnectivityGate> createState() => _ConnectivityGateState();
+}
+
+class _ConnectivityGateState extends State<ConnectivityGate> {
+  bool _wasOffline = false;
+
+  @override
   Widget build(BuildContext context) {
-    final connectivity = context.watch<ConnectivityProvider>();
-    final showOverlay =
-        connectivity.isInitialized && connectivity.isOnline == false;
+    final provider = context.watch<ConnectivityProvider>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleConnectivityChange(provider);
+    });
+    return widget.child;
+  }
 
-    if (!showOverlay) {
-      return child;
+  void _handleConnectivityChange(ConnectivityProvider provider) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+
+    final isOffline = provider.isInitialized && provider.isOnline == false;
+
+    if (isOffline) {
+      if (!_wasOffline) {
+        final l10n = AppLocalizations.of(context);
+        messenger.showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.wifi_off_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    provider.isInitialized
+                        ? l10n.get('connectivity.title')
+                        : l10n.get('connectivity.checking'),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.errorColor,
+            duration: const Duration(days: 1),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+        _wasOffline = true;
+      }
+    } else if (_wasOffline) {
+      messenger.hideCurrentSnackBar();
+      _wasOffline = false;
     }
-
-    return Stack(
-      children: [
-        Positioned.fill(child: child),
-        const Positioned.fill(child: NoConnectionScreen()),
-      ],
-    );
   }
 }

@@ -621,111 +621,93 @@ class ArrivalDetailScreen extends StatelessWidget {
   }
 
   Widget _buildFileItem(BuildContext context, String label, String? fileUrl) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final resolvedFileUrl = fileUrl ?? '';
-    final hasFile = resolvedFileUrl.isNotEmpty;
-    final displayName = hasFile ? getFileNameFromUrl(resolvedFileUrl) : '';
-    final isPdf = hasFile && displayName.toLowerCase().endsWith('.pdf');
-    return Padding(
-      padding: EdgeInsets.only(bottom: AppTheme.spacing12),
+    final l10n = AppLocalizations.of(context);
+    final resolvedUrl = fileUrl ?? '';
+    final hasFile = resolvedUrl.isNotEmpty;
+    final displayName = hasFile ? getFileNameFromUrl(resolvedUrl) : label;
+    final statusText = hasFile
+        ? l10n.get('submissionDetail.file_status_uploaded')
+        : l10n.get('submissionDetail.file_status_missing');
+    final statusColor = hasFile ? AppTheme.successColor : AppTheme.errorColor;
+
+    return Container(
+      margin: EdgeInsets.only(bottom: AppTheme.spacing12),
+      padding: EdgeInsets.all(AppTheme.spacing12),
+      decoration: BoxDecoration(
+        color: AppTheme.whiteColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        border: Border.all(color: AppTheme.greyShade200),
+      ),
       child: Row(
         children: [
-          Container(
-            width: screenWidth > 600 ? 40.0 : screenWidth * 0.1,
-            height: screenWidth > 600 ? 40.0 : screenWidth * 0.1,
-            decoration: BoxDecoration(
-              color: hasFile
-                  ? (isPdf
-                        ? AppTheme.errorColor.withAlpha(25)
-                        : AppTheme.primaryColor.withAlpha(25))
-                  : AppTheme.greyShade200,
-              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-            ),
-            child: Icon(
-              hasFile
-                  ? (isPdf ? Icons.picture_as_pdf : Icons.image)
-                  : Icons.insert_drive_file,
-              color: hasFile
-                  ? (isPdf ? AppTheme.errorColor : AppTheme.primaryColor)
-                  : AppTheme.greyShade500,
-              size: screenWidth > 600 ? 20.0 : screenWidth * 0.05,
-            ),
-          ),
-          SizedBox(width: AppTheme.spacing12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label,
+                  displayName,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: AppTheme.onSurface,
                     fontFamily: 'Poppins',
-                    fontSize: AppTheme.fontSizeBody2,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
+                SizedBox(height: AppTheme.spacing4),
                 Text(
-                  hasFile
-                      ? AppLocalizations.of(
-                          context,
-                        ).get('submissionDetail.file_status_uploaded')
-                      : AppLocalizations.of(
-                          context,
-                        ).get('submissionDetail.file_status_missing'),
-                  style: TextStyle(
-                    color: AppTheme.subtitleColor,
-                    fontFamily: 'Poppins',
-                    fontSize: AppTheme.fontSizeBody2,
-                  ),
+                  statusText,
+                  style: TextStyle(color: statusColor, fontFamily: 'Poppins'),
                 ),
               ],
             ),
           ),
-          if (hasFile)
-            IconButton(
-              onPressed: () async {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text('Downloading file...')));
-
-                try {
-                  final authService = AuthService();
-                  final fileData = await authService.downloadFileData(
-                    resolvedFileUrl,
-                  );
-
-                  if (fileData != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DocumentViewScreen(
-                          fileData: fileData,
-                          fileName: displayName,
-                        ),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to download file')),
-                    );
-                  }
-                } catch (e) {
-                  LoggingService().error('Error downloading file: $e');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error downloading file')),
-                  );
-                }
-              },
-              icon: Icon(
-                Icons.visibility,
-                color: AppTheme.primaryColor,
-                size: screenWidth > 600 ? 20.0 : screenWidth * 0.05,
-              ),
-            ),
+          IconButton(
+            icon: const Icon(Icons.visibility_outlined),
+            color: hasFile ? AppTheme.primaryColor : AppTheme.greyShade300,
+            onPressed: hasFile
+                ? () => _openDocument(context, resolvedUrl, displayName)
+                : null,
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _openDocument(
+    BuildContext context,
+    String fileUrl,
+    String fileName,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.get('clearanceForm.download_start'))),
+    );
+
+    try {
+      final authService = AuthService();
+      final fileData = await authService.downloadFileData(fileUrl);
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (fileData != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                DocumentViewScreen(fileData: fileData, fileName: fileName),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
+        );
+      }
+    } catch (e) {
+      LoggingService().error('Error downloading file: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
+      );
+    }
   }
 
   Color _getStatusColor(ApplicationStatus status) {

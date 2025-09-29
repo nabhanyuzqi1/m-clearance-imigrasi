@@ -1,15 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
-import 'package:m_clearance_imigrasi/app/services/officer_service.dart';
-import 'package:m_clearance_imigrasi/app/views/screens/user/document_view_screen.dart';
-
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/user_model.dart';
 import '../../../repositories/user_repository.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/functions_service.dart';
+import '../../../services/officer_service.dart';
+import '../../../utils/file_utils.dart';
+import '../../screens/user/document_view_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 
 class AccountDetailScreen extends StatefulWidget {
@@ -119,17 +119,21 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     BuildContext context,
     Map<String, dynamic> document,
   ) {
-    final documentName = (document['documentName'] ?? 'Document').toString();
+    final documentName = (document['documentName'] ?? document['name'] ?? 'Document')
+        .toString();
     final storagePath =
         (document['storagePath'] ?? document['path'] ?? document['url'] ?? '')
             .toString();
+    final displayName = storagePath.isNotEmpty
+        ? getFileNameFromUrl(storagePath)
+        : documentName;
 
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => DocumentViewScreen(
           storagePath: storagePath,
-          fileName: documentName,
+          fileName: displayName,
         ),
       ),
     );
@@ -282,69 +286,78 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
   }
 
   Widget _buildDocumentTile(Map<String, dynamic> doc) {
-    final name =
+    final rawName =
         (doc['documentName'] ?? doc['name'] ?? doc['type'] ?? 'Document')
             .toString();
-    final storagePath = (doc['storagePath'] ?? doc['path'] ?? doc['url'] ?? '')
-        .toString();
+    final storagePath =
+        (doc['storagePath'] ?? doc['path'] ?? doc['url'] ?? '').toString();
+    final displayName = storagePath.isNotEmpty
+        ? getFileNameFromUrl(storagePath)
+        : rawName;
     final uploadedAt = doc['uploadedAt'];
-    final subtitle = uploadedAt != null
-        ? _formatTimestamp(uploadedAt)
-        : (storagePath.isNotEmpty
-              ? '${_tr('file_path')}: $storagePath'
-              : _tr('N/A'));
-    final canPreview = storagePath.isNotEmpty;
+    final hasFile = storagePath.isNotEmpty;
+    final statusText =
+        hasFile ? _tr('file_attached') : _tr('file_missing');
+    final statusColor = hasFile ? AppTheme.successColor : AppTheme.errorColor;
+    final timestampText = uploadedAt != null ? _formatTimestamp(uploadedAt) : null;
 
-    final tile = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+      decoration: BoxDecoration(
+        color: AppTheme.whiteColor,
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: AppTheme.greyShade200),
+      ),
       child: Row(
         children: [
-          const Icon(
-            Icons.description_outlined,
-            color: AppTheme.primaryColor,
-            size: 24,
-          ),
+          const Icon(Icons.insert_drive_file_outlined,
+              color: AppTheme.primaryColor),
           const SizedBox(width: 12.0),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  displayName,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: AppTheme.fontSizeMedium,
                     color: AppTheme.blackColor,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4.0),
                 Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: AppTheme.blackColor54,
+                  statusText,
+                  style: TextStyle(
+                    color: statusColor,
                     fontSize: AppTheme.fontSizeSmall,
                   ),
                 ),
+                if (timestampText != null) ...[
+                  const SizedBox(height: 2.0),
+                  Text(
+                    timestampText,
+                    style: const TextStyle(
+                      color: AppTheme.blackColor54,
+                      fontSize: AppTheme.fontSizeSmall,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-          Icon(
-            Icons.arrow_forward_ios,
-            size: 16.0,
-            color: canPreview ? AppTheme.greyColor : AppTheme.greyShade300,
+          IconButton(
+            tooltip: _tr('view'),
+            icon: const Icon(Icons.visibility_outlined,
+                color: AppTheme.primaryColor),
+            onPressed: hasFile
+                ? () => _showDocumentPreview(context, doc)
+                : null,
           ),
         ],
       ),
-    );
-
-    if (!canPreview) {
-      return Opacity(opacity: 0.6, child: tile);
-    }
-
-    return InkWell(
-      onTap: () => _showDocumentPreview(context, doc),
-      borderRadius: BorderRadius.circular(12),
-      child: tile,
     );
   }
 
@@ -470,7 +483,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
           );
           final statusDescriptor = _statusDescriptor(user.status);
 
-          return SingleChildScrollView(
+          final content = SingleChildScrollView(
             padding: EdgeInsets.symmetric(
               horizontal: horizontalPadding,
               vertical: verticalSpacing,
@@ -600,7 +613,25 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
               ],
             ),
           );
+
+          return Stack(
+            children: [
+              content,
+              if (_loadingAction) _buildLoadingOverlay(),
+            ],
+          );
         },
+      ),
+    );
+  }
+
+  Widget _buildLoadingOverlay() {
+    return Positioned.fill(
+      child: ColoredBox(
+        color: Colors.black.withOpacity(0.35),
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
       ),
     );
   }

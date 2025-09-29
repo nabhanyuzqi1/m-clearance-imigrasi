@@ -76,6 +76,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   Uint8List? _portClearanceFileData;
   Uint8List? _notificationLetterFileData;
   String? _portClearanceFileName, _notificationLetterFileName;
+  String? _portClearanceFileUrl, _notificationLetterFileUrl;
   final List<_PendingCrewFile> _pendingCrewListFiles = [];
   List<String> _existingCrewListFiles = [];
 
@@ -125,12 +126,14 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       _wniCrewController.text = app.wniCrew ?? '';
       _wnaCrewController.text = app.wnaCrew ?? '';
       _selectedLocation = app.location ?? _locations.first;
-      // For existing applications, we don't have file data, only names
+      // For existing applications, preserve remote references
       _portClearanceFileName = _friendlyFileName(app.portClearanceFile);
+      _portClearanceFileUrl = app.portClearanceFile;
       _existingCrewListFiles = List<String>.from(app.crewListFiles);
       _notificationLetterFileName = _friendlyFileName(
         app.notificationLetterFile,
       );
+      _notificationLetterFileUrl = app.notificationLetterFile;
     } else {
       LoggingService().debug('Creating new application form');
       _agentNameController.text = widget.agentName;
@@ -159,7 +162,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   }
 
   void _goToStep(int step) {
-    if (step > 1 && !_formKey.currentState!.validate()) {
+    final formState = _formKey.currentState;
+    if (step > 1 && formState != null && !formState.validate()) {
       LoggingService().warning(
         'Form validation failed, cannot proceed to step $step',
       );
@@ -369,6 +373,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         if (documentType == _tr('port_clearance')) {
           _portClearanceFileData = processedBytes;
           _portClearanceFileName = fileName;
+          _portClearanceFileUrl = null;
         }
         if (documentType == _tr('crew_list')) {
           _pendingCrewListFiles.add(
@@ -378,6 +383,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         if (documentType == _tr('notification_letter')) {
           _notificationLetterFileData = processedBytes;
           _notificationLetterFileName = fileName;
+          _notificationLetterFileUrl = null;
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -453,12 +459,14 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         if (documentType == _tr('port_clearance')) {
           _portClearanceFileData = portData;
           _portClearanceFileName = portName;
+          _portClearanceFileUrl = null;
         } else if (documentType == _tr('crew_list') &&
             newCrewFiles.isNotEmpty) {
           _pendingCrewListFiles.addAll(newCrewFiles);
         } else if (documentType == _tr('notification_letter')) {
           _notificationLetterFileData = notificationData;
           _notificationLetterFileName = notificationName;
+          _notificationLetterFileUrl = null;
         }
       });
 
@@ -1165,6 +1173,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           subtitle: _tr('port_clearance_subtitle'),
           fileName: _portClearanceFileName,
           onTap: () => _showImageSourceActionSheet(_tr('port_clearance')),
+          fileUrl: _portClearanceFileUrl,
           key: const ValueKey('port_clearance_card'),
         ),
         SizedBox(height: verticalSpacing),
@@ -1179,6 +1188,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           subtitle: _tr('notification_letter_subtitle'),
           fileName: _notificationLetterFileName,
           onTap: () => _showImageSourceActionSheet(_tr('notification_letter')),
+          fileUrl: _notificationLetterFileUrl,
           key: const ValueKey('notification_letter_card'),
         ),
         SizedBox(height: verticalSpacing),
@@ -1515,23 +1525,32 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     required String subtitle,
     required String? fileName,
     required VoidCallback onTap,
+    String? fileUrl,
     Key? key,
   }) {
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.04;
-    final verticalSpacing = screenWidth * 0.03;
+    final remoteUrl = fileUrl ?? '';
+    final hasRemoteFile = remoteUrl.isNotEmpty;
 
-    bool isUploaded = fileName != null;
     Uint8List? fileData;
-    if (isUploaded) {
-      if (title == _tr('port_clearance')) {
-        fileData = _portClearanceFileData;
-      } else if (title == _tr('notification_letter')) {
-        fileData = _notificationLetterFileData;
-      }
+    if (title == _tr('port_clearance')) {
+      fileData = _portClearanceFileData;
+    } else if (title == _tr('notification_letter')) {
+      fileData = _notificationLetterFileData;
     }
 
-    final displayName = _friendlyFileName(fileName);
+    final bool isUploaded =
+        (fileData != null) ||
+        (fileName != null && fileName.isNotEmpty) ||
+        hasRemoteFile;
+    final displayName =
+        _friendlyFileName(fileName) ??
+        (hasRemoteFile ? _friendlyFileName(fileUrl) : null);
+    final statusColor = isUploaded
+        ? AppTheme.successColor
+        : AppTheme.errorColor;
+    final statusText = isUploaded ? _tr('file_attached') : _tr('not_uploaded');
 
     return Card(
       key: key,
@@ -1546,126 +1565,73 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               title,
               style: TextStyle(
                 fontSize: screenWidth * 0.04,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
+            SizedBox(height: screenWidth * 0.01),
             Text(
-              subtitle,
+              displayName ?? subtitle,
               style: TextStyle(
-                fontSize: screenWidth * 0.03,
-                color: AppTheme.greyShade600,
+                fontSize: screenWidth * 0.035,
+                color: AppTheme.onSurface,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            SizedBox(height: screenWidth * 0.007),
+            Text(
+              statusText,
+              style: TextStyle(
+                fontSize: screenWidth * 0.032,
+                color: statusColor,
               ),
             ),
-            SizedBox(height: verticalSpacing),
-            isUploaded
-                ? () {
-                    final String name = fileName ?? '';
-                    final safeName = displayName ?? name;
-                    return Row(
-                      children: [
-                        // File preview/thumbnail
-                        Container(
-                          width: screenWidth * 0.08,
-                          height: screenWidth * 0.08,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: AppTheme.greyShade200,
-                          ),
-                          child:
-                              fileData != null &&
-                                  name.toLowerCase().endsWith('.pdf')
-                              ? Icon(
-                                  Icons.picture_as_pdf,
-                                  color: AppTheme.errorColor,
-                                  size: screenWidth * 0.05,
-                                )
-                              : fileData != null &&
-                                    (name.toLowerCase().endsWith('.jpg') ||
-                                        name.toLowerCase().endsWith('.jpeg') ||
-                                        name.toLowerCase().endsWith('.png'))
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Image.memory(
-                                    fileData,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) => Icon(
-                                          Icons.image,
-                                          color: AppTheme.greyColor,
-                                          size: screenWidth * 0.05,
-                                        ),
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.insert_drive_file,
-                                  color: AppTheme.primaryColor,
-                                  size: screenWidth * 0.05,
-                                ),
-                        ),
-                        SizedBox(width: screenWidth * 0.02),
-                        const Icon(
-                          Icons.check_circle,
-                          color: AppTheme.successColor,
-                        ),
-                        SizedBox(width: screenWidth * 0.02),
-                        Expanded(
-                          child: Text(
-                            safeName,
-                            style: TextStyle(
-                              color: AppTheme.successColor,
-                              fontSize: screenWidth * 0.035,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            if (fileData != null) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => DocumentViewScreen(
-                                    fileData: fileData as Uint8List,
-                                    fileName: fileName,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.visibility,
-                            color: AppTheme.greyShade600,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: onTap,
-                          icon: const Icon(
-                            Icons.edit,
-                            color: AppTheme.greyShade600,
-                          ),
-                        ),
-                      ],
-                    );
-                  }()
-                : OutlinedButton.icon(
-                    onPressed: onTap,
-                    icon: const Icon(Icons.upload_file),
-                    label: Text(
-                      _tr('choose_file'),
-                      style: TextStyle(fontSize: screenWidth * 0.04),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: Size(double.infinity, screenWidth * 0.12),
-                      side: const BorderSide(color: AppTheme.primaryColor),
-                      foregroundColor: AppTheme.primaryColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        vertical: screenWidth * 0.03,
-                      ),
-                    ),
+            SizedBox(height: screenWidth * 0.02),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onTap,
+                  icon: const Icon(Icons.upload_file),
+                  label: Text(
+                    _tr('choose_file'),
+                    style: TextStyle(fontSize: screenWidth * 0.035),
                   ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: _tr('view_file'),
+                  icon: const Icon(
+                    Icons.visibility_outlined,
+                    color: AppTheme.primaryColor,
+                  ),
+                  onPressed: !isUploaded
+                      ? null
+                      : () {
+                          final resolvedName = displayName ?? title;
+                          final data = fileData;
+                          if (data != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => DocumentViewScreen(
+                                  fileData: data,
+                                  fileName: resolvedName,
+                                ),
+                              ),
+                            );
+                          } else if (hasRemoteFile) {
+                            _viewStoredDocument(remoteUrl, resolvedName);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(_tr('file_not_available')),
+                                backgroundColor: AppTheme.errorColor,
+                              ),
+                            );
+                          }
+                        },
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -1681,35 +1647,39 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final horizontalPadding = screenWidth * 0.04;
     final verticalSpacing = screenWidth * 0.03;
 
-    final combinedEntries = <Widget>[];
-
+    final items = <Widget>[];
     for (final entry in _existingCrewListFiles.asMap().entries) {
       final index = entry.key;
       final url = entry.value;
-      final parsedName = _friendlyFileName(url);
-      final displayName = parsedName ?? 'crew_list_${index + 1}'.toUpperCase();
-      combinedEntries.add(
+      final displayName =
+          _friendlyFileName(url) ?? 'crew_list_${index + 1}'.toUpperCase();
+      items.add(
         _buildCrewListRow(
           name: displayName,
+          statusText: _tr('file_attached'),
           icon: Icons.cloud_done_rounded,
           onView: () => _viewStoredDocument(url, displayName),
           onRemove: () => _removeExistingCrewDocument(index),
         ),
       );
     }
-
     for (final entry in _pendingCrewListFiles.asMap().entries) {
       final index = entry.key;
       final file = entry.value;
-      combinedEntries.add(
+      items.add(
         _buildCrewListRow(
           name: file.name,
+          statusText: _tr('file_attached'),
           icon: Icons.upload_file,
           onView: () => _openPendingCrewDocument(file),
           onRemove: () => _removePendingCrewDocument(index),
         ),
       );
     }
+
+    final hasDocs = items.isNotEmpty;
+    final statusText = hasDocs ? _tr('file_attached') : _tr('not_uploaded');
+    final statusColor = hasDocs ? AppTheme.successColor : AppTheme.errorColor;
 
     return Card(
       key: key,
@@ -1727,11 +1697,12 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            SizedBox(height: screenWidth * 0.01),
             Text(
-              subtitle,
+              statusText,
               style: TextStyle(
-                fontSize: screenWidth * 0.03,
-                color: AppTheme.greyShade600,
+                fontSize: screenWidth * 0.032,
+                color: statusColor,
               ),
             ),
             SizedBox(height: verticalSpacing),
@@ -1740,20 +1711,11 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               icon: const Icon(Icons.add_circle_outline),
               label: Text(
                 _tr('add_more_documents'),
-                style: TextStyle(fontSize: screenWidth * 0.04),
-              ),
-              style: OutlinedButton.styleFrom(
-                minimumSize: Size(double.infinity, screenWidth * 0.12),
-                side: const BorderSide(color: AppTheme.primaryColor),
-                foregroundColor: AppTheme.primaryColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                style: TextStyle(fontSize: screenWidth * 0.035),
               ),
             ),
             SizedBox(height: verticalSpacing),
-            if (combinedEntries.isEmpty)
+            if (items.isEmpty)
               Text(
                 _tr('crew_list_empty'),
                 style: TextStyle(
@@ -1762,7 +1724,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 ),
               )
             else
-              ...combinedEntries,
+              ...items,
           ],
         ),
       ),
@@ -1771,6 +1733,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
   Widget _buildCrewListRow({
     required String name,
+    required String statusText,
     required IconData icon,
     required VoidCallback onRemove,
     VoidCallback? onView,
@@ -1789,13 +1752,26 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           Icon(icon, color: AppTheme.primaryColor),
           SizedBox(width: screenWidth * 0.03),
           Expanded(
-            child: Text(
-              name,
-              style: TextStyle(
-                fontSize: screenWidth * 0.035,
-                fontWeight: FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.035,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: screenWidth * 0.01),
+                Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.03,
+                    color: AppTheme.successColor,
+                  ),
+                ),
+              ],
             ),
           ),
           if (onView != null)
