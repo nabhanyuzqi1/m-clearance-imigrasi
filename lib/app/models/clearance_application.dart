@@ -20,7 +20,7 @@ class ClearanceApplication {
   final String? officerName;
   final String? location;
   final String? portClearanceFile;
-  final String? crewListFile;
+  final List<String> crewListFiles;
   final String? notificationLetterFile;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -41,11 +41,12 @@ class ClearanceApplication {
     this.officerName,
     this.location,
     this.portClearanceFile,
-    this.crewListFile,
+    List<String>? crewListFiles,
     this.notificationLetterFile,
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) : createdAt = createdAt ?? DateTime.now(),
+  }) : crewListFiles = crewListFiles ?? const [],
+       createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now();
 
   factory ClearanceApplication.fromFirestore(DocumentSnapshot doc) {
@@ -93,7 +94,7 @@ class ClearanceApplication {
             data['lokasi'],
       ),
       portClearanceFile: data['portClearanceFile'],
-      crewListFile: data['crewListFile'],
+      crewListFiles: _resolveCrewListFiles(data),
       notificationLetterFile: data['notificationLetterFile'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -115,7 +116,8 @@ class ClearanceApplication {
       'officerName': officerName,
       'location': location,
       'portClearanceFile': portClearanceFile,
-      'crewListFile': crewListFile,
+      'crewListFiles': crewListFiles,
+      'crewListFile': crewListFiles.isNotEmpty ? crewListFiles.first : null,
       'notificationLetterFile': notificationLetterFile,
     };
 
@@ -135,7 +137,7 @@ class ClearanceApplication {
     String? officerName,
     String? location,
     String? portClearanceFile,
-    String? crewListFile,
+    List<String>? crewListFiles,
     String? notificationLetterFile,
     DateTime? updatedAt,
   }) {
@@ -155,13 +157,16 @@ class ClearanceApplication {
       officerName: officerName ?? this.officerName,
       location: location ?? this.location,
       portClearanceFile: portClearanceFile ?? this.portClearanceFile,
-      crewListFile: crewListFile ?? this.crewListFile,
+      crewListFiles: crewListFiles ?? List<String>.from(this.crewListFiles),
       notificationLetterFile:
           notificationLetterFile ?? this.notificationLetterFile,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
   }
+
+  String? get crewListFile =>
+      crewListFiles.isNotEmpty ? crewListFiles.first : null;
 }
 
 String? _normalizeLocation(dynamic value) {
@@ -179,4 +184,23 @@ String? _normalizeLocation(dynamic value) {
   };
   if (invalidTokens.contains(normalized)) return null;
   return trimmed;
+}
+
+List<String> _resolveCrewListFiles(Map<String, dynamic> data) {
+  final List<String> files = [];
+  final crewFiles = data['crewListFiles'];
+  if (crewFiles is List) {
+    for (final item in crewFiles) {
+      if (item is String && item.trim().isNotEmpty) {
+        files.add(item.trim());
+      }
+    }
+  }
+  final singleFile = data['crewListFile'];
+  if (singleFile is String && singleFile.trim().isNotEmpty) {
+    if (!files.contains(singleFile.trim())) {
+      files.add(singleFile.trim());
+    }
+  }
+  return files;
 }

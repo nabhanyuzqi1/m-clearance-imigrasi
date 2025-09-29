@@ -98,23 +98,17 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
   }
 
   Widget _buildDocumentList() {
+    final l10n = AppLocalizations.of(context);
+    final crewLabel = l10n.get('submissionDetail.crew_list');
     final documents = <Map<String, dynamic>>[
       {
-        'name': AppLocalizations.of(
-          context,
-        ).get('submissionDetail.port_clearance'),
+        'name': l10n.get('submissionDetail.port_clearance'),
         'attached': widget.application.portClearanceFile?.isNotEmpty ?? false,
         'file': widget.application.portClearanceFile,
       },
+      ..._buildCrewDocuments(crewLabel),
       {
-        'name': AppLocalizations.of(context).get('submissionDetail.crew_list'),
-        'attached': widget.application.crewListFile?.isNotEmpty ?? false,
-        'file': widget.application.crewListFile,
-      },
-      {
-        'name': AppLocalizations.of(
-          context,
-        ).get('submissionDetail.notification_letter'),
+        'name': l10n.get('submissionDetail.notification_letter'),
         'attached':
             widget.application.notificationLetterFile?.isNotEmpty ?? false,
         'file': widget.application.notificationLetterFile,
@@ -124,6 +118,23 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     return Column(
       children: documents.map((doc) => _buildFileItem(doc)).toList(),
     );
+  }
+
+  List<Map<String, dynamic>> _buildCrewDocuments(String baseLabel) {
+    final crewFiles = widget.application.crewListFiles;
+    if (crewFiles.isEmpty) {
+      return [
+        {'name': baseLabel, 'attached': false, 'file': null},
+      ];
+    }
+    return crewFiles.asMap().entries.map((entry) {
+      final index = entry.key;
+      final fileUrl = entry.value;
+      final label = crewFiles.length > 1
+          ? '$baseLabel #${index + 1}'
+          : baseLabel;
+      return {'name': label, 'attached': fileUrl.isNotEmpty, 'file': fileUrl};
+    }).toList();
   }
 
   Widget _buildFileItem(Map<String, dynamic> document) {

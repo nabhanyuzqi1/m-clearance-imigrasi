@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:provider/provider.dart';
+import 'app/providers/connectivity_provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/config/routes.dart';
 import 'app/config/theme.dart';
@@ -11,6 +12,7 @@ import 'app/localization/app_localizations.dart';
 import 'app/services/auth_service.dart';
 import 'firebase_options.dart';
 import 'app/views/widgets/auth_wrapper.dart';
+import 'app/views/widgets/connectivity_gate.dart';
 import 'app/providers/language_provider.dart';
 import 'app/views/widgets/skeleton_loader.dart' as skeleton;
 
@@ -87,12 +89,13 @@ void main() async {
 
   // Preload critical assets for better startup performance
   runApp(
-    Provider<AuthService>(
-      create: (_) => AuthService(),
-      child: ChangeNotifierProvider(
-        create: (context) => LanguageProvider(),
-        child: const MyApp(),
-      ),
+    MultiProvider(
+      providers: [
+        Provider<AuthService>(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
+      ],
+      child: const MyApp(),
     ),
   );
 }
@@ -188,6 +191,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           home: const AuthWrapper(),
           onGenerateRoute: AppRoutes.onGenerateRoute,
           restorationScopeId: 'app', // Enable state restoration
+          builder: (context, child) =>
+              ConnectivityGate(child: child ?? const SizedBox.shrink()),
         );
       },
     );

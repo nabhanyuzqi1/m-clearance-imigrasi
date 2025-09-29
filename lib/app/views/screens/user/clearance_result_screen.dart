@@ -830,17 +830,38 @@ class ClearanceResultScreen extends StatelessWidget {
     String Function(String) tr,
     BuildContext context,
   ) {
-    final attachments = [
-      (label: tr('port_clearance'), file: application.portClearanceFile),
-      (label: tr('crew_list'), file: application.crewListFile),
-      (
-        label: tr('notification_letter'),
-        file: application.notificationLetterFile,
+    final widgets = <Widget>[
+      _buildFileCard(
+        tr('port_clearance'),
+        application.portClearanceFile,
+        context,
       ),
     ];
 
-    return attachments
-        .map((item) => _buildFileCard(item.label, item.file, context))
-        .toList();
+    if (application.crewListFiles.isEmpty) {
+      widgets.add(_buildFileCard(tr('crew_list'), null, context));
+    } else {
+      widgets.addAll(
+        application.crewListFiles.asMap().entries.map(
+          (entry) => _buildFileCard(
+            application.crewListFiles.length > 1
+                ? '${tr('crew_list')} #${entry.key + 1}'
+                : tr('crew_list'),
+            entry.value,
+            context,
+          ),
+        ),
+      );
+    }
+
+    widgets.add(
+      _buildFileCard(
+        tr('notification_letter'),
+        application.notificationLetterFile,
+        context,
+      ),
+    );
+
+    return widgets;
   }
 }

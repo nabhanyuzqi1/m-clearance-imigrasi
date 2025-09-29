@@ -163,6 +163,12 @@ class AppStrings {
         'password_updated': 'Password updated successfully!',
       },
       'splash': {'app_name': 'M-Clearance ISam'},
+      'connectivity': {
+        'title': 'No Internet Connection',
+        'message': 'Please check your network settings and try again.',
+        'retry': 'Retry Connection',
+        'checking': 'Checking connection...',
+      },
       //endregion
 
       //region User Screens
@@ -217,6 +223,10 @@ class AppStrings {
         'done_button': 'Done',
         'reports_button': 'See Reports',
         'error_loading': 'Error loading data',
+        'revision_banner_title': 'Revision Required',
+        'revision_banner_body':
+            'Update the requested details and resubmit your application.',
+        'revision_button': 'Submit Revision',
       },
       'userProfile': {
         'profile': 'Profile',
@@ -300,6 +310,15 @@ class AppStrings {
         'notification_letter': 'Notification Letter',
         'notification_letter_subtitle': 'Upload notification letter',
         'choose_file': 'Choose File',
+        'add_more_documents': 'Add Document',
+        'crew_list_empty': 'No crew list documents added yet.',
+        'remove_file': 'Remove',
+        'view_file': 'View',
+        'multiple_files_selected':
+            '{count} crew list files added successfully.',
+        'duplicate_file_warning': 'This file is already selected.',
+        'download_start': 'Downloading document...',
+        'download_failed': 'Failed to download document.',
         'file_uploaded': 'uploaded successfully',
         'edit': 'Edit',
         'upload_all_docs': 'Please upload all required documents.',
@@ -912,6 +931,12 @@ class AppStrings {
         'password_updated': 'Password berhasil diperbarui!',
       },
       'splash': {'app_name': 'M-Clearance ISam'},
+      'connectivity': {
+        'title': 'Tidak Ada Koneksi Internet',
+        'message': 'Periksa pengaturan jaringan Anda lalu coba lagi.',
+        'retry': 'Coba Sambungkan Lagi',
+        'checking': 'Memeriksa koneksi...',
+      },
       //endregion
 
       //region User Screens
@@ -966,6 +991,10 @@ class AppStrings {
         'done_button': 'Selesai',
         'reports_button': 'Lihat Laporan',
         'error_loading': 'Error memuat data',
+        'revision_banner_title': 'Perlu Revisi',
+        'revision_banner_body':
+            'Perbarui data yang diminta dan kirim ulang pengajuan Anda.',
+        'revision_button': 'Kirim Revisi',
       },
       'userProfile': {
         'profile': 'Profil',
@@ -1050,6 +1079,15 @@ class AppStrings {
         'notification_letter': 'Surat Pemberitahuan',
         'notification_letter_subtitle': 'Unggah surat pemberitahuan',
         'choose_file': 'Pilih File',
+        'add_more_documents': 'Tambah Dokumen',
+        'crew_list_empty': 'Belum ada dokumen crew list.',
+        'remove_file': 'Hapus',
+        'view_file': 'Lihat',
+        'multiple_files_selected':
+            '{count} berkas crew list berhasil ditambahkan.',
+        'duplicate_file_warning': 'Berkas ini sudah dipilih.',
+        'download_start': 'Mengunduh dokumen...',
+        'download_failed': 'Gagal mengunduh dokumen.',
         'file_uploaded': 'berhasil diunggah',
         'edit': 'Ubah',
         'upload_all_docs': 'Mohon unggah semua dokumen yang diperlukan.',

@@ -9,6 +9,7 @@ import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_button.dart';
 import 'document_view_screen.dart';
 import '../../../utils/file_utils.dart';
+import 'clearance_form_screen.dart';
 
 class ArrivalDetailScreen extends StatelessWidget {
   final ClearanceApplication application;
@@ -352,11 +353,18 @@ class ArrivalDetailScreen extends StatelessWidget {
                     'Port Clearance',
                     application.portClearanceFile,
                   ),
-                  _buildFileItem(
-                    context,
-                    'Crew List',
-                    application.crewListFile,
-                  ),
+                  if (application.crewListFiles.isEmpty)
+                    _buildFileItem(context, 'Crew List', null)
+                  else
+                    ...application.crewListFiles.asMap().entries.map(
+                      (entry) => _buildFileItem(
+                        context,
+                        application.crewListFiles.length > 1
+                            ? 'Crew List #${entry.key + 1}'
+                            : 'Crew List',
+                        entry.value,
+                      ),
+                    ),
                   _buildFileItem(
                     context,
                     'Notification Letter',
@@ -367,6 +375,12 @@ class ArrivalDetailScreen extends StatelessWidget {
             ),
 
             SizedBox(height: AppTheme.spacing24),
+
+            if (application.status == ApplicationStatus.revision)
+              _buildRevisionBanner(context),
+
+            if (application.status == ApplicationStatus.revision)
+              SizedBox(height: AppTheme.spacing24),
 
             // PDF Generation Button
             Container(
@@ -546,6 +560,62 @@ class ArrivalDetailScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRevisionBanner(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(AppTheme.spacing16),
+      decoration: BoxDecoration(
+        color: AppTheme.warningColor.withAlpha(25),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        border: Border.all(color: AppTheme.warningColor.withAlpha(128)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _tr(context, 'revision_banner_title'),
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeH6,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.warningColor,
+              fontFamily: 'Poppins',
+            ),
+          ),
+          SizedBox(height: AppTheme.spacing8),
+          Text(
+            _tr(context, 'revision_banner_body'),
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeBody2,
+              color: AppTheme.subtitleColor,
+              fontFamily: 'Poppins',
+            ),
+          ),
+          SizedBox(height: AppTheme.spacing16),
+          CustomButton(
+            text: _tr(context, 'revision_button'),
+            type: CustomButtonType.elevated,
+            backgroundColor: AppTheme.primaryColor,
+            onPressed: () => _openRevisionForm(context),
+            isFullWidth: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openRevisionForm(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ClearanceFormScreen(
+          type: application.type,
+          agentName: application.agentName,
+          existingApplication: application,
+          initialLanguage: initialLanguage,
+        ),
       ),
     );
   }

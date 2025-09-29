@@ -2130,6 +2130,44 @@ exports.onApplicationUpdate = functions.firestore
       const officerName = after.officerName || before.officerName;
       const note = after.notes || before.notes;
 
+      let corporateName =
+        after.corporateName ||
+        before.corporateName ||
+        after.agentName ||
+        before.agentName ||
+        null;
+
+      if (!corporateName && userUid) {
+        try {
+          const userSnapshot = await db.collection("users").doc(userUid).get();
+          if (userSnapshot.exists) {
+            const userData = userSnapshot.data() || {};
+            corporateName =
+              userData.corporateName ||
+              userData.fullName ||
+              userData.name ||
+              userData.username ||
+              userData.email ||
+              corporateName;
+          }
+        } catch (fetchError) {
+          console.warn(
+            "[onApplicationUpdate] Failed fetching corporateName:",
+            userUid,
+            fetchError,
+          );
+        }
+      }
+
+      const applicationDate =
+        after.date ||
+        before.date ||
+        after.arrivalDate ||
+        before.arrivalDate ||
+        after.departureDate ||
+        before.departureDate ||
+        null;
+
       const titleMap = {
         approved: "Application Approved",
         declined: "Application Declined",
@@ -2178,13 +2216,22 @@ exports.onApplicationUpdate = functions.firestore
         ["officer", "admin"],
         {
           title: "Application status changed",
-          body: `Application ${context.params.appId} has been ${status}.`,
+          body: `${corporateName || "Applicant"} - ${shipName}${
+            applicationDate ? ` (${applicationDate})` : ""
+          } has been ${
+            status === "revision"
+              ? "marked for revision"
+              : status
+          }.`,
           type: 0,
           timestamp,
           extra: {
             applicationId: context.params.appId,
             status,
             targetUid: userUid,
+            corporateName: corporateName || null,
+            shipName,
+            applicationDate: applicationDate || null,
           },
         },
         { skipUid: userUid },

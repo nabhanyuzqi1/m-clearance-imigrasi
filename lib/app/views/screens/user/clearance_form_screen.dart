@@ -16,6 +16,8 @@ import '../../../models/clearance_application.dart';
 import '../../../services/user_service.dart';
 import '../../../services/network_utils.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/auth_service.dart';
+import '../../../utils/file_utils.dart';
 import '../../widgets/custom_app_bar.dart';
 import 'clearance_result_screen.dart';
 import 'document_view_screen.dart';
@@ -72,11 +74,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
   // File data storage
   Uint8List? _portClearanceFileData;
-  Uint8List? _crewListFileData;
   Uint8List? _notificationLetterFileData;
-  String? _portClearanceFileName,
-      _crewListFileName,
-      _notificationLetterFileName;
+  String? _portClearanceFileName, _notificationLetterFileName;
+  final List<_PendingCrewFile> _pendingCrewListFiles = [];
+  List<String> _existingCrewListFiles = [];
 
   final ImagePicker _picker = ImagePicker();
 
@@ -125,9 +126,11 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       _wnaCrewController.text = app.wnaCrew ?? '';
       _selectedLocation = app.location ?? _locations.first;
       // For existing applications, we don't have file data, only names
-      _portClearanceFileName = app.portClearanceFile;
-      _crewListFileName = app.crewListFile;
-      _notificationLetterFileName = app.notificationLetterFile;
+      _portClearanceFileName = _friendlyFileName(app.portClearanceFile);
+      _existingCrewListFiles = List<String>.from(app.crewListFiles);
+      _notificationLetterFileName = _friendlyFileName(
+        app.notificationLetterFile,
+      );
     } else {
       LoggingService().debug('Creating new application form');
       _agentNameController.text = widget.agentName;
@@ -368,8 +371,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           _portClearanceFileName = fileName;
         }
         if (documentType == _tr('crew_list')) {
-          _crewListFileData = processedBytes;
-          _crewListFileName = fileName;
+          _pendingCrewListFiles.add(
+            _PendingCrewFile(name: fileName, bytes: processedBytes),
+          );
         }
         if (documentType == _tr('notification_letter')) {
           _notificationLetterFileData = processedBytes;
@@ -387,8 +391,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
   Future<void> _pickDocumentFile(String documentType) async {
     try {
+      final allowMultiple = documentType == _tr('crew_list');
       final result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
+        allowMultiple: allowMultiple,
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
         withData: true,
@@ -403,47 +408,89 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         return;
       }
 
-      final picked = result.files.single;
-      if (picked.bytes == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('select_file_failed')),
-            backgroundColor: AppTheme.errorColor,
-          ),
+      final files = allowMultiple ? result.files : [result.files.first];
+      final newCrewFiles = <_PendingCrewFile>[];
+      Uint8List? portData;
+      String? portName;
+      Uint8List? notificationData;
+      String? notificationName;
+
+      for (final picked in files) {
+        if (picked.bytes == null) {
+          continue;
+        }
+
+        final extension = _extensionFromName(picked.name).isNotEmpty
+            ? _extensionFromName(picked.name)
+            : _extensionFromName('document.pdf');
+        final processedBytes = _isImageExtension(extension)
+            ? await minifyImageData(picked.bytes!, fileExtension: extension)
+            : picked.bytes!;
+        final resolvedName = _ensureExtension(
+          picked.name.isNotEmpty ? picked.name : 'document.$extension',
+          extension,
         );
-        return;
+
+        if (documentType == _tr('port_clearance')) {
+          portData = processedBytes;
+          portName = resolvedName;
+        } else if (documentType == _tr('crew_list')) {
+          final alreadySelected = _pendingCrewListFiles.any(
+            (file) => file.name == resolvedName,
+          );
+          if (!alreadySelected) {
+            newCrewFiles.add(
+              _PendingCrewFile(name: resolvedName, bytes: processedBytes),
+            );
+          }
+        } else if (documentType == _tr('notification_letter')) {
+          notificationData = processedBytes;
+          notificationName = resolvedName;
+        }
       }
 
-      final extension = _extensionFromName(picked.name).isNotEmpty
-          ? _extensionFromName(picked.name)
-          : _extensionFromName('document.pdf');
-      final processedBytes = _isImageExtension(extension)
-          ? await minifyImageData(picked.bytes!, fileExtension: extension)
-          : picked.bytes!;
-      final name = _ensureExtension(
-        picked.name.isNotEmpty ? picked.name : 'document.$extension',
-        extension,
-      );
       setState(() {
         if (documentType == _tr('port_clearance')) {
-          _portClearanceFileData = processedBytes;
-          _portClearanceFileName = name;
-        }
-        if (documentType == _tr('crew_list')) {
-          _crewListFileData = processedBytes;
-          _crewListFileName = name;
-        }
-        if (documentType == _tr('notification_letter')) {
-          _notificationLetterFileData = processedBytes;
-          _notificationLetterFileName = name;
+          _portClearanceFileData = portData;
+          _portClearanceFileName = portName;
+        } else if (documentType == _tr('crew_list') &&
+            newCrewFiles.isNotEmpty) {
+          _pendingCrewListFiles.addAll(newCrewFiles);
+        } else if (documentType == _tr('notification_letter')) {
+          _notificationLetterFileData = notificationData;
+          _notificationLetterFileName = notificationName;
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${_tr('upload_success')}: $name'),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
+
+      if (documentType == _tr('crew_list')) {
+        final addedCount = newCrewFiles.length;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              addedCount == 0
+                  ? _tr('duplicate_file_warning')
+                  : addedCount == 1
+                  ? '${_tr('upload_success')}: ${newCrewFiles.first.name}'
+                  : _tr(
+                      'multiple_files_selected',
+                    ).replaceFirst('{count}', addedCount.toString()),
+            ),
+            backgroundColor: addedCount > 0
+                ? AppTheme.successColor
+                : AppTheme.errorColor,
+          ),
+        );
+      } else {
+        final nameToShow = portName ?? notificationName;
+        if (nameToShow != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${_tr('upload_success')}: $nameToShow'),
+              backgroundColor: AppTheme.successColor,
+            ),
+          );
+        }
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -482,9 +529,15 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
     LoggingService().info('Submit application button pressed');
 
-    if (_portClearanceFileData == null ||
-        _crewListFileData == null ||
-        _notificationLetterFileData == null) {
+    final hasPortClearance =
+        _portClearanceFileData != null || _portClearanceFileName != null;
+    final hasCrewList =
+        _pendingCrewListFiles.isNotEmpty || _existingCrewListFiles.isNotEmpty;
+    final hasNotification =
+        _notificationLetterFileData != null ||
+        _notificationLetterFileName != null;
+
+    if (!hasPortClearance || !hasCrewList || !hasNotification) {
       LoggingService().warning(
         'Missing required documents, redirecting to upload step',
       );
@@ -600,8 +653,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
       final portUploadPlanned =
           _portClearanceFileData != null && _portClearanceFileName != null;
-      final crewUploadPlanned =
-          _crewListFileData != null && _crewListFileName != null;
+      final crewUploadPlanned = _pendingCrewListFiles.isNotEmpty;
       final notificationUploadPlanned =
           _notificationLetterFileData != null &&
           _notificationLetterFileName != null;
@@ -618,14 +670,16 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       }
 
       if (crewUploadPlanned) {
-        uploadTasks.add(
-          _uploadDocumentToStorage(
-            _crewListFileData!,
-            _crewListFileName!,
-            user.uid,
-            'crew_list',
-          ),
-        );
+        for (final file in _pendingCrewListFiles) {
+          uploadTasks.add(
+            _uploadDocumentToStorage(
+              file.bytes,
+              file.name,
+              user.uid,
+              'crew_list',
+            ),
+          );
+        }
       }
 
       if (notificationUploadPlanned) {
@@ -650,11 +704,14 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         }
       }
 
-      String? crewListUrl;
+      final newCrewListUrls = <String>[];
       if (crewUploadPlanned) {
-        crewListUrl = uploadResults[resultIndex++];
-        if (crewListUrl == null || crewListUrl.isEmpty) {
-          throw Exception(_tr('upload_failed'));
+        for (var i = 0; i < _pendingCrewListFiles.length; i++) {
+          final uploadedUrl = uploadResults[resultIndex++];
+          if (uploadedUrl == null || uploadedUrl.isEmpty) {
+            throw Exception(_tr('upload_failed'));
+          }
+          newCrewListUrls.add(uploadedUrl);
         }
       }
 
@@ -667,6 +724,11 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       }
 
       LoggingService().info('File uploads completed successfully');
+
+      final combinedCrewListFiles = <String>[
+        ..._existingCrewListFiles.where((url) => url.trim().isNotEmpty),
+        ...newCrewListUrls,
+      ];
 
       final application = ClearanceApplication(
         id: widget.existingApplication?.id ?? '',
@@ -690,7 +752,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
             : _wnaCrewController.text.trim(),
         portClearanceFile:
             portClearanceUrl ?? widget.existingApplication?.portClearanceFile,
-        crewListFile: crewListUrl ?? widget.existingApplication?.crewListFile,
+        crewListFiles: combinedCrewListFiles,
         notificationLetterFile:
             notificationLetterUrl ??
             widget.existingApplication?.notificationLetterFile,
@@ -820,15 +882,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     ),
                   );
                 },
-                child: IndexedStack(
-                  key: ValueKey<int>(_currentStep),
-                  index: _currentStep - 1,
-                  children: [
-                    _buildFormStep(key: const ValueKey('form_step')),
-                    _buildUploadStep(key: const ValueKey('upload_step')),
-                    _buildSubmitStep(key: const ValueKey('submit_step')),
-                  ],
-                ),
+                child: _buildStepContent(),
               ),
             ),
           ],
@@ -905,7 +959,22 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     );
   }
 
-  Widget _buildFormStep({Key? key}) {
+  Widget _buildStepContent() {
+    switch (_currentStep) {
+      case 1:
+        return Form(
+          key: _formKey,
+          child: _buildFormStepContent(key: const ValueKey('form_step')),
+        );
+      case 2:
+        return _buildUploadStep(key: const ValueKey('upload_step'));
+      case 3:
+      default:
+        return _buildSubmitStep(key: const ValueKey('submit_step'));
+    }
+  }
+
+  Widget _buildFormStepContent({Key? key}) {
     final applicationType = widget.existingApplication?.type ?? widget.type;
     final bool isKedatangan = applicationType == ApplicationType.kedatangan;
     final String portLabel = isKedatangan ? _tr('last_port') : _tr('next_port');
@@ -914,165 +983,162 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final horizontalPadding = screenWidth * 0.06;
     final verticalSpacing = screenWidth * 0.03;
 
-    return Form(
-      key: _formKey,
-      child: ListView(
-        shrinkWrap: true,
-        padding: EdgeInsets.all(horizontalPadding),
-        children: [
-          Text(
-            _formInstruction,
-            style: TextStyle(
-              color: AppTheme.greyShade500,
-              fontSize: screenWidth * 0.035,
-            ),
+    return ListView(
+      key: key,
+      shrinkWrap: true,
+      padding: EdgeInsets.all(horizontalPadding),
+      children: [
+        Text(
+          _formInstruction,
+          style: TextStyle(
+            color: AppTheme.greyShade500,
+            fontSize: screenWidth * 0.035,
           ),
-          SizedBox(height: verticalSpacing),
-          _buildTextField(
-            label: _tr('ship_name'),
-            controller: _shipNameController,
-            hint: _shipNameHint,
-            key: const ValueKey('ship_name_field'),
-          ),
-          Padding(
-            key: const ValueKey('flag_dropdown'),
-            padding: EdgeInsets.only(bottom: verticalSpacing),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _tr('flag'),
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: screenWidth * 0.04,
-                  ),
-                ),
-                SizedBox(height: screenWidth * 0.02),
-                DropdownButtonFormField<String>(
-                  key: const ValueKey('flag_selector'),
-                  // ignore: deprecated_member_use
-                  value: _selectedFlag,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.greyShade50,
-                  ),
-                  items: _countryFlags.map((String country) {
-                    return DropdownMenuItem<String>(
-                      value: country,
-                      child: Text(
-                        country,
-                        style: TextStyle(fontSize: screenWidth * 0.035),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    if (newValue == null) return;
-                    setState(() {
-                      _selectedFlag = newValue;
-                    });
-                  },
-                  validator: (value) =>
-                      value == null ? _tr('select_flag') : null,
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            key: const ValueKey('location_dropdown'),
-            padding: EdgeInsets.only(bottom: verticalSpacing),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _tr('location'),
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: screenWidth * 0.04,
-                  ),
-                ),
-                SizedBox(height: screenWidth * 0.02),
-                DropdownButtonFormField<String>(
-                  key: const ValueKey('location_selector'),
-                  initialValue: _selectedLocation,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.greyShade50,
-                  ),
-                  items: _locations.map((String location) {
-                    return DropdownMenuItem<String>(
-                      value: location,
-                      child: Text(
-                        location,
-                        style: TextStyle(fontSize: screenWidth * 0.035),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    setState(() {
-                      _selectedLocation = newValue;
-                    });
-                  },
-                  validator: (value) =>
-                      value == null ? _tr('select_location') : null,
-                ),
-              ],
-            ),
-          ),
-          _buildTextField(
-            label: portLabel,
-            controller: _portController,
-            hint: _tr('tanjung_priok'),
-            key: const ValueKey('port_field'),
-          ),
-          _buildTextField(
-            label: dateLabel,
-            controller: _dateController,
-            hint: _selectDateHint,
-            isReadOnly: true,
-            isDate: true,
-            key: const ValueKey('date_field'),
-          ),
-          Row(
-            key: const ValueKey('crew_row'),
+        ),
+        SizedBox(height: verticalSpacing),
+        _buildTextField(
+          label: _tr('ship_name'),
+          controller: _shipNameController,
+          hint: _shipNameHint,
+          key: const ValueKey('ship_name_field'),
+        ),
+        Padding(
+          key: const ValueKey('flag_dropdown'),
+          padding: EdgeInsets.only(bottom: verticalSpacing),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: _buildTextField(
-                  label: _tr('wni_crew'),
-                  controller: _wniCrewController,
-                  hint: "0",
-                  isNumeric: true,
-                  key: const ValueKey('wni_crew_field'),
+              Text(
+                _tr('flag'),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: screenWidth * 0.04,
                 ),
               ),
-              SizedBox(width: screenWidth * 0.04),
-              Expanded(
-                child: _buildTextField(
-                  label: _tr('wna_crew'),
-                  controller: _wnaCrewController,
-                  hint: "0",
-                  isNumeric: true,
-                  key: const ValueKey('wna_crew_field'),
+              SizedBox(height: screenWidth * 0.02),
+              DropdownButtonFormField<String>(
+                key: const ValueKey('flag_selector'),
+                // ignore: deprecated_member_use
+                value: _selectedFlag,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: AppTheme.greyShade50,
                 ),
+                items: _countryFlags.map((String country) {
+                  return DropdownMenuItem<String>(
+                    value: country,
+                    child: Text(
+                      country,
+                      style: TextStyle(fontSize: screenWidth * 0.035),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (newValue) {
+                  if (newValue == null) return;
+                  setState(() {
+                    _selectedFlag = newValue;
+                  });
+                },
+                validator: (value) => value == null ? _tr('select_flag') : null,
               ),
             ],
           ),
-          SizedBox(height: verticalSpacing),
-          ElevatedButton(
-            onPressed: () => _goToStep(2),
-            style: ElevatedButton.styleFrom(
-              padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
-              textStyle: TextStyle(fontSize: screenWidth * 0.04),
-            ),
-            child: Text(_next),
+        ),
+        Padding(
+          key: const ValueKey('location_dropdown'),
+          padding: EdgeInsets.only(bottom: verticalSpacing),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _tr('location'),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: screenWidth * 0.04,
+                ),
+              ),
+              SizedBox(height: screenWidth * 0.02),
+              DropdownButtonFormField<String>(
+                key: const ValueKey('location_selector'),
+                initialValue: _selectedLocation,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: AppTheme.greyShade50,
+                ),
+                items: _locations.map((String location) {
+                  return DropdownMenuItem<String>(
+                    value: location,
+                    child: Text(
+                      location,
+                      style: TextStyle(fontSize: screenWidth * 0.035),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (newValue) {
+                  setState(() {
+                    _selectedLocation = newValue;
+                  });
+                },
+                validator: (value) =>
+                    value == null ? _tr('select_location') : null,
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        _buildTextField(
+          label: portLabel,
+          controller: _portController,
+          hint: _tr('tanjung_priok'),
+          key: const ValueKey('port_field'),
+        ),
+        _buildTextField(
+          label: dateLabel,
+          controller: _dateController,
+          hint: _selectDateHint,
+          isReadOnly: true,
+          isDate: true,
+          key: const ValueKey('date_field'),
+        ),
+        Row(
+          key: const ValueKey('crew_row'),
+          children: [
+            Expanded(
+              child: _buildTextField(
+                label: _tr('wni_crew'),
+                controller: _wniCrewController,
+                hint: "0",
+                isNumeric: true,
+                key: const ValueKey('wni_crew_field'),
+              ),
+            ),
+            SizedBox(width: screenWidth * 0.04),
+            Expanded(
+              child: _buildTextField(
+                label: _tr('wna_crew'),
+                controller: _wnaCrewController,
+                hint: "0",
+                isNumeric: true,
+                key: const ValueKey('wna_crew_field'),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: verticalSpacing),
+        ElevatedButton(
+          onPressed: () => _goToStep(2),
+          style: ElevatedButton.styleFrom(
+            padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+            textStyle: TextStyle(fontSize: screenWidth * 0.04),
+          ),
+          child: Text(_next),
+        ),
+      ],
     );
   }
 
@@ -1102,11 +1168,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           key: const ValueKey('port_clearance_card'),
         ),
         SizedBox(height: verticalSpacing),
-        _buildUploadCard(
+        _buildCrewListUploadCard(
           title: _tr('crew_list'),
           subtitle: _tr('crew_list_subtitle'),
-          fileName: _crewListFileName,
-          onTap: () => _showImageSourceActionSheet(_tr('crew_list')),
           key: const ValueKey('crew_list_card'),
         ),
         SizedBox(height: verticalSpacing),
@@ -1158,6 +1222,13 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.06;
     final verticalSpacing = screenWidth * 0.03;
+    final reviewCrewFiles = <String>[
+      ..._existingCrewListFiles.map((url) {
+        final parsed = _friendlyFileName(url);
+        return parsed ?? url;
+      }),
+      ..._pendingCrewListFiles.map((file) => file.name),
+    ];
 
     if (_isSubmitting) {
       return _buildShimmerLoading();
@@ -1247,7 +1318,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                           _tr('port_clearance'),
                           _portClearanceFileName,
                         ),
-                        _buildDocumentRow(_tr('crew_list'), _crewListFileName),
+                        _buildDocumentRowList(
+                          _tr('crew_list'),
+                          reviewCrewFiles,
+                        ),
                       ],
                     ),
                   ),
@@ -1452,12 +1526,12 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     if (isUploaded) {
       if (title == _tr('port_clearance')) {
         fileData = _portClearanceFileData;
-      } else if (title == _tr('crew_list')) {
-        fileData = _crewListFileData;
       } else if (title == _tr('notification_letter')) {
         fileData = _notificationLetterFileData;
       }
     }
+
+    final displayName = _friendlyFileName(fileName);
 
     return Card(
       key: key,
@@ -1484,93 +1558,95 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
             ),
             SizedBox(height: verticalSpacing),
             isUploaded
-                ? Row(
-                    children: [
-                      // File preview/thumbnail
-                      Container(
-                        width: screenWidth * 0.08,
-                        height: screenWidth * 0.08,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          color: AppTheme.greyShade200,
-                        ),
-                        child:
-                            fileData != null &&
-                                fileName.toLowerCase().endsWith('.pdf')
-                            ? Icon(
-                                Icons.picture_as_pdf,
-                                color: AppTheme.errorColor,
-                                size: screenWidth * 0.05,
-                              )
-                            : fileData != null &&
-                                  (fileName.toLowerCase().endsWith('.jpg') ||
-                                      fileName.toLowerCase().endsWith(
-                                        '.jpeg',
-                                      ) ||
-                                      fileName.toLowerCase().endsWith('.png'))
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: Image.memory(
-                                  fileData,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Icon(
-                                        Icons.image,
-                                        color: AppTheme.greyColor,
-                                        size: screenWidth * 0.05,
-                                      ),
-                                ),
-                              )
-                            : Icon(
-                                Icons.insert_drive_file,
-                                color: AppTheme.primaryColor,
-                                size: screenWidth * 0.05,
-                              ),
-                      ),
-                      SizedBox(width: screenWidth * 0.02),
-                      const Icon(
-                        Icons.check_circle,
-                        color: AppTheme.successColor,
-                      ),
-                      SizedBox(width: screenWidth * 0.02),
-                      Expanded(
-                        child: Text(
-                          fileName,
-                          style: TextStyle(
-                            color: AppTheme.successColor,
-                            fontSize: screenWidth * 0.035,
+                ? () {
+                    final String name = fileName ?? '';
+                    final safeName = displayName ?? name;
+                    return Row(
+                      children: [
+                        // File preview/thumbnail
+                        Container(
+                          width: screenWidth * 0.08,
+                          height: screenWidth * 0.08,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: AppTheme.greyShade200,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          if (fileData != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => DocumentViewScreen(
-                                  fileData: fileData as Uint8List,
-                                  fileName: fileName,
+                          child:
+                              fileData != null &&
+                                  name.toLowerCase().endsWith('.pdf')
+                              ? Icon(
+                                  Icons.picture_as_pdf,
+                                  color: AppTheme.errorColor,
+                                  size: screenWidth * 0.05,
+                                )
+                              : fileData != null &&
+                                    (name.toLowerCase().endsWith('.jpg') ||
+                                        name.toLowerCase().endsWith('.jpeg') ||
+                                        name.toLowerCase().endsWith('.png'))
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.memory(
+                                    fileData,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) => Icon(
+                                          Icons.image,
+                                          color: AppTheme.greyColor,
+                                          size: screenWidth * 0.05,
+                                        ),
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.insert_drive_file,
+                                  color: AppTheme.primaryColor,
+                                  size: screenWidth * 0.05,
                                 ),
-                              ),
-                            );
-                          }
-                        },
-                        icon: const Icon(
-                          Icons.visibility,
-                          color: AppTheme.greyShade600,
                         ),
-                      ),
-                      IconButton(
-                        onPressed: onTap,
-                        icon: const Icon(
-                          Icons.edit,
-                          color: AppTheme.greyShade600,
+                        SizedBox(width: screenWidth * 0.02),
+                        const Icon(
+                          Icons.check_circle,
+                          color: AppTheme.successColor,
                         ),
-                      ),
-                    ],
-                  )
+                        SizedBox(width: screenWidth * 0.02),
+                        Expanded(
+                          child: Text(
+                            safeName,
+                            style: TextStyle(
+                              color: AppTheme.successColor,
+                              fontSize: screenWidth * 0.035,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            if (fileData != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => DocumentViewScreen(
+                                    fileData: fileData as Uint8List,
+                                    fileName: fileName,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.visibility,
+                            color: AppTheme.greyShade600,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: onTap,
+                          icon: const Icon(
+                            Icons.edit,
+                            color: AppTheme.greyShade600,
+                          ),
+                        ),
+                      ],
+                    );
+                  }()
                 : OutlinedButton.icon(
                     onPressed: onTap,
                     icon: const Icon(Icons.upload_file),
@@ -1594,6 +1670,215 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildCrewListUploadCard({
+    required String title,
+    required String subtitle,
+    Key? key,
+  }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth * 0.04;
+    final verticalSpacing = screenWidth * 0.03;
+
+    final combinedEntries = <Widget>[];
+
+    for (final entry in _existingCrewListFiles.asMap().entries) {
+      final index = entry.key;
+      final url = entry.value;
+      final parsedName = _friendlyFileName(url);
+      final displayName = parsedName ?? 'crew_list_${index + 1}'.toUpperCase();
+      combinedEntries.add(
+        _buildCrewListRow(
+          name: displayName,
+          icon: Icons.cloud_done_rounded,
+          onView: () => _viewStoredDocument(url, displayName),
+          onRemove: () => _removeExistingCrewDocument(index),
+        ),
+      );
+    }
+
+    for (final entry in _pendingCrewListFiles.asMap().entries) {
+      final index = entry.key;
+      final file = entry.value;
+      combinedEntries.add(
+        _buildCrewListRow(
+          name: file.name,
+          icon: Icons.upload_file,
+          onView: () => _openPendingCrewDocument(file),
+          onRemove: () => _removePendingCrewDocument(index),
+        ),
+      );
+    }
+
+    return Card(
+      key: key,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(horizontalPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: screenWidth * 0.04,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: screenWidth * 0.03,
+                color: AppTheme.greyShade600,
+              ),
+            ),
+            SizedBox(height: verticalSpacing),
+            OutlinedButton.icon(
+              onPressed: () => _showImageSourceActionSheet(_tr('crew_list')),
+              icon: const Icon(Icons.add_circle_outline),
+              label: Text(
+                _tr('add_more_documents'),
+                style: TextStyle(fontSize: screenWidth * 0.04),
+              ),
+              style: OutlinedButton.styleFrom(
+                minimumSize: Size(double.infinity, screenWidth * 0.12),
+                side: const BorderSide(color: AppTheme.primaryColor),
+                foregroundColor: AppTheme.primaryColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+              ),
+            ),
+            SizedBox(height: verticalSpacing),
+            if (combinedEntries.isEmpty)
+              Text(
+                _tr('crew_list_empty'),
+                style: TextStyle(
+                  color: AppTheme.greyShade500,
+                  fontSize: screenWidth * 0.035,
+                ),
+              )
+            else
+              ...combinedEntries,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCrewListRow({
+    required String name,
+    required IconData icon,
+    required VoidCallback onRemove,
+    VoidCallback? onView,
+  }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    return Container(
+      margin: EdgeInsets.only(top: screenWidth * 0.02),
+      padding: EdgeInsets.all(screenWidth * 0.03),
+      decoration: BoxDecoration(
+        color: AppTheme.greyShade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.greyShade200),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.primaryColor),
+          SizedBox(width: screenWidth * 0.03),
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                fontSize: screenWidth * 0.035,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (onView != null)
+            IconButton(
+              tooltip: _tr('view_file'),
+              icon: const Icon(
+                Icons.visibility_outlined,
+                color: AppTheme.primaryColor,
+              ),
+              onPressed: onView,
+            ),
+          IconButton(
+            tooltip: _tr('remove_file'),
+            icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
+            onPressed: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _removeExistingCrewDocument(int index) {
+    setState(() {
+      _existingCrewListFiles.removeAt(index);
+    });
+  }
+
+  void _removePendingCrewDocument(int index) {
+    setState(() {
+      _pendingCrewListFiles.removeAt(index);
+    });
+  }
+
+  Future<void> _openPendingCrewDocument(_PendingCrewFile file) async {
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            DocumentViewScreen(fileData: file.bytes, fileName: file.name),
+      ),
+    );
+  }
+
+  Future<void> _viewStoredDocument(String url, String fileName) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(_tr('download_start'))));
+    try {
+      final authService = AuthService();
+      final data = await authService.downloadFileData(url);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      if (data == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('download_failed'))));
+        return;
+      }
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              DocumentViewScreen(fileData: data, fileName: fileName),
+        ),
+      );
+    } catch (e) {
+      LoggingService().error('Error viewing stored crew document', e);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_tr('download_failed'))));
+    }
+  }
+
+  String? _friendlyFileName(String? reference) {
+    if (reference == null || reference.isEmpty) {
+      return null;
+    }
+    final parsed = getFileNameFromUrl(reference);
+    return parsed.isNotEmpty ? parsed : reference;
   }
 
   Widget _buildDetailRow(String label, String value) {
@@ -1640,6 +1925,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final verticalPadding = screenWidth * 0.02;
     final horizontalSpacing = screenWidth * 0.04;
 
+    final resolvedName = _friendlyFileName(fileName);
+
     return Padding(
       padding: EdgeInsets.symmetric(vertical: verticalPadding),
       child: Row(
@@ -1662,9 +1949,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   ),
                 ),
                 Text(
-                  fileName ?? _tr('not_uploaded'),
+                  resolvedName ?? _tr('not_uploaded'),
                   style: TextStyle(
-                    color: fileName != null
+                    color: resolvedName != null
                         ? AppTheme.primaryColor
                         : AppTheme.errorColor,
                     fontSize: screenWidth * 0.03,
@@ -1677,4 +1964,68 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       ),
     );
   }
+
+  Widget _buildDocumentRowList(String label, List<String> fileNames) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final verticalPadding = screenWidth * 0.02;
+    final horizontalSpacing = screenWidth * 0.04;
+    final hasFiles = fileNames.isNotEmpty;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: verticalPadding),
+      child: Row(
+        children: [
+          Icon(
+            Icons.description_outlined,
+            color: AppTheme.greyShade400,
+            size: screenWidth * 0.05,
+          ),
+          SizedBox(width: horizontalSpacing),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: screenWidth * 0.04,
+                  ),
+                ),
+                if (!hasFiles)
+                  Text(
+                    _tr('not_uploaded'),
+                    style: TextStyle(
+                      color: AppTheme.errorColor,
+                      fontSize: screenWidth * 0.03,
+                    ),
+                  )
+                else
+                  ...fileNames.map(
+                    (name) => Padding(
+                      padding: EdgeInsets.only(top: screenWidth * 0.01),
+                      child: Text(
+                        '• $name',
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: screenWidth * 0.03,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingCrewFile {
+  _PendingCrewFile({required this.name, required this.bytes});
+
+  final String name;
+  final Uint8List bytes;
 }
