@@ -19,9 +19,9 @@ class ClearanceApplication {
   final String? wnaCrew;
   final String? officerName;
   final String? location;
-  final String? portClearanceFile;
+  final List<String> portClearanceFiles;
   final List<String> crewListFiles;
-  final String? notificationLetterFile;
+  final List<String> notificationLetterFiles;
   final String? clearanceResultFile;
   final DateTime? clearanceResultGeneratedAt;
   final String? clearanceResultSignedBy;
@@ -44,16 +44,18 @@ class ClearanceApplication {
     this.wnaCrew,
     this.officerName,
     this.location,
-    this.portClearanceFile,
+    List<String>? portClearanceFiles,
     List<String>? crewListFiles,
-    this.notificationLetterFile,
+    List<String>? notificationLetterFiles,
     this.clearanceResultFile,
     this.clearanceResultGeneratedAt,
     this.clearanceResultSignedBy,
     this.clearanceResultSignedByCorporate,
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) : crewListFiles = crewListFiles ?? const [],
+  }) : portClearanceFiles = portClearanceFiles ?? const [],
+       crewListFiles = crewListFiles ?? const [],
+       notificationLetterFiles = notificationLetterFiles ?? const [],
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now();
 
@@ -101,9 +103,17 @@ class ClearanceApplication {
             data['locationDisplay'] ??
             data['lokasi'],
       ),
-      portClearanceFile: data['portClearanceFile'],
+      portClearanceFiles: _resolveFileList(
+        data,
+        multipleKey: 'portClearanceFiles',
+        singleKey: 'portClearanceFile',
+      ),
       crewListFiles: _resolveCrewListFiles(data),
-      notificationLetterFile: data['notificationLetterFile'],
+      notificationLetterFiles: _resolveFileList(
+        data,
+        multipleKey: 'notificationLetterFiles',
+        singleKey: 'notificationLetterFile',
+      ),
       clearanceResultFile: data['clearanceResultFile'],
       clearanceResultGeneratedAt:
           (data['clearanceResultGeneratedAt'] as Timestamp?)?.toDate(),
@@ -129,9 +139,11 @@ class ClearanceApplication {
       'wnaCrew': wnaCrew,
       'officerName': officerName,
       'location': location,
+      'portClearanceFiles': portClearanceFiles,
       'portClearanceFile': portClearanceFile,
       'crewListFiles': crewListFiles,
       'crewListFile': crewListFiles.isNotEmpty ? crewListFiles.first : null,
+      'notificationLetterFiles': notificationLetterFiles,
       'notificationLetterFile': notificationLetterFile,
       'clearanceResultFile': clearanceResultFile,
       'clearanceResultGeneratedAt': clearanceResultGeneratedAt,
@@ -154,9 +166,9 @@ class ClearanceApplication {
     String? notes,
     String? officerName,
     String? location,
-    String? portClearanceFile,
+    List<String>? portClearanceFiles,
     List<String>? crewListFiles,
-    String? notificationLetterFile,
+    List<String>? notificationLetterFiles,
     String? clearanceResultFile,
     DateTime? clearanceResultGeneratedAt,
     String? clearanceResultSignedBy,
@@ -178,10 +190,11 @@ class ClearanceApplication {
       wnaCrew: wnaCrew,
       officerName: officerName ?? this.officerName,
       location: location ?? this.location,
-      portClearanceFile: portClearanceFile ?? this.portClearanceFile,
+      portClearanceFiles:
+          portClearanceFiles ?? List<String>.from(this.portClearanceFiles),
       crewListFiles: crewListFiles ?? List<String>.from(this.crewListFiles),
-      notificationLetterFile:
-          notificationLetterFile ?? this.notificationLetterFile,
+      notificationLetterFiles: notificationLetterFiles ??
+          List<String>.from(this.notificationLetterFiles),
       clearanceResultFile: clearanceResultFile ?? this.clearanceResultFile,
       clearanceResultGeneratedAt: clearanceResultGeneratedAt ??
           this.clearanceResultGeneratedAt,
@@ -196,6 +209,12 @@ class ClearanceApplication {
 
   String? get crewListFile =>
       crewListFiles.isNotEmpty ? crewListFiles.first : null;
+
+  String? get portClearanceFile =>
+      portClearanceFiles.isNotEmpty ? portClearanceFiles.first : null;
+
+  String? get notificationLetterFile =>
+      notificationLetterFiles.isNotEmpty ? notificationLetterFiles.first : null;
 }
 
 String? _normalizeLocation(dynamic value) {
@@ -229,6 +248,29 @@ List<String> _resolveCrewListFiles(Map<String, dynamic> data) {
   if (singleFile is String && singleFile.trim().isNotEmpty) {
     if (!files.contains(singleFile.trim())) {
       files.add(singleFile.trim());
+    }
+  }
+  return files;
+}
+
+List<String> _resolveFileList(
+  Map<String, dynamic> data, {
+  required String multipleKey,
+  required String singleKey,
+}) {
+  final List<String> files = [];
+  final rawList = data[multipleKey];
+  if (rawList is List) {
+    for (final item in rawList) {
+      if (item is String && item.trim().isNotEmpty) {
+        files.add(item.trim());
+      }
+    }
+  }
+  final single = data[singleKey];
+  if (single is String && single.trim().isNotEmpty) {
+    if (!files.contains(single.trim())) {
+      files.add(single.trim());
     }
   }
   return files;

@@ -3,10 +3,10 @@ import '../../../config/theme.dart';
 import '../../../models/clearance_application.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
-import '../../../services/functions_service.dart';
 import '../../../services/auth_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/attachment_status_tile.dart';
 import 'document_view_screen.dart';
 import '../../../utils/file_utils.dart';
 import 'clearance_form_screen.dart';
@@ -311,124 +311,25 @@ class ArrivalDetailScreen extends StatelessWidget {
 
             SizedBox(height: AppTheme.spacing24),
 
-            // File Attachments
-            Container(
-              padding: EdgeInsets.all(AppTheme.spacing16),
-              decoration: BoxDecoration(
-                color: AppTheme.whiteColor,
-                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.greyColor.withAlpha(25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.attach_file,
-                        color: AppTheme.primaryColor,
-                        size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
-                      ),
-                      SizedBox(width: AppTheme.spacing12),
-                      Text(
-                        'Attached Documents',
-                        style: TextStyle(
-                          fontSize: AppTheme.fontSizeH6,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.onSurface,
-                          fontFamily: 'Poppins',
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: AppTheme.spacing16),
-                  _buildFileItem(
-                    context,
-                    'Port Clearance',
-                    application.portClearanceFile,
-                  ),
-                  if (application.crewListFiles.isEmpty)
-                    _buildFileItem(context, 'Crew List', null)
-                  else
-                    ...application.crewListFiles.asMap().entries.map(
-                      (entry) => _buildFileItem(
-                        context,
-                        application.crewListFiles.length > 1
-                            ? 'Crew List #${entry.key + 1}'
-                            : 'Crew List',
-                        entry.value,
-                      ),
-                    ),
-                  _buildFileItem(
-                    context,
-                    'Notification Letter',
-                    application.notificationLetterFile,
-                  ),
-                ],
-              ),
-            ),
+            _buildAttachmentsSection(context),
 
             SizedBox(height: AppTheme.spacing24),
+
+            if (application.status == ApplicationStatus.approved &&
+                application.clearanceResultFile != null &&
+                application.clearanceResultFile!.isNotEmpty)
+              _buildDownloadCertificateCard(context),
+
+            if (application.status == ApplicationStatus.approved &&
+                application.clearanceResultFile != null &&
+                application.clearanceResultFile!.isNotEmpty)
+              SizedBox(height: AppTheme.spacing24),
 
             if (application.status == ApplicationStatus.revision)
               _buildRevisionBanner(context),
 
             if (application.status == ApplicationStatus.revision)
               SizedBox(height: AppTheme.spacing24),
-
-            // PDF Generation Button
-            Container(
-              padding: EdgeInsets.all(AppTheme.spacing16),
-              decoration: BoxDecoration(
-                color: AppTheme.whiteColor,
-                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.greyColor.withAlpha(25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'Generate PDF Report',
-                    style: TextStyle(
-                      fontSize: AppTheme.fontSizeH6,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.onSurface,
-                      fontFamily: 'Poppins',
-                    ),
-                  ),
-                  SizedBox(height: AppTheme.spacing12),
-                  Text(
-                    'Download a comprehensive PDF report of this application with official M-Clearance ISam branding.',
-                    style: TextStyle(
-                      fontSize: AppTheme.fontSizeBody2,
-                      color: AppTheme.subtitleColor,
-                      fontFamily: 'Poppins',
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  SizedBox(height: AppTheme.spacing16),
-                  CustomButton(
-                    text: 'Generate & Download PDF',
-                    type: CustomButtonType.elevated,
-                    backgroundColor: AppTheme.primaryColor,
-                    onPressed: () => _generatePDF(context),
-                    isFullWidth: true,
-                  ),
-                ],
-              ),
-            ),
-
             SizedBox(height: AppTheme.spacing32),
           ],
         ),
