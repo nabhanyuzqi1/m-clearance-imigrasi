@@ -4,6 +4,7 @@ import 'firestore_provider.dart';
 import '../services/logging_service.dart';
 import '../services/notification_service.dart';
 import '../services/officer_service.dart';
+import '../services/clearance_certificate_service.dart';
 
 class ApplicationRepository {
   final FirebaseFirestore _db;
@@ -128,25 +129,76 @@ class ApplicationRepository {
     required String decision, // 'approved' | 'declined' | 'revision'
     String? note,
     String? officerName,
+    String? officerCorporateName,
   }) async {
     final notificationService = NotificationService();
     final officerService = OfficerService();
+    final certificateService = ClearanceCertificateService();
 
     try {
       LoggingService().info(
         'Officer decision on application $appId: $decision',
       );
+      final docRef = _db.collection('applications').doc(appId);
+      ClearanceApplication? applicationModel;
+      String shipName = '';
+
+      try {
+        final snapshot = await docRef.get();
+        if (snapshot.exists) {
+          applicationModel = ClearanceApplication.fromFirestore(snapshot);
+          shipName = applicationModel.shipName;
+        } else {
+          LoggingService().warning(
+            'Attempted to decide on missing application document: $appId',
+          );
+        }
+      } catch (e, stackTrace) {
+        LoggingService().error(
+          'Failed to fetch application $appId before updating decision',
+          e,
+          stackTrace,
+        );
+      }
+
       final updates = <String, dynamic>{
         'status': decision,
         if (note != null) 'notes': note,
         if (officerName != null) 'officerName': officerName,
         'updatedAt': FieldValue.serverTimestamp(),
       };
-      await _db.collection('applications').doc(appId).update(updates);
-      LoggingService().info('Application $appId status updated to $decision');
 
-      final application = await _db.collection('applications').doc(appId).get();
-      final shipName = application.data()?['shipName'] as String? ?? '';
+      if (decision == 'approved' && applicationModel != null) {
+        final resolvedOfficerName =
+            officerName?.trim().isNotEmpty == true ? officerName!.trim() :
+            'Immigration Officer';
+        final resolvedCorporateName = officerCorporateName?.trim().isNotEmpty ==
+            true
+            ? officerCorporateName!.trim()
+            : resolvedOfficerName;
+
+        final certificateUrl = await certificateService.generateCertificate(
+          application: applicationModel,
+          officerName: resolvedOfficerName,
+          officerCorporateName: resolvedCorporateName,
+        );
+
+        if (certificateUrl != null) {
+          updates.addAll({
+            'clearanceResultFile': certificateUrl,
+            'clearanceResultGeneratedAt': FieldValue.serverTimestamp(),
+            'clearanceResultSignedBy': resolvedOfficerName,
+            'clearanceResultSignedByCorporate': resolvedCorporateName,
+          });
+        } else {
+          LoggingService().warning(
+            'Certificate generation returned null for application $appId',
+          );
+        }
+      }
+
+      await docRef.update(updates);
+      LoggingService().info('Application $appId status updated to $decision');
 
       final statusEnum = decision == 'approved'
           ? ApplicationStatus.approved

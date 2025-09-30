@@ -31,9 +31,14 @@ class ClearanceResultScreen extends StatelessWidget {
     final submittedAtText = DateFormat(
       'dd MMM yyyy HH:mm',
     ).format(createdAtLocal);
+    final certificateGeneratedAtLocal =
+        application.clearanceResultGeneratedAt?.toLocal();
+    final certificateGeneratedAtText = certificateGeneratedAtLocal != null
+        ? DateFormat('dd MMM yyyy HH:mm').format(certificateGeneratedAtLocal)
+        : null;
     final notProvided = tr('not_provided');
 
-    String _cleanValue(String? raw) {
+    String cleanValue(String? raw) {
       if (raw == null) return notProvided;
       final trimmed = raw.trim();
       if (trimmed.isEmpty) return notProvided;
@@ -50,7 +55,7 @@ class ClearanceResultScreen extends StatelessWidget {
           : trimmed;
     }
 
-    String formatLocation(String? location) => _cleanValue(location);
+    String formatLocation(String? location) => cleanValue(location);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -253,7 +258,7 @@ class ClearanceResultScreen extends StatelessWidget {
 
                     _buildDetailRow(
                       isArrival ? tr('last_port') : tr('next_port'),
-                      _cleanValue(application.port),
+                      cleanValue(application.port),
                     ),
 
                     if (application.date != null)
@@ -270,7 +275,27 @@ class ClearanceResultScreen extends StatelessWidget {
                     if (application.officerName != null)
                       _buildDetailRow(
                         tr('officer_name'),
-                        _cleanValue(application.officerName),
+                        cleanValue(application.officerName),
+                      ),
+
+                    if (application.clearanceResultSignedBy != null)
+                      _buildDetailRow(
+                        tr('certificate_signed_by'),
+                        cleanValue(application.clearanceResultSignedBy),
+                      ),
+
+                    if (application.clearanceResultSignedByCorporate != null)
+                      _buildDetailRow(
+                        tr('certificate_signed_by_corporate'),
+                        cleanValue(
+                          application.clearanceResultSignedByCorporate,
+                        ),
+                      ),
+
+                    if (certificateGeneratedAtText != null)
+                      _buildDetailRow(
+                        tr('certificate_generated_at'),
+                        certificateGeneratedAtText,
                       ),
 
                     _buildDetailRow(
@@ -837,6 +862,18 @@ class ClearanceResultScreen extends StatelessWidget {
         context,
       ),
     ];
+
+    if (application.clearanceResultFile != null &&
+        application.clearanceResultFile!.isNotEmpty) {
+      widgets.insert(
+        0,
+        _buildFileCard(
+          tr('clearance_certificate'),
+          application.clearanceResultFile,
+          context,
+        ),
+      );
+    }
 
     if (application.crewListFiles.isEmpty) {
       widgets.add(_buildFileCard(tr('crew_list'), null, context));

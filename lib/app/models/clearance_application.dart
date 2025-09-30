@@ -22,6 +22,10 @@ class ClearanceApplication {
   final String? portClearanceFile;
   final List<String> crewListFiles;
   final String? notificationLetterFile;
+  final String? clearanceResultFile;
+  final DateTime? clearanceResultGeneratedAt;
+  final String? clearanceResultSignedBy;
+  final String? clearanceResultSignedByCorporate;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -43,6 +47,10 @@ class ClearanceApplication {
     this.portClearanceFile,
     List<String>? crewListFiles,
     this.notificationLetterFile,
+    this.clearanceResultFile,
+    this.clearanceResultGeneratedAt,
+    this.clearanceResultSignedBy,
+    this.clearanceResultSignedByCorporate,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) : crewListFiles = crewListFiles ?? const [],
@@ -96,6 +104,12 @@ class ClearanceApplication {
       portClearanceFile: data['portClearanceFile'],
       crewListFiles: _resolveCrewListFiles(data),
       notificationLetterFile: data['notificationLetterFile'],
+      clearanceResultFile: data['clearanceResultFile'],
+      clearanceResultGeneratedAt:
+          (data['clearanceResultGeneratedAt'] as Timestamp?)?.toDate(),
+      clearanceResultSignedBy: data['clearanceResultSignedBy'],
+      clearanceResultSignedByCorporate:
+          data['clearanceResultSignedByCorporate'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -119,6 +133,10 @@ class ClearanceApplication {
       'crewListFiles': crewListFiles,
       'crewListFile': crewListFiles.isNotEmpty ? crewListFiles.first : null,
       'notificationLetterFile': notificationLetterFile,
+      'clearanceResultFile': clearanceResultFile,
+      'clearanceResultGeneratedAt': clearanceResultGeneratedAt,
+      'clearanceResultSignedBy': clearanceResultSignedBy,
+      'clearanceResultSignedByCorporate': clearanceResultSignedByCorporate,
     };
 
     print('DEBUG: ClearanceApplication.toFirestore() data: $data');
@@ -139,6 +157,10 @@ class ClearanceApplication {
     String? portClearanceFile,
     List<String>? crewListFiles,
     String? notificationLetterFile,
+    String? clearanceResultFile,
+    DateTime? clearanceResultGeneratedAt,
+    String? clearanceResultSignedBy,
+    String? clearanceResultSignedByCorporate,
     DateTime? updatedAt,
   }) {
     return ClearanceApplication(
@@ -160,6 +182,13 @@ class ClearanceApplication {
       crewListFiles: crewListFiles ?? List<String>.from(this.crewListFiles),
       notificationLetterFile:
           notificationLetterFile ?? this.notificationLetterFile,
+      clearanceResultFile: clearanceResultFile ?? this.clearanceResultFile,
+      clearanceResultGeneratedAt: clearanceResultGeneratedAt ??
+          this.clearanceResultGeneratedAt,
+      clearanceResultSignedBy:
+          clearanceResultSignedBy ?? this.clearanceResultSignedBy,
+      clearanceResultSignedByCorporate: clearanceResultSignedByCorporate ??
+          this.clearanceResultSignedByCorporate,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );

@@ -2,6 +2,7 @@ const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const { Resend } = require("resend");
 const { logger } = require("firebase-functions");
+const { randomUUID } = require("crypto");
 
 // Initialize Admin SDK exactly once
 admin.initializeApp();
@@ -849,48 +850,125 @@ async function generateClearanceDocument(uid, application) {
     const pdfMake = new PDFMake(fonts);
     console.log("[generateClearanceDocument] PDFMake instance created");
 
-    // M-Clearance ISam logo (base64 encoded - you would need to replace this with actual base64)
-    // For now using a placeholder - in production, you'd upload the logo to storage and reference it
-    const logoBase64 =
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="; // Placeholder
+    const bucket = admin.storage().bucket();
+    const generatedMillis = Date.now();
+    const safeShipName = (application.shipName || "Unknown").replace(
+      /[^a-zA-Z0-9]/g,
+      "_",
+    );
+    const rawApplicationId = application.id || safeShipName || "application";
+    const filename = `clearance_documents/${uid}/${rawApplicationId}_${generatedMillis}.pdf`;
+    const downloadToken = randomUUID();
+    const encodedPath = encodeURIComponent(filename);
+    const bucketName = bucket.name;
+    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${downloadToken}`;
 
-    // Safely format dates
-    let submittedAtText = "N/A";
-    try {
-      if (application.createdAt) {
-        const timestamp = application.createdAt.toMillis
-          ? application.createdAt.toMillis()
-          : application.createdAt;
-        submittedAtText = new Date(timestamp).toLocaleString();
+    const asDate = (value) => {
+      if (!value) return null;
+      if (typeof value === "number") return new Date(value);
+      if (typeof value === "string") {
+        const parsed = Date.parse(value);
+        return Number.isNaN(parsed) ? null : new Date(parsed);
       }
-    } catch (dateError) {
-      console.warn(
-        "[generateClearanceDocument] Error formatting date:",
-        dateError,
-      );
-    }
+      if (value.toDate) {
+        try {
+          return value.toDate();
+        } catch (error) {
+          console.warn(
+            "[generateClearanceDocument] Unable to convert Firestore Timestamp via toDate():",
+            error,
+          );
+        }
+      }
+      if (value.toMillis) {
+        try {
+          return new Date(value.toMillis());
+        } catch (error) {
+          console.warn(
+            "[generateClearanceDocument] Unable to convert Firestore Timestamp via toMillis():",
+            error,
+          );
+        }
+      }
+      return null;
+    };
+
+    const formatDate = (value, fallback = "N/A") => {
+      const date = asDate(value);
+      if (!date || Number.isNaN(date.getTime())) return fallback;
+      return date.toLocaleString("en-US", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+
+    const submittedAtText = formatDate(application.createdAt);
+    const approvedAtText = formatDate(application.updatedAt);
+    const status = (application.status || "").toString().toUpperCase() || "N/A";
+    const applicationTypeRaw = (application.type || "").toString().toLowerCase();
+    const applicationType =
+      applicationTypeRaw === "arrival" || applicationTypeRaw === "kedatangan"
+        ? "Arrival"
+        : applicationTypeRaw === "departure" ||
+            applicationTypeRaw === "keberangkatan"
+        ? "Departure"
+        : applicationTypeRaw || "Unknown";
+
+    const officerName =
+      application.clearanceResultSignedBy ||
+      application.officerName ||
+      "Immigration Officer";
+    const officerCorporate =
+      application.clearanceResultSignedByCorporate ||
+      application.officerCorporateName ||
+      "Directorate General of Immigration";
 
     const docDefinition = {
       content: [
-        // Header with logo
         {
           columns: [
             {
-              image: logoBase64,
-              width: 50,
-              height: 50,
+              stack: [
+                {
+                  text: "Directorate General of Immigration",
+                  style: "companyHeader",
+                },
+                {
+                  text: "M-Clearance ISam",
+                  style: "companySubheader",
+                },
+              ],
               alignment: "left",
             },
             {
-              text: "M-Clearance ISam",
-              style: "companyHeader",
+              width: "auto",
+              margin: [0, 0, 0, 0],
               alignment: "right",
-              margin: [0, 15, 0, 0],
+              table: {
+                widths: [90],
+                body: [
+                  [
+                    {
+                      qr: downloadUrl,
+                      fit: 90,
+                      alignment: "right",
+                    },
+                  ],
+                ],
+              },
+              layout: {
+                paddingLeft: () => 0,
+                paddingRight: () => 0,
+                paddingTop: () => 0,
+                paddingBottom: () => 0,
+              },
             },
           ],
-          margin: [0, 0, 0, 20],
+          margin: [0, 0, 0, 16],
         },
-        // Divider line
         {
           canvas: [
             {
@@ -899,160 +977,232 @@ async function generateClearanceDocument(uid, application) {
               y1: 0,
               x2: 515,
               y2: 0,
-              lineWidth: 1,
-              lineColor: "#007bff",
+              lineWidth: 2,
+              lineColor: "#003049",
             },
           ],
           margin: [0, 0, 0, 20],
         },
-        // Title
         {
-          text: "Clearance Application Document",
-          style: "header",
-          alignment: "center",
+          text: "Immigration Clearance Certificate",
+          style: "title",
         },
         {
-          text: `Application ID: ${application.id || "N/A"}`,
-          style: "subheader",
-          alignment: "center",
+          text: "Official confirmation of vessel clearance approval",
+          style: "subtitle",
+          margin: [0, 0, 0, 18],
         },
-        // Spacer
-        { text: "", margin: [0, 0, 0, 20] },
-        // Application Details
         {
-          table: {
-            widths: ["auto", "*"],
-            body: [
-              [
-                { text: "Ship Name:", style: "tableLabel" },
-                { text: application.shipName || "N/A", style: "tableValue" },
-              ],
-              [
-                { text: "Flag:", style: "tableLabel" },
-                { text: application.flag || "N/A", style: "tableValue" },
-              ],
-              [
-                { text: "Agent Name:", style: "tableLabel" },
-                { text: application.agentName || "N/A", style: "tableValue" },
-              ],
-              [
-                { text: "Application Type:", style: "tableLabel" },
-                { text: application.type || "N/A", style: "tableValue" },
-              ],
-              [
-                { text: "Port:", style: "tableLabel" },
-                { text: application.port || "N/A", style: "tableValue" },
-              ],
-              [
-                { text: "Date:", style: "tableLabel" },
-                { text: application.date || "N/A", style: "tableValue" },
-              ],
-              [
-                { text: "WNI Crew:", style: "tableLabel" },
-                {
-                  text: application.wniCrew?.toString() || "0",
-                  style: "tableValue",
-                },
-              ],
-              [
-                { text: "WNA Crew:", style: "tableLabel" },
-                {
-                  text: application.wnaCrew?.toString() || "0",
-                  style: "tableValue",
-                },
-              ],
-              [
-                { text: "Location:", style: "tableLabel" },
-                { text: application.location || "N/A", style: "tableValue" },
-              ],
-              [
-                { text: "Status:", style: "tableLabel" },
-                { text: application.status || "N/A", style: "tableValue" },
-              ],
-              [
-                { text: "Submitted At:", style: "tableLabel" },
-                { text: submittedAtText, style: "tableValue" },
-              ],
-              [
-                { text: "Reviewed By:", style: "tableLabel" },
-                {
-                  text: application.officerName || "Not reviewed yet",
-                  style: "tableValue",
-                },
-              ],
-            ],
-          },
-          layout: {
-            fillColor: function (rowIndex) {
-              return rowIndex % 2 === 0 ? "#f8f9fa" : null;
+          columns: [
+            {
+              width: "*",
+              table: {
+                widths: [160, "*"],
+                body: [
+                  [
+                    { text: "Application ID", style: "label" },
+                    { text: rawApplicationId, style: "value" },
+                  ],
+                  [
+                    { text: "Vessel Name", style: "label" },
+                    { text: application.shipName || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Flag", style: "label" },
+                    { text: application.flag || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Agent", style: "label" },
+                    { text: application.agentName || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Application Type", style: "label" },
+                    { text: applicationType, style: "value" },
+                  ],
+                  [
+                    { text: "Declared Voyage", style: "label" },
+                    { text: application.date || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Location / Port", style: "label" },
+                    { text: application.location || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Crew (WNI)", style: "label" },
+                    {
+                      text:
+                        application.wniCrew != null
+                          ? String(application.wniCrew)
+                          : "0",
+                      style: "value",
+                    },
+                  ],
+                  [
+                    { text: "Crew (WNA)", style: "label" },
+                    {
+                      text:
+                        application.wnaCrew != null
+                          ? String(application.wnaCrew)
+                          : "0",
+                      style: "value",
+                    },
+                  ],
+                  [
+                    { text: "Status", style: "label" },
+                    { text: status, style: "value" },
+                  ],
+                  [
+                    { text: "Submitted", style: "label" },
+                    { text: submittedAtText, style: "value" },
+                  ],
+                  [
+                    { text: "Approved", style: "label" },
+                    { text: approvedAtText, style: "value" },
+                  ],
+                ],
+              },
+              layout: "lightHorizontalLines",
             },
-          },
+          ],
           margin: [0, 0, 0, 20],
         },
-        // Notes section if available
+        {
+          text:
+            "The Directorate General of Immigration certifies that the vessel and documents listed above have been reviewed and meet the clearance requirements set forth by Indonesian immigration authorities.",
+          style: "paragraph",
+          margin: [0, 0, 0, 18],
+        },
+        {
+          text:
+            "The embedded QR code links to the digitally signed certificate stored in the M-Clearance system. Presenting this certificate verifies the authenticity of the clearance decision for the vessel in question.",
+          style: "note",
+          margin: [0, 0, 0, 24],
+        },
+        {
+          columns: [
+            {
+              width: "*",
+              stack: [
+                { text: "Applicant / Shipping Agent", style: "signatureLabel" },
+                { text: "Digitally acknowledged via M-Clearance", style: "signatureHint" },
+                { text: "", margin: [0, 16, 0, 0] },
+                { text: "______________________________", style: "signatureLine" },
+                {
+                  text: application.agentName || "Authorized Representative",
+                  style: "signatureName",
+                  margin: [0, 6, 0, 0],
+                },
+              ],
+            },
+            {
+              width: "*",
+              stack: [
+                { text: "Immigration Officer", style: "signatureLabel" },
+                { text: "Digitally signed by Directorate General of Immigration", style: "signatureHint" },
+                { text: "", margin: [0, 16, 0, 0] },
+                { text: "______________________________", style: "signatureLine" },
+                { text: officerName, style: "signatureName", margin: [0, 6, 0, 0] },
+                { text: officerCorporate, style: "signatureCorp" },
+              ],
+            },
+          ],
+          columnGap: 30,
+          margin: [0, 0, 0, 30],
+        },
         ...(application.notes
           ? [
               {
-                text: "Officer Notes:",
+                text: "Officer Notes",
                 style: "notesHeader",
-                margin: [0, 20, 0, 10],
+                margin: [0, 0, 0, 6],
               },
               {
                 text: application.notes,
                 style: "notesText",
-                margin: [0, 0, 0, 20],
+                margin: [0, 0, 0, 24],
               },
             ]
           : []),
-        // Footer
         {
-          text: "Generated by M-Clearance ISam System",
+          text: `Document Reference: ${rawApplicationId}-${generatedMillis}`,
           style: "footer",
           alignment: "center",
-          margin: [0, 40, 0, 0],
         },
       ],
       styles: {
         companyHeader: {
-          fontSize: 20,
-          bold: true,
-          color: "#007bff",
-        },
-        header: {
-          fontSize: 18,
-          bold: true,
-          margin: [0, 0, 0, 10],
-          color: "#007bff",
-        },
-        subheader: {
           fontSize: 14,
           bold: true,
-          margin: [0, 5, 0, 5],
+          color: "#003049",
+        },
+        companySubheader: {
+          fontSize: 10,
           color: "#495057",
         },
-        tableLabel: {
+        title: {
+          fontSize: 22,
+          bold: true,
+          color: "#003049",
+          margin: [0, 0, 0, 8],
+        },
+        subtitle: {
           fontSize: 12,
+          color: "#495057",
+        },
+        label: {
+          fontSize: 10,
           bold: true,
           color: "#495057",
-          margin: [0, 8, 0, 8],
         },
-        tableValue: {
-          fontSize: 12,
+        value: {
+          fontSize: 10,
           color: "#212529",
-          margin: [0, 8, 0, 8],
+        },
+        paragraph: {
+          fontSize: 11,
+          lineHeight: 1.4,
+          color: "#212529",
+        },
+        note: {
+          fontSize: 9,
+          italics: true,
+          color: "#6c757d",
+        },
+        signatureLabel: {
+          fontSize: 11,
+          bold: true,
+          color: "#003049",
+        },
+        signatureHint: {
+          fontSize: 9,
+          italics: true,
+          color: "#6c757d",
+        },
+        signatureLine: {
+          fontSize: 11,
+          color: "#adb5bd",
+        },
+        signatureName: {
+          fontSize: 11,
+          bold: true,
+          color: "#212529",
+        },
+        signatureCorp: {
+          fontSize: 9,
+          color: "#6c757d",
         },
         notesHeader: {
-          fontSize: 14,
+          fontSize: 11,
           bold: true,
-          color: "#dc3545",
+          color: "#d00000",
         },
         notesText: {
-          fontSize: 12,
-          color: "#6c757d",
-          italics: true,
+          fontSize: 10,
+          color: "#495057",
+          lineHeight: 1.3,
         },
         footer: {
-          fontSize: 10,
+          fontSize: 8,
           color: "#6c757d",
           italics: true,
         },
@@ -1090,31 +1240,21 @@ async function generateClearanceDocument(uid, application) {
           console.log(
             "[generateClearanceDocument] Starting upload to Firebase Storage...",
           );
-          const bucket = admin.storage().bucket();
-          const safeShipName = (application.shipName || "Unknown").replace(
-            /[^a-zA-Z0-9]/g,
-            "_",
-          );
-          const filename = `clearance_documents/${uid}/${safeShipName}_${Date.now()}.pdf`;
           const file = bucket.file(filename);
 
-          console.log("[generateClearanceDocument] Uploading file:", filename);
           await file.save(result, {
-            metadata: { contentType: "application/pdf" },
+            metadata: {
+              contentType: "application/pdf",
+              metadata: {
+                firebaseStorageDownloadTokens: downloadToken,
+                applicationId: rawApplicationId,
+                generatedBy: officerName,
+              },
+            },
           });
           console.log("[generateClearanceDocument] File uploaded successfully");
 
-          // Get signed URL
-          console.log("[generateClearanceDocument] Generating signed URL...");
-          const [signedUrl] = await file.getSignedUrl({
-            action: "read",
-            expires: "03-09-2491",
-          });
-
-          console.log(
-            "[generateClearanceDocument] Signed URL generated successfully",
-          );
-          resolve(signedUrl);
+          resolve(downloadUrl);
         } catch (uploadError) {
           console.error(
             "[generateClearanceDocument] Upload error:",
@@ -1207,7 +1347,10 @@ exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
       if (decision === "approved") {
         const applicationSnap = await txn.get(applicationRef);
         if (applicationSnap.exists) {
-          applicationData = applicationSnap.data() || {};
+          applicationData = {
+            id: applicationSnap.id,
+            ...(applicationSnap.data() || {}),
+          };
         } else {
           logger.warn(
             `[officerDecideAccount] No application document found for uid ${targetUid}. Skipping clearance document generation.`,
@@ -2004,7 +2147,10 @@ exports.generateHistoryPDF = functions.https.onCall(async (data, context) => {
       );
     }
 
-    const application = applicationSnap.data();
+    const application = {
+      id: applicationSnap.id,
+      ...(applicationSnap.data() || {}),
+    };
     console.log(
       "[generateHistoryPDF] Retrieved application data for:",
       applicationId,

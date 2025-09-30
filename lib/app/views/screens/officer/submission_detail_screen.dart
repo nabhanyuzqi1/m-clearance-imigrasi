@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../models/clearance_application.dart';
 import '../../../localization/app_localizations.dart';
@@ -59,11 +60,33 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     });
 
     try {
+      String? officerCorporateName;
+      if (decision == 'approved') {
+        try {
+          final currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser != null) {
+            final authService = AuthService();
+            final userModel = await authService.getUserData(
+              currentUser.uid,
+              forceRefresh: true,
+            );
+            officerCorporateName = userModel?.corporateName;
+          }
+        } catch (e, stackTrace) {
+          LoggingService().warning(
+            'Unable to resolve officer corporate name for approval',
+            e,
+            stackTrace,
+          );
+        }
+      }
+
       await repo.officerDecide(
         appId: appId,
         decision: decision,
         note: note,
         officerName: widget.adminName,
+        officerCorporateName: officerCorporateName,
       );
       LoggingService().info(logMessage);
 
