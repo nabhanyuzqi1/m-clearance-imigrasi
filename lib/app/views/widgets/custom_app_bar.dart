@@ -37,21 +37,28 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.iconTheme,
     this.titleTextStyle,
     this.systemOverlayStyle,
-  }) : assert(title == null || titleText == null, 'Cannot provide both title and titleText');
+  }) : assert(
+         title == null || titleText == null,
+         'Cannot provide both title and titleText',
+       );
 
   @override
   Widget build(BuildContext context) {
-    LoggingService().debug('Building CustomAppBar with title: ${titleText ?? 'widget'}');
-    final defaultTitleStyle = AppTheme.headingSmall(context).copyWith(
-      color: foregroundColor ?? AppTheme.onSurface,
+    LoggingService().debug(
+      'Building CustomAppBar with title: ${titleText ?? 'widget'}',
     );
+    final colorScheme = Theme.of(context).colorScheme;
+    final resolvedForeground = foregroundColor ?? colorScheme.onSurface;
+    final resolvedBackground = backgroundColor ?? colorScheme.surface;
+    final defaultTitleStyle = AppTheme.headingSmall(
+      context,
+    ).copyWith(color: resolvedForeground);
 
-    final appBarTitle = title ?? (titleText != null
-        ? Text(
-            titleText!,
-            style: titleTextStyle ?? defaultTitleStyle,
-          )
-        : null);
+    final appBarTitle =
+        title ??
+        (titleText != null
+            ? Text(titleText!, style: titleTextStyle ?? defaultTitleStyle)
+            : null);
 
     return AppBar(
       title: appBarTitle,
@@ -62,8 +69,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             )
           : leading,
       actions: actions,
-      backgroundColor: backgroundColor ?? AppTheme.surfaceColor,
-      foregroundColor: foregroundColor ?? AppTheme.onSurface,
+      backgroundColor: resolvedBackground,
+      foregroundColor: resolvedForeground,
       elevation: elevation ?? 0,
       centerTitle: centerTitle,
       toolbarHeight: toolbarHeight,
@@ -82,14 +89,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
 // Helper widget for notification icon with badge
 class NotificationIconWithBadge extends StatelessWidget {
-  final int badgeCount;
+  final Stream<int> badgeCountStream;
   final VoidCallback? onPressed;
   final Color? iconColor;
   final double? iconSize;
 
   const NotificationIconWithBadge({
     super.key,
-    required this.badgeCount,
+    required this.badgeCountStream,
     this.onPressed,
     this.iconColor,
     this.iconSize,
@@ -97,44 +104,56 @@ class NotificationIconWithBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    LoggingService().debug('Building NotificationIconWithBadge with count: $badgeCount');
+    LoggingService().debug('Building NotificationIconWithBadge with stream');
 
-    return Stack(
-      children: [
-        IconButton(
-          icon: Icon(
-            Icons.notifications_none_outlined,
-            size: iconSize ?? 24.0,
-            color: iconColor ?? AppTheme.onSurface.withAlpha(138), // 0.54 * 255
-          ),
-          onPressed: onPressed,
-        ),
-        if (badgeCount > 0)
-          Positioned(
-            right: 4.0,
-            top: 4.0,
-            child: Container(
-              padding: const EdgeInsets.all(2.0),
-              decoration: const BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
+    return StreamBuilder<int>(
+      stream: badgeCountStream,
+      initialData: 0,
+      builder: (context, snapshot) {
+        final badgeCount = snapshot.data ?? 0;
+        LoggingService().debug(
+          'NotificationIconWithBadge stream update: $badgeCount',
+        );
+
+        return Stack(
+          children: [
+            IconButton(
+              icon: Icon(
+                Icons.notifications_none_outlined,
+                size: iconSize ?? 24.0,
+                color:
+                    iconColor ?? Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              constraints: const BoxConstraints(
-                minWidth: 16.0,
-                minHeight: 16.0,
-              ),
-              child: Text(
-                badgeCount > 99 ? '99+' : '$badgeCount',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10.0,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
+              onPressed: onPressed,
             ),
-          ),
-      ],
+            if (badgeCount > 0)
+              Positioned(
+                right: 4.0,
+                top: 4.0,
+                child: Container(
+                  padding: const EdgeInsets.all(2.0),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16.0,
+                    minHeight: 16.0,
+                  ),
+                  child: Text(
+                    badgeCount > 99 ? '99+' : '$badgeCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.0,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -166,7 +185,7 @@ class LogoTitle extends StatelessWidget {
           errorBuilder: (context, error, stackTrace) => Icon(
             Icons.directions_boat,
             size: logoSize ?? 32.0,
-            color: AppTheme.primaryColor,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(width: 8.0),
@@ -174,7 +193,7 @@ class LogoTitle extends StatelessWidget {
           Text(
             text!,
             style: AppTheme.headingSmall(context).copyWith(
-              color: textColor ?? AppTheme.onSurface,
+              color: textColor ?? Theme.of(context).colorScheme.onSurface,
             ),
           ),
       ],

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../providers/language_provider.dart';
+
 import '../../../localization/app_localizations.dart';
+import '../../../providers/language_provider.dart';
 import '../../../services/logging_service.dart';
-import '../../../config/theme.dart';
+import '../../widgets/custom_app_bar.dart';
 
 class LanguageSelectionScreen extends StatelessWidget {
   const LanguageSelectionScreen({super.key});
@@ -15,21 +16,15 @@ class LanguageSelectionScreen extends StatelessWidget {
     final langCode = languageProvider.locale.languageCode;
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.06; // 6% of screen width
-    final maxWidth = screenWidth > 600 ? 600.0 : double.infinity; // Constrain width on tablets
+    final maxWidth = screenWidth > 600
+        ? 600.0
+        : double.infinity; // Constrain width on tablets
 
-    String tr(String key) => AppLocalizations.of(context).get('userProfile.$key');
+    String tr(String key) =>
+        AppLocalizations.of(context).get('userProfile.$key');
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          tr('select_language'),
-          style: TextStyle(
-            fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeH6, tablet: AppTheme.fontSizeH5, desktop: AppTheme.fontSizeH4),
-            fontWeight: FontWeight.w600,
-            fontFamily: 'Poppins',
-          ),
-        ),
-      ),
+      appBar: CustomAppBar(titleText: tr('select_language'), centerTitle: true),
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
         child: Center(
@@ -54,7 +49,9 @@ class LanguageSelectionScreen extends StatelessWidget {
                   languageCode: 'id',
                   currentLanguageCode: langCode,
                   onTap: () {
-                    LoggingService().info('Setting language to Indonesian (id)');
+                    LoggingService().info(
+                      'Setting language to Indonesian (id)',
+                    );
                     languageProvider.setLocale(const Locale('id'));
                     Navigator.pop(context);
                   },
@@ -74,10 +71,13 @@ class LanguageSelectionScreen extends StatelessWidget {
     required String currentLanguageCode,
     required VoidCallback onTap,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isSelected = currentLanguageCode == languageCode;
     return ListTile(
       title: Text(languageName),
-      trailing: isSelected ? const Icon(Icons.check, color: Colors.blue) : null,
+      trailing: isSelected
+          ? Icon(Icons.check, color: colorScheme.primary)
+          : null,
       onTap: onTap,
     );
   }

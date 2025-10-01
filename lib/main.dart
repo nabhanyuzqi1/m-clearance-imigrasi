@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'app/providers/connectivity_provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -15,6 +16,16 @@ import 'app/views/widgets/auth_wrapper.dart';
 import 'app/views/widgets/connectivity_gate.dart';
 import 'app/providers/language_provider.dart';
 import 'app/views/widgets/skeleton_loader.dart' as skeleton;
+import 'app/providers/theme_provider.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // If you're going to use other Firebase services in the background, such as Firestore,
+  // make sure you call `initializeApp` before using other Firebase services.
+  await Firebase.initializeApp();
+
+  debugPrint("Handling a background message: ${message.messageId}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,6 +97,22 @@ void main() async {
   } else {
     debugPrint('[Startup] Crashlytics skipped on web platform');
   }
+  // Set up Firebase Cloud Messaging
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Request notification permissions on app start if not already granted
+  try {
+    final settings = await FirebaseMessaging.instance.getNotificationSettings();
+    if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
+  } catch (e) {
+    debugPrint('[Startup] Error handling notification permissions: $e');
+  }
 
   // Preload critical assets for better startup performance
   runApp(
@@ -93,6 +120,7 @@ void main() async {
       providers: [
         Provider<AuthService>(create: (_) => AuthService()),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
       ],
       child: const MyApp(),
@@ -112,6 +140,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Set up foreground message handling
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Got a message whilst in the foreground!');
+      debugPrint('Message data: ${message.data}');
+
+      if (message.notification != null) {
+        debugPrint(
+          'Message also contained a notification: ${message.notification}',
+        );
+      }
+    });
   }
 
   @override
@@ -173,12 +212,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<LanguageProvider>(
-      builder: (context, languageProvider, child) {
+    return Consumer2<LanguageProvider, ThemeProvider>(
+      builder: (context, languageProvider, themeProvider, child) {
         return MaterialApp(
           title: 'M-Clearance ISAM',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.themeData,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeProvider.themeMode,
           scrollBehavior: const AppScrollBehavior(),
           locale: languageProvider.locale,
           supportedLocales: const [Locale('en', 'US'), Locale('id', 'ID')],

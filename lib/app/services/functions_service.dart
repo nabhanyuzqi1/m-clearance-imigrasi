@@ -14,11 +14,23 @@ class FunctionsService {
     return data;
   }
 
-  Future<Map<String, dynamic>> getOfficerMonthlyStats() async {
+  Future<Map<String, dynamic>> getOfficerStats({
+    required DateTime start,
+    required DateTime end,
+  }) async {
     final callable = _functions.httpsCallable('getOfficerMonthlyStats');
-    final result = await callable();
-    final data = Map<String, dynamic>.from(result.data ?? {});
-    return data;
+    final result = await callable(<String, dynamic>{
+      'startDate': start.toUtc().toIso8601String(),
+      'endDate': end.toUtc().toIso8601String(),
+    });
+    return Map<String, dynamic>.from(result.data ?? {});
+  }
+
+  Future<Map<String, dynamic>> getOfficerMonthlyStats() async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, 1);
+    final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
+    return getOfficerStats(start: start, end: end);
   }
 
   Future<void> officerDecideAccount({
@@ -103,7 +115,7 @@ class FunctionsService {
       return data
           .map(
             (item) =>
-                item is Map ? Map<String, dynamic>.from(item as Map) : null,
+                item is Map ? Map<String, dynamic>.from(item) : null,
           )
           .whereType<Map<String, dynamic>>()
           .toList();

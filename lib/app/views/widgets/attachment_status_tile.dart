@@ -3,7 +3,8 @@ import '../../config/theme.dart';
 import '../../localization/app_localizations.dart';
 import '../../services/logging_service.dart';
 
-typedef AttachmentViewer = Future<void> Function(BuildContext context, String url);
+typedef AttachmentViewer =
+    Future<void> Function(BuildContext context, String url);
 
 class AttachmentStatusTile extends StatelessWidget {
   const AttachmentStatusTile({
@@ -32,20 +33,25 @@ class AttachmentStatusTile extends StatelessWidget {
       _hasFiles ? 'attachments.attached' : 'attachments.not_attached',
     );
 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6.0),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        border: Border.all(color: AppTheme.greyShade200),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.greyShade200.withAlpha(90),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+        boxShadow: theme.brightness == Brightness.light
+            ? [
+                BoxShadow(
+                  color: AppTheme.greyShade200.withAlpha(70),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,7 +59,7 @@ class AttachmentStatusTile extends StatelessWidget {
           leading ??
               Icon(
                 Icons.insert_drive_file_outlined,
-                color: _hasFiles ? AppTheme.primaryColor : AppTheme.greyShade400,
+                color: _hasFiles ? colorScheme.primary : theme.disabledColor,
                 size: 22,
               ),
           const SizedBox(width: 12),
@@ -63,10 +69,8 @@ class AttachmentStatusTile extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w600,
-                    fontSize: AppTheme.fontSizeMedium,
-                    color: AppTheme.blackColor,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -76,16 +80,18 @@ class AttachmentStatusTile extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                     fontSize: AppTheme.fontSizeSmall,
                     color: _hasFiles
-                        ? AppTheme.successColor
-                        : AppTheme.errorColor,
+                        ? colorScheme.secondary
+                        : colorScheme.error,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   description,
-                  style: const TextStyle(
+                  style: theme.textTheme.bodySmall?.copyWith(
                     fontSize: AppTheme.fontSizeSmall,
-                    color: AppTheme.blackColor54,
+                    color: theme.textTheme.bodySmall?.color?.withValues(
+                      alpha: 0.7,
+                    ),
                   ),
                 ),
               ],
@@ -95,7 +101,7 @@ class AttachmentStatusTile extends StatelessWidget {
             tooltip: _hasFiles ? l10n.get('attachments.view') : null,
             icon: Icon(
               Icons.remove_red_eye_outlined,
-              color: _hasFiles ? AppTheme.primaryColor : AppTheme.greyShade400,
+              color: _hasFiles ? colorScheme.primary : theme.disabledColor,
             ),
             onPressed: _hasFiles ? () => _handleView(context) : null,
           ),
@@ -119,6 +125,7 @@ class AttachmentStatusTile extends StatelessWidget {
     }
 
     final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     await showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -142,20 +149,27 @@ class AttachmentStatusTile extends StatelessWidget {
                 final displayName = _resolveDisplayName(entry.value);
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: AppTheme.primaryColor.withAlpha(25),
+                    backgroundColor: colorScheme.primary.withValues(
+                      alpha: 0.15,
+                    ),
                     child: Text(
                       '${entry.key + 1}',
-                      style: const TextStyle(color: AppTheme.primaryColor),
+                      style: TextStyle(color: colorScheme.primary),
                     ),
                   ),
-                  title: Text(displayName,
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  title: Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   subtitle: Text(
                     l10n.get('attachments.view'),
                     style: const TextStyle(fontSize: AppTheme.fontSizeSmall),
                   ),
-                  trailing: const Icon(Icons.remove_red_eye_outlined,
-                      color: AppTheme.primaryColor),
+                  trailing: Icon(
+                    Icons.remove_red_eye_outlined,
+                    color: colorScheme.primary,
+                  ),
                   onTap: () async {
                     Navigator.of(sheetContext).pop();
                     await viewer(context, entry.value);

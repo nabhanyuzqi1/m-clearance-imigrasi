@@ -11,7 +11,8 @@ class OfficerVerificationScreen extends StatefulWidget {
   const OfficerVerificationScreen({super.key, required this.initialLanguage});
 
   @override
-  State<OfficerVerificationScreen> createState() => _OfficerVerificationScreenState();
+  State<OfficerVerificationScreen> createState() =>
+      _OfficerVerificationScreenState();
 }
 
 class _OfficerVerificationScreenState extends State<OfficerVerificationScreen> {
@@ -25,10 +26,10 @@ class _OfficerVerificationScreenState extends State<OfficerVerificationScreen> {
   }
 
   String _tr(String stringKey) => AppStrings.tr(
-        screenKey: 'officerSettings',
-        stringKey: stringKey,
-        langCode: _selectedLanguage,
-      );
+    screenKey: 'officerSettings',
+    stringKey: stringKey,
+    langCode: _selectedLanguage,
+  );
 
   Future<Map<String, dynamic>> _getVerificationStats() async {
     try {
@@ -42,16 +43,16 @@ class _OfficerVerificationScreenState extends State<OfficerVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    LoggingService().debug('Building OfficerVerificationScreen with language: $_selectedLanguage');
+    LoggingService().debug(
+      'Building OfficerVerificationScreen with language: $_selectedLanguage',
+    );
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.06;
     final maxWidth = screenWidth > 600 ? 600.0 : double.infinity;
 
     return Scaffold(
-      backgroundColor: AppTheme.whiteColor,
-      appBar: CustomAppBar(
-        titleText: _tr('verification_statistics'),
-      ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      appBar: CustomAppBar(titleText: _tr('verification_statistics')),
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
         child: Center(
@@ -71,21 +72,21 @@ class _OfficerVerificationScreenState extends State<OfficerVerificationScreen> {
                       title: _tr('pending_arrivals'),
                       value: stats['pendingArrival']?.toString() ?? '0',
                       icon: Icons.anchor,
-                      color: AppTheme.infoColor,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(height: 12),
                     _buildStatsCard(
                       title: _tr('pending_departures'),
                       value: stats['pendingDeparture']?.toString() ?? '0',
                       icon: Icons.directions_boat,
-                      color: AppTheme.primaryColor,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(height: 12),
                     _buildStatsCard(
                       title: _tr('pending_accounts'),
                       value: stats['pendingAccounts']?.toString() ?? '0',
                       icon: Icons.person_add,
-                      color: AppTheme.warningColor,
+                      color: Theme.of(context).colorScheme.secondary,
                     ),
                   ],
                 );
@@ -127,17 +128,27 @@ class _OfficerVerificationScreenState extends State<OfficerVerificationScreen> {
                     title,
                     style: TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeH6, desktop: AppTheme.fontSizeH6),
-                      color: AppTheme.greyColor,
+                      fontSize: AppTheme.responsiveFontSize(
+                        context,
+                        mobile: AppTheme.fontSizeBody1,
+                        tablet: AppTheme.fontSizeH6,
+                        desktop: AppTheme.fontSizeH6,
+                      ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   Text(
                     value,
                     style: TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeH4, tablet: AppTheme.fontSizeH3, desktop: AppTheme.fontSizeH2),
+                      fontSize: AppTheme.responsiveFontSize(
+                        context,
+                        mobile: AppTheme.fontSizeH4,
+                        tablet: AppTheme.fontSizeH3,
+                        desktop: AppTheme.fontSizeH2,
+                      ),
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.onSurface,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ],

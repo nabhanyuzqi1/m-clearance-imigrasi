@@ -9,16 +9,15 @@ import '../../widgets/custom_app_bar.dart';
 class DepartureVerificationScreen extends StatefulWidget {
   final String adminName;
 
-  const DepartureVerificationScreen({
-    super.key,
-    required this.adminName,
-  });
+  const DepartureVerificationScreen({super.key, required this.adminName});
 
   @override
-  State<DepartureVerificationScreen> createState() => _DepartureVerificationScreenState();
+  State<DepartureVerificationScreen> createState() =>
+      _DepartureVerificationScreenState();
 }
 
-class _DepartureVerificationScreenState extends State<DepartureVerificationScreen> {
+class _DepartureVerificationScreenState
+    extends State<DepartureVerificationScreen> {
   late final ApplicationRepository repo;
   String _selectedFilter = 'all'; // 'all', 'waiting', 'reviewed'
   final TextEditingController _searchController = TextEditingController();
@@ -27,7 +26,9 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
   @override
   void initState() {
     super.initState();
-    LoggingService().info('DepartureVerificationScreen initialized for admin: ${widget.adminName}');
+    LoggingService().info(
+      'DepartureVerificationScreen initialized for admin: ${widget.adminName}',
+    );
     repo = ApplicationRepository();
   }
 
@@ -43,17 +44,24 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
     super.dispose();
   }
 
-  String _tr(String key) => AppLocalizations.of(context).get('verificationList.$key');
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('verificationList.$key');
 
-  List<ClearanceApplication> _filterApplications(List<ClearanceApplication> apps) {
+  List<ClearanceApplication> _filterApplications(
+    List<ClearanceApplication> apps,
+  ) {
     // First filter by status
     List<ClearanceApplication> filteredApps;
     switch (_selectedFilter) {
       case 'waiting':
-        filteredApps = apps.where((app) => app.status == ApplicationStatus.waiting).toList();
+        filteredApps = apps
+            .where((app) => app.status == ApplicationStatus.waiting)
+            .toList();
         break;
       case 'reviewed':
-        filteredApps = apps.where((app) => app.status != ApplicationStatus.waiting).toList();
+        filteredApps = apps
+            .where((app) => app.status != ApplicationStatus.waiting)
+            .toList();
         break;
       case 'all':
       default:
@@ -65,15 +73,19 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
       final query = _searchQuery.toLowerCase();
       filteredApps = filteredApps.where((app) {
         return app.shipName.toLowerCase().contains(query) ||
-               app.agentName.toLowerCase().contains(query) ||
-               app.flag.toLowerCase().contains(query);
+            app.agentName.toLowerCase().contains(query) ||
+            app.flag.toLowerCase().contains(query);
       }).toList();
     }
 
     return filteredApps;
   }
 
-  Widget _buildFilterButton(String filter, String label) {
+  Widget _buildFilterButton(
+    String filter,
+    String label,
+    ColorScheme colorScheme,
+  ) {
     final isSelected = _selectedFilter == filter;
     return Expanded(
       child: ElevatedButton(
@@ -81,13 +93,15 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
           setState(() => _selectedFilter = filter);
         },
         style: ElevatedButton.styleFrom(
-          backgroundColor: isSelected ? AppTheme.primaryColor : AppTheme.greyShade200,
-          foregroundColor: isSelected ? AppTheme.whiteColor : AppTheme.blackColor87,
+          backgroundColor: isSelected
+              ? colorScheme.primary
+              : colorScheme.surfaceContainerHighest,
+          foregroundColor: isSelected
+              ? colorScheme.onPrimary
+              : colorScheme.onSurfaceVariant,
           elevation: isSelected ? 2 : 0,
           padding: const EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: Text(
           label,
@@ -100,16 +114,16 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
     );
   }
 
-  Color _getStatusColor(ApplicationStatus status) {
+  Color _getStatusColor(ColorScheme colorScheme, ApplicationStatus status) {
     switch (status) {
       case ApplicationStatus.waiting:
-        return AppTheme.primaryColor;
+        return colorScheme.primary;
       case ApplicationStatus.revision:
-        return AppTheme.warningColor;
+        return colorScheme.secondary;
       case ApplicationStatus.approved:
-        return AppTheme.successColor;
+        return colorScheme.tertiary;
       case ApplicationStatus.declined:
-        return AppTheme.errorColor;
+        return colorScheme.error;
     }
   }
 
@@ -126,23 +140,29 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
     }
   }
 
-  Widget _buildApplicationCard(ClearanceApplication app) {
+  Widget _buildApplicationCard(
+    ClearanceApplication app,
+    ColorScheme colorScheme,
+  ) {
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.06;
     final verticalSpacing = screenWidth * 0.03;
-    final statusColor = _getStatusColor(app.status);
+    final statusColor = _getStatusColor(colorScheme, app.status);
     final statusText = _getStatusText(app.status);
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalSpacing * 0.5),
+      margin: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalSpacing * 0.5,
+      ),
       padding: EdgeInsets.all(horizontalPadding),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.greyShade200),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.greyColor.withAlpha(13),
+            color: colorScheme.shadow.withAlpha(13),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -153,10 +173,7 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
           final result = await Navigator.pushNamed(
             context,
             '/submission-detail',
-            arguments: {
-              'application': app,
-              'adminName': widget.adminName,
-            },
+            arguments: {'application': app, 'adminName': widget.adminName},
           );
 
           if (result == true) {
@@ -168,7 +185,7 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
           children: [
             Icon(
               Icons.directions_boat,
-              color: AppTheme.primaryColor,
+              color: colorScheme.primary,
               size: screenWidth * 0.08,
             ),
             SizedBox(width: horizontalPadding * 0.5),
@@ -180,15 +197,15 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
                     app.shipName,
                     style: AppTheme.bodyMedium(context).copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.blackColor,
+                      color: colorScheme.onSurface,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     '${app.agentName} • ${app.flag}',
-                    style: AppTheme.bodySmall(context).copyWith(
-                      color: AppTheme.greyColor,
-                    ),
+                    style: AppTheme.bodySmall(
+                      context,
+                    ).copyWith(color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -204,10 +221,9 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
               ),
               child: Text(
                 statusText,
-                style: AppTheme.labelSmall(context).copyWith(
-                  color: statusColor,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: AppTheme.labelSmall(
+                  context,
+                ).copyWith(color: statusColor, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -219,16 +235,19 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
   @override
   Widget build(BuildContext context) {
     LoggingService().debug('Building DepartureVerificationScreen');
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
-        titleText: AppLocalizations.of(context).get('verificationList.departure_title'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        titleText: AppLocalizations.of(
+          context,
+        ).get('verificationList.departure_title'),
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh, color: AppTheme.onSurface),
+            icon: Icon(Icons.refresh, color: colorScheme.onSurface),
             onPressed: _refreshList,
           ),
         ],
@@ -238,7 +257,7 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
           // Search bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: AppTheme.whiteColor,
+            color: colorScheme.surface,
             child: TextField(
               controller: _searchController,
               onChanged: (value) {
@@ -249,33 +268,36 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppTheme.greyShade300),
+                  borderSide: BorderSide(color: colorScheme.outlineVariant),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppTheme.greyShade300),
+                  borderSide: BorderSide(color: colorScheme.outlineVariant),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppTheme.primaryColor, width: 2),
+                  borderSide: BorderSide(color: colorScheme.primary, width: 2),
                 ),
                 filled: true,
-                fillColor: AppTheme.greyShade50,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                fillColor: colorScheme.surfaceContainerHighest,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
               ),
             ),
           ),
           // Filter buttons
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: AppTheme.whiteColor,
+            color: colorScheme.surface,
             child: Row(
               children: [
-                _buildFilterButton('all', _tr('all')),
+                _buildFilterButton('all', _tr('all'), colorScheme),
                 const SizedBox(width: 8),
-                _buildFilterButton('waiting', _tr('waiting')),
+                _buildFilterButton('waiting', _tr('waiting'), colorScheme),
                 const SizedBox(width: 8),
-                _buildFilterButton('reviewed', _tr('reviewed')),
+                _buildFilterButton('reviewed', _tr('reviewed'), colorScheme),
               ],
             ),
           ),
@@ -292,7 +314,9 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
                   }
                   // Display an error message if there's an error fetching the data
                   if (snapshot.hasError) {
-                    LoggingService().error('Error fetching departure applications: ${snapshot.error}');
+                    LoggingService().error(
+                      'Error fetching departure applications: ${snapshot.error}',
+                    );
                     return Center(child: Text(_tr('error_loading')));
                   }
                   // Get the list of applications from the snapshot
@@ -310,7 +334,7 @@ class _DepartureVerificationScreenState extends State<DepartureVerificationScree
                     itemCount: apps.length,
                     itemBuilder: (context, index) {
                       final a = apps[index];
-                      return _buildApplicationCard(a);
+                      return _buildApplicationCard(a, colorScheme);
                     },
                   );
                 },

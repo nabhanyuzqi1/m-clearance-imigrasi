@@ -287,7 +287,14 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
               child: ElevatedButton(
                 onPressed: _isVerifying || _completed ? null : _verifyCode,
                 child: _isVerifying
-                    ? SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.onPrimary))
+                    ? SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      )
                     : Text(_tr('continue')),
               ),
             ),

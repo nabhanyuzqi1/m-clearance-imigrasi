@@ -678,7 +678,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                               width: 22,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppTheme.onPrimary,
+                                color: Theme.of(context).colorScheme.onPrimary,
                               ),
                             )
                           : Text(_tr('submit')),

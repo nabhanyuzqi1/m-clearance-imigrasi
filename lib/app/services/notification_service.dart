@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/notification_item.dart';
 import '../models/clearance_application.dart';
 import 'logging_service.dart';
@@ -178,10 +179,96 @@ class NotificationService {
       );
 
       final id = await createNotification(notification);
+
+      // Send push notification if permissions are granted
+      if (id != null) {
+        final permissionStatus = await checkPermissionStatus();
+        if (permissionStatus?.authorizationStatus ==
+            AuthorizationStatus.authorized) {
+          await sendPushNotification(title, body, user.uid);
+        }
+      }
+
       return id;
     } catch (e) {
       LoggingService().error('Error creating application notification', e);
       return null;
+    }
+  }
+
+  // FCM-related methods
+
+  // Request notification permissions
+  Future<NotificationSettings?> requestPermissions() async {
+    try {
+      final settings = await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      LoggingService().info('Notification permissions requested: $settings');
+      return settings;
+    } catch (e) {
+      LoggingService().error('Error requesting notification permissions', e);
+      return null;
+    }
+  }
+
+  // Check notification permission status
+  Future<NotificationSettings?> checkPermissionStatus() async {
+    try {
+      final settings = await FirebaseMessaging.instance
+          .getNotificationSettings();
+      return settings;
+    } catch (e) {
+      LoggingService().error(
+        'Error checking notification permission status',
+        e,
+      );
+      return null;
+    }
+  }
+
+  // Get FCM token
+  Future<String?> getFCMToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      LoggingService().info(
+        'FCM Token retrieved: ${token != null ? 'Present' : 'Null'}',
+      );
+      return token;
+    } catch (e) {
+      LoggingService().error('Error getting FCM token', e);
+      return null;
+    }
+  }
+
+  // Send push notification alongside in-app notification
+  Future<bool> sendPushNotification(
+    String title,
+    String body,
+    String userId,
+  ) async {
+    try {
+      // For now, this is a placeholder. In a real implementation,
+      // you would send the notification via your backend server
+      // which would use FCM to send the push notification.
+      // Here we just create the in-app notification.
+
+      final notification = NotificationItem(
+        id: '',
+        title: title,
+        body: body,
+        date: DateTime.now(),
+        type: NotificationType.update,
+        userId: userId,
+      );
+
+      final id = await createNotification(notification);
+      return id != null;
+    } catch (e) {
+      LoggingService().error('Error sending push notification', e);
+      return false;
     }
   }
 }

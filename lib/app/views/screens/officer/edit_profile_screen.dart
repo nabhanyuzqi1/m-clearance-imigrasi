@@ -110,6 +110,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final maxWidth = isTablet ? 400.0 : double.infinity;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     showDialog(
       context: context,
@@ -125,14 +127,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               style: TextStyle(
                 fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
-                color: AppTheme.onSurface,
+                color: colorScheme.onSurface,
               ),
             ),
             content: Text(
               _tr(messageKey),
               style: TextStyle(
                 fontSize: screenWidth * 0.04,
-                color: AppTheme.onSurface.withAlpha(179),
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
             actions: [
@@ -141,7 +143,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Text(
                   _tr('cancel'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -154,7 +156,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Text(
                   _tr('open_settings'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                     fontWeight: FontWeight.w600,
                   ),
@@ -171,6 +173,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final maxWidth = isTablet ? 400.0 : double.infinity;
+    final colorScheme = Theme.of(context).colorScheme;
 
     showDialog(
       context: context,
@@ -186,7 +189,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               style: TextStyle(
                 fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
-                color: AppTheme.onSurface,
+                color: colorScheme.onSurface,
               ),
             ),
             actions: [
@@ -198,7 +201,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Text(
                   _tr('camera'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -211,7 +214,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Text(
                   _tr('gallery'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -221,7 +224,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Text(
                   _tr('cancel'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -297,6 +300,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
     final maxWidth = isTablet ? 400.0 : double.infinity;
+    final colorScheme = Theme.of(context).colorScheme;
 
     await showDialog(
       context: context,
@@ -312,14 +316,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             style: TextStyle(
               fontSize: screenWidth * 0.045,
               fontWeight: FontWeight.bold,
-              color: AppTheme.onSurface,
+              color: colorScheme.onSurface,
             ),
           ),
           content: Text(
             _tr('email_changed_body'),
             style: TextStyle(
               fontSize: screenWidth * 0.04,
-              color: AppTheme.onSurface.withAlpha(179),
+              color: colorScheme.onSurface.withAlpha(179),
             ),
           ),
           actions: [
@@ -334,7 +338,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: Text(
                 _tr('ok'),
                 style: TextStyle(
-                  color: AppTheme.primaryColor,
+                  color: colorScheme.primary,
                   fontSize: screenWidth * 0.04,
                   fontWeight: FontWeight.w600,
                 ),
@@ -356,6 +360,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final bottomPadding = screenWidth > 600
         ? AppTheme.spacing24
         : AppTheme.spacing16;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
@@ -377,7 +382,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
           ),
           filled: true,
-          fillColor: AppTheme.greyShade50,
+          fillColor: colorScheme.surfaceContainerHighest.withAlpha(
+            colorScheme.brightness == Brightness.dark ? 61 : 153,
+          ),
         ),
         style: TextStyle(
           fontSize: AppTheme.responsiveFontSize(
@@ -401,13 +408,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final avatarRadius = screenWidth > 600 ? 80.0 : 60.0;
     final iconSize = screenWidth > 600 ? 24.0 : 20.0;
     final buttonPadding = screenWidth > 600 ? 20.0 : 16.0;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
         titleText: AppLocalizations.of(context).get('editOfficerProfile.title'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        centerTitle: true,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         actions: [
           IconButton(
@@ -416,12 +426,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ? SizedBox(
                     width: iconSize,
                     height: iconSize,
-                    child: const CircularProgressIndicator(
+                    child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.blue,
+                      color: colorScheme.primary,
                     ),
                   )
-                : Icon(Icons.save, color: Colors.blue, size: iconSize),
+                : Icon(Icons.save, color: colorScheme.primary, size: iconSize),
             tooltip: _tr('save_changes'),
           ),
         ],
@@ -443,7 +453,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         children: [
                           CircleAvatar(
                             radius: avatarRadius,
-                            backgroundColor: Colors.grey.shade200,
+                            backgroundColor:
+                                colorScheme.surfaceContainerHighest,
                             child: UserService.currentProfileImagePath != null
                                 ? ClipOval(
                                     child: Image.file(
@@ -467,7 +478,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                                   return Icon(
                                                     Icons.person,
                                                     size: avatarRadius,
-                                                    color: Colors.grey,
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
                                                   );
                                                 },
                                           ),
@@ -475,17 +487,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                       : Icon(
                                           Icons.person,
                                           size: avatarRadius,
-                                          color: Colors.grey,
+                                          color: colorScheme.onSurfaceVariant,
                                         )),
                           ),
                           InkWell(
                             onTap: _showImageSourceDialog,
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.blue,
+                                color: colorScheme.primary,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: Colors.white,
+                                  color: colorScheme.surface,
                                   width: 2,
                                 ),
                               ),
@@ -494,7 +506,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ),
                               child: Icon(
                                 Icons.camera_alt,
-                                color: Colors.white,
+                                color: colorScheme.onPrimary,
                                 size: iconSize,
                               ),
                             ),
@@ -508,7 +520,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       child: Text(
                         _tr('change_profile_photo'),
                         style: TextStyle(
-                          color: Colors.blue,
+                          color: colorScheme.primary,
                           fontSize: AppTheme.responsiveFontSize(
                             context,
                             mobile: AppTheme.fontSizeBody1,
@@ -572,9 +584,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   SizedBox(
                                     width: iconSize,
                                     height: iconSize,
-                                    child: const CircularProgressIndicator(
+                                    child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      color: Colors.white,
+                                      color: colorScheme.onPrimary,
                                     ),
                                   ),
                                   const SizedBox(width: 12),

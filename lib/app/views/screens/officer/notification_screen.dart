@@ -12,13 +12,15 @@ class OfficerNotificationScreen extends StatefulWidget {
   const OfficerNotificationScreen({super.key, this.initialLanguage = 'EN'});
 
   @override
-  State<OfficerNotificationScreen> createState() => _OfficerNotificationScreenState();
+  State<OfficerNotificationScreen> createState() =>
+      _OfficerNotificationScreenState();
 }
 
 class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
   final NotificationService _notificationService = NotificationService();
 
-  String _tr(String key) => AppLocalizations.of(context).get('officerNotifications.$key');
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('officerNotifications.$key');
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -37,15 +39,15 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
     try {
       final success = await _notificationService.markAllAsRead();
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('mark_all_read_message'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('mark_all_read_message'))));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('mark_read_failed'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('mark_read_failed'))));
       }
     }
   }
@@ -54,33 +56,36 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
     try {
       final success = await _notificationService.markAsRead(notificationId);
       if (!success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('mark_single_read_failed'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('mark_single_read_failed'))));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('mark_single_read_failed'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('mark_single_read_failed'))));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    LoggingService().debug('Building OfficerNotificationScreen with language: ${widget.initialLanguage}');
+    LoggingService().debug(
+      'Building OfficerNotificationScreen with language: ${widget.initialLanguage}',
+    );
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppTheme.whiteColor,
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
         titleText: _tr('title'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         actions: [
           IconButton(
             onPressed: _markAllAsRead,
-            icon: Icon(Icons.done_all, color: AppTheme.primaryColor),
+            icon: Icon(Icons.done_all, color: colorScheme.primary),
             tooltip: _tr('mark_all_read_tooltip'),
           ),
         ],
@@ -97,10 +102,22 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error, size: 64, color: AppTheme.errorColor),
+                  Icon(Icons.error, size: 64, color: colorScheme.error),
                   SizedBox(height: AppTheme.spacing16),
-                  Text(_tr('load_error'), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
-                  Text(snapshot.error.toString(), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
+                  Text(
+                    _tr('load_error'),
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    snapshot.error.toString(),
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -116,13 +133,13 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                   Container(
                     padding: EdgeInsets.all(AppTheme.spacing24),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withAlpha(25),
+                      color: colorScheme.primary.withAlpha(25),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       Icons.notifications_none,
                       size: 64,
-                      color: AppTheme.primaryColor.withAlpha(51),
+                      color: colorScheme.primary.withAlpha(51),
                     ),
                   ),
                   SizedBox(height: AppTheme.spacing24),
@@ -132,7 +149,7 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                       fontSize: AppTheme.fontSizeH5,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Poppins',
-                      color: AppTheme.onSurface,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   SizedBox(height: AppTheme.spacing8),
@@ -140,7 +157,7 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                     _tr('empty_subtitle'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: AppTheme.subtitleColor,
+                      color: colorScheme.onSurfaceVariant,
                       fontSize: AppTheme.fontSizeBody1,
                       fontFamily: 'Poppins',
                     ),
@@ -161,14 +178,13 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                 background: Container(
                   alignment: Alignment.centerRight,
                   padding: EdgeInsets.only(right: AppTheme.spacing20),
-                  color: AppTheme.errorColor,
-                  child: Icon(
-                    Icons.delete,
-                    color: AppTheme.whiteColor,
-                  ),
+                  color: colorScheme.error,
+                  child: Icon(Icons.delete, color: colorScheme.onError),
                 ),
                 onDismissed: (direction) async {
-                  await _notificationService.deleteNotification(notification.id);
+                  await _notificationService.deleteNotification(
+                    notification.id,
+                  );
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(_tr('delete_success'))),
@@ -197,12 +213,20 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                           Container(
                             padding: EdgeInsets.all(AppTheme.spacing8),
                             decoration: BoxDecoration(
-                              color: _getNotificationTypeColor(notification.type).withAlpha(25),
-                              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                              color: _getNotificationTypeColor(
+                                colorScheme,
+                                notification.type,
+                              ).withAlpha(25),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusSmall,
+                              ),
                             ),
                             child: Icon(
                               _getNotificationIcon(notification.type),
-                              color: _getNotificationTypeColor(notification.type),
+                              color: _getNotificationTypeColor(
+                                colorScheme,
+                                notification.type,
+                              ),
                               size: 24,
                             ),
                           ),
@@ -225,7 +249,7 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                                               : FontWeight.bold,
                                           fontSize: AppTheme.fontSizeBody1,
                                           fontFamily: 'Poppins',
-                                          color: AppTheme.onSurface,
+                                          color: colorScheme.onSurface,
                                         ),
                                       ),
                                     ),
@@ -236,13 +260,15 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                                           vertical: AppTheme.spacing4,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: AppTheme.primaryColor,
-                                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                                          color: colorScheme.primary,
+                                          borderRadius: BorderRadius.circular(
+                                            AppTheme.radiusMedium,
+                                          ),
                                         ),
                                         child: Text(
                                           _tr('unread'),
                                           style: TextStyle(
-                                            color: AppTheme.whiteColor,
+                                            color: colorScheme.onPrimary,
                                             fontSize: AppTheme.fontSizeCaption,
                                             fontWeight: FontWeight.bold,
                                             fontFamily: 'Poppins',
@@ -257,7 +283,7 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                                 Text(
                                   notification.body,
                                   style: TextStyle(
-                                    color: AppTheme.subtitleColor,
+                                    color: colorScheme.onSurfaceVariant,
                                     fontSize: AppTheme.fontSizeBody2,
                                     fontFamily: 'Poppins',
                                   ),
@@ -270,7 +296,7 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                                     Text(
                                       _formatDate(notification.date),
                                       style: TextStyle(
-                                        color: AppTheme.greyShade500,
+                                        color: colorScheme.onSurfaceVariant,
                                         fontSize: AppTheme.fontSizeCaption,
                                         fontFamily: 'Poppins',
                                       ),
@@ -282,13 +308,23 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                                         vertical: AppTheme.spacing4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: _getNotificationTypeColor(notification.type).withAlpha(25),
-                                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                                        color: _getNotificationTypeColor(
+                                          colorScheme,
+                                          notification.type,
+                                        ).withAlpha(25),
+                                        borderRadius: BorderRadius.circular(
+                                          AppTheme.radiusSmall,
+                                        ),
                                       ),
                                       child: Text(
-                                        _getNotificationTypeText(notification.type),
+                                        _getNotificationTypeText(
+                                          notification.type,
+                                        ),
                                         style: TextStyle(
-                                          color: _getNotificationTypeColor(notification.type),
+                                          color: _getNotificationTypeColor(
+                                            colorScheme,
+                                            notification.type,
+                                          ),
                                           fontSize: AppTheme.fontSizeCaption,
                                           fontWeight: FontWeight.bold,
                                           fontFamily: 'Poppins',
@@ -324,14 +360,17 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
     }
   }
 
-  Color _getNotificationTypeColor(NotificationType type) {
+  Color _getNotificationTypeColor(
+    ColorScheme colorScheme,
+    NotificationType type,
+  ) {
     switch (type) {
       case NotificationType.update:
-        return AppTheme.primaryColor;
+        return colorScheme.primary;
       case NotificationType.approved:
-        return AppTheme.successColor;
+        return colorScheme.tertiary;
       case NotificationType.revision:
-        return AppTheme.warningColor;
+        return colorScheme.secondary;
     }
   }
 

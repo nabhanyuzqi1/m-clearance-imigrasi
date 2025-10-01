@@ -1667,54 +1667,223 @@ exports.getOfficerMonthlyStats = functions.https.onCall(
     await ensureOfficerOrAdmin(context);
 
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startInput =
+      typeof data?.startDate === "string" ? new Date(data.startDate) : null;
+    const endInput =
+      typeof data?.endDate === "string" ? new Date(data.endDate) : null;
+
+    const start =
+      startInput && !Number.isNaN(startInput.getTime())
+        ? startInput
+        : new Date(now.getFullYear(), now.getMonth(), 1);
+    const end =
+      endInput && !Number.isNaN(endInput.getTime()) ? endInput : now;
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    const startTs = Timestamp.fromDate(start);
+    const endTs = Timestamp.fromDate(end);
 
     const applicationsCol = db.collection("applications");
+    const usersCol = db.collection("users");
 
-    async function countQuery(q, label) {
+    async function countQuery(query, label) {
       try {
-        const snap = await q
+        const snapshot = await query
           .select(admin.firestore.FieldPath.documentId())
           .get();
-        console.log(
-          `[getOfficerMonthlyStats] ${label} returned ${snap.size} docs`,
+        logger.info(
+          `[getOfficerMonthlyStats] ${label} returned ${snapshot.size} docs`,
         );
-        return snap.size;
+        return snapshot.size;
       } catch (error) {
         logger.error(`[getOfficerMonthlyStats] ${label} query failed`, error);
         return 0;
       }
     }
 
-    const [pendingArrival, pendingDeparture, pendingAccounts] =
-      await Promise.all([
-        countQuery(
-          applicationsCol
-            .where("type", "==", "arrival")
-            .where("status", "==", "waiting")
-            .where("createdAt", ">=", Timestamp.fromDate(startOfMonth)),
-          "pendingArrivalThisMonth",
-        ),
-        countQuery(
-          applicationsCol
-            .where("type", "==", "departure")
-            .where("status", "==", "waiting")
-            .where("createdAt", ">=", Timestamp.fromDate(startOfMonth)),
-          "pendingDepartureThisMonth",
-        ),
-        countQuery(
-          db
-            .collection("users")
-            .where("status", "==", "pending_approval")
-            .where("createdAt", ">=", Timestamp.fromDate(startOfMonth)),
-          "pendingAccountsThisMonth",
-        ),
-      ]);
+    const [
+      arrivalTotal,
+      arrivalPending,
+      arrivalApproved,
+      arrivalDeclined,
+      arrivalRevision,
+      arrivalProduced,
+      departureTotal,
+      departurePending,
+      departureApproved,
+      departureDeclined,
+      departureRevision,
+      departureProduced,
+      accountsTotal,
+      accountsPending,
+      accountsApproved,
+      accountsRejected,
+    ] = await Promise.all([
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "arrival_total",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("status", "==", "waiting")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "arrival_pending",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("status", "==", "approved")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "arrival_approved",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("status", "==", "declined")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "arrival_declined",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("status", "==", "revision")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "arrival_revision",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("clearanceResultGeneratedAt", ">=", startTs)
+          .where("clearanceResultGeneratedAt", "<=", endTs),
+        "arrival_produced",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "departure_total",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("status", "==", "waiting")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "departure_pending",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("status", "==", "approved")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "departure_approved",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("status", "==", "declined")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "departure_declined",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("status", "==", "revision")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "departure_revision",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("clearanceResultGeneratedAt", ">=", startTs)
+          .where("clearanceResultGeneratedAt", "<=", endTs),
+        "departure_produced",
+      ),
+      countQuery(
+        usersCol
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "accounts_total",
+      ),
+      countQuery(
+        usersCol
+          .where("status", "==", "pending_approval")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "accounts_pending",
+      ),
+      countQuery(
+        usersCol
+          .where("status", "==", "approved")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "accounts_approved",
+      ),
+      countQuery(
+        usersCol
+          .where("status", "==", "rejected")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "accounts_rejected",
+      ),
+    ]);
+
+    const arrivalProcessed = arrivalApproved + arrivalDeclined;
+    const departureProcessed = departureApproved + departureDeclined;
+    const accountsProcessed = accountsApproved + accountsRejected;
 
     return {
-      pendingArrival,
-      pendingDeparture,
-      pendingAccounts,
+      range: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+      },
+      arrival: {
+        total: arrivalTotal,
+        pending: arrivalPending,
+        approved: arrivalApproved,
+        declined: arrivalDeclined,
+        revision: arrivalRevision,
+        produced: arrivalProduced,
+        processed: arrivalProcessed,
+      },
+      departure: {
+        total: departureTotal,
+        pending: departurePending,
+        approved: departureApproved,
+        declined: departureDeclined,
+        revision: departureRevision,
+        produced: departureProduced,
+        processed: departureProcessed,
+      },
+      accounts: {
+        total: accountsTotal,
+        pending: accountsPending,
+        approved: accountsApproved,
+        rejected: accountsRejected,
+        processed: accountsProcessed,
+      },
+      totals: {
+        pending: arrivalPending + departurePending + accountsPending,
+        approved: arrivalApproved + departureApproved + accountsApproved,
+        rejected: arrivalDeclined + departureDeclined + accountsRejected,
+        revision: arrivalRevision + departureRevision,
+        produced: arrivalProduced + departureProduced,
+        applications: arrivalTotal + departureTotal,
+      },
     };
   },
 );

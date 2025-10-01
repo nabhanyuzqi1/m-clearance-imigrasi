@@ -26,22 +26,34 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
   final TextEditingController _smtpPasswordController = TextEditingController();
   final TextEditingController _fromEmailController = TextEditingController();
   final TextEditingController _fromNameController = TextEditingController();
-  final TextEditingController _verificationSubjectController = TextEditingController();
-  final TextEditingController _verificationBodyController = TextEditingController();
-  final TextEditingController _verificationTemplateIdController = TextEditingController();
-  final TextEditingController _passwordResetSubjectController = TextEditingController();
-  final TextEditingController _passwordResetBodyController = TextEditingController();
-  final TextEditingController _passwordResetTemplateIdController = TextEditingController();
-  final TextEditingController _approvalSubjectController = TextEditingController();
+  final TextEditingController _verificationSubjectController =
+      TextEditingController();
+  final TextEditingController _verificationBodyController =
+      TextEditingController();
+  final TextEditingController _verificationTemplateIdController =
+      TextEditingController();
+  final TextEditingController _passwordResetSubjectController =
+      TextEditingController();
+  final TextEditingController _passwordResetBodyController =
+      TextEditingController();
+  final TextEditingController _passwordResetTemplateIdController =
+      TextEditingController();
+  final TextEditingController _approvalSubjectController =
+      TextEditingController();
   final TextEditingController _approvalBodyController = TextEditingController();
-  final TextEditingController _approvalTemplateIdController = TextEditingController();
-  final TextEditingController _rejectionSubjectController = TextEditingController();
-  final TextEditingController _rejectionBodyController = TextEditingController();
-  final TextEditingController _rejectionTemplateIdController = TextEditingController();
+  final TextEditingController _approvalTemplateIdController =
+      TextEditingController();
+  final TextEditingController _rejectionSubjectController =
+      TextEditingController();
+  final TextEditingController _rejectionBodyController =
+      TextEditingController();
+  final TextEditingController _rejectionTemplateIdController =
+      TextEditingController();
 
   bool _smtpUseTls = true;
 
-  String _tr(String screenKey, String stringKey) => AppLocalizations.of(context).get('$screenKey.$stringKey');
+  String _tr(String screenKey, String stringKey) =>
+      AppLocalizations.of(context).get('$screenKey.$stringKey');
 
   @override
   void initState() {
@@ -56,20 +68,24 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
       LoggingService().info('Loading email configuration...');
       _emailConfig = await _configService.getEmailConfig();
       if (_emailConfig == null) {
-        LoggingService().info('No config found, initializing default config...');
+        LoggingService().info(
+          'No config found, initializing default config...',
+        );
         // Initialize with default config
         await _configService.initializeDefaultConfig();
         _emailConfig = await _configService.getEmailConfig();
       }
       _populateControllers();
-      LoggingService().info('Successfully loaded config: ${_emailConfig?.smtpHost}');
+      LoggingService().info(
+        'Successfully loaded config: ${_emailConfig?.smtpHost}',
+      );
     } catch (e) {
       LoggingService().error('Error loading email config: $e', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('emailConfig', 'error_loading')),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -89,10 +105,12 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
       _fromNameController.text = _emailConfig!.fromName;
       _verificationSubjectController.text = _emailConfig!.verificationSubject;
       _verificationBodyController.text = _emailConfig!.verificationBody;
-      _verificationTemplateIdController.text = _emailConfig!.verificationTemplateId;
+      _verificationTemplateIdController.text =
+          _emailConfig!.verificationTemplateId;
       _passwordResetSubjectController.text = _emailConfig!.passwordResetSubject;
       _passwordResetBodyController.text = _emailConfig!.passwordResetBody;
-      _passwordResetTemplateIdController.text = _emailConfig!.passwordResetTemplateId;
+      _passwordResetTemplateIdController.text =
+          _emailConfig!.passwordResetTemplateId;
       _approvalSubjectController.text = _emailConfig!.approvalSubject;
       _approvalBodyController.text = _emailConfig!.approvalBody;
       _approvalTemplateIdController.text = _emailConfig!.approvalTemplateId;
@@ -137,7 +155,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(_tr('emailConfig', 'config_saved')),
-              backgroundColor: AppTheme.successColor,
+              backgroundColor: Theme.of(context).colorScheme.primary,
             ),
           );
         }
@@ -150,7 +168,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('emailConfig', 'error_saving')),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -162,14 +180,17 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.whiteColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: CustomAppBar(
         titleText: _tr('adminHome', 'email_configuration'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppTheme.onSurface),
+          icon: Icon(
+            Icons.arrow_back,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
@@ -180,12 +201,15 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
                   ? SizedBox(
                       width: AppTheme.spacing20,
                       height: AppTheme.spacing20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryColor),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     )
                   : Text(
                       _tr('emailConfig', 'save'),
                       style: TextStyle(
-                        color: AppTheme.primaryColor,
+                        color: Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.w600,
                         fontFamily: 'Poppins',
                       ),
@@ -194,38 +218,107 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+          ? Center(
+              child: CircularProgressIndicator(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            )
           : SingleChildScrollView(
               padding: EdgeInsets.all(AppTheme.responsivePadding(context)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildSectionTitle(_tr('emailConfig', 'smtp_settings')),
-                  _buildTextField(_tr('emailConfig', 'smtp_host'), _smtpHostController),
-                  _buildTextField(_tr('emailConfig', 'smtp_port'), _smtpPortController, keyboardType: TextInputType.number),
-                  _buildTextField(_tr('emailConfig', 'smtp_username'), _smtpUsernameController),
-                  _buildTextField(_tr('emailConfig', 'smtp_password'), _smtpPasswordController, obscureText: true),
-                  _buildSwitchField(_tr('emailConfig', 'use_tls'), _smtpUseTls, (value) => setState(() => _smtpUseTls = value)),
+                  _buildTextField(
+                    _tr('emailConfig', 'smtp_host'),
+                    _smtpHostController,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'smtp_port'),
+                    _smtpPortController,
+                    keyboardType: TextInputType.number,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'smtp_username'),
+                    _smtpUsernameController,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'smtp_password'),
+                    _smtpPasswordController,
+                    obscureText: true,
+                  ),
+                  _buildSwitchField(
+                    _tr('emailConfig', 'use_tls'),
+                    _smtpUseTls,
+                    (value) => setState(() => _smtpUseTls = value),
+                  ),
 
                   SizedBox(height: AppTheme.spacing24),
                   _buildSectionTitle(_tr('emailConfig', 'sender_info')),
-                  _buildTextField(_tr('emailConfig', 'from_email'), _fromEmailController, keyboardType: TextInputType.emailAddress),
-                  _buildTextField(_tr('emailConfig', 'from_name'), _fromNameController),
+                  _buildTextField(
+                    _tr('emailConfig', 'from_email'),
+                    _fromEmailController,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'from_name'),
+                    _fromNameController,
+                  ),
 
                   SizedBox(height: AppTheme.spacing24),
                   _buildSectionTitle(_tr('emailConfig', 'email_templates')),
-                  _buildTextField(_tr('emailConfig', 'verification_subject'), _verificationSubjectController),
-                  _buildTextField(_tr('emailConfig', 'verification_body'), _verificationBodyController, maxLines: 3),
-                  _buildTextField(_tr('emailConfig', 'verification_template_id'), _verificationTemplateIdController),
-                  _buildTextField(_tr('emailConfig', 'password_reset_subject'), _passwordResetSubjectController),
-                  _buildTextField(_tr('emailConfig', 'password_reset_body'), _passwordResetBodyController, maxLines: 3),
-                  _buildTextField(_tr('emailConfig', 'password_reset_template_id'), _passwordResetTemplateIdController),
-                  _buildTextField(_tr('emailConfig', 'approval_subject'), _approvalSubjectController),
-                  _buildTextField(_tr('emailConfig', 'approval_body'), _approvalBodyController, maxLines: 3),
-                  _buildTextField(_tr('emailConfig', 'approval_template_id'), _approvalTemplateIdController),
-                  _buildTextField(_tr('emailConfig', 'rejection_subject'), _rejectionSubjectController),
-                  _buildTextField(_tr('emailConfig', 'rejection_body'), _rejectionBodyController, maxLines: 3),
-                  _buildTextField(_tr('emailConfig', 'rejection_template_id'), _rejectionTemplateIdController),
+                  _buildTextField(
+                    _tr('emailConfig', 'verification_subject'),
+                    _verificationSubjectController,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'verification_body'),
+                    _verificationBodyController,
+                    maxLines: 3,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'verification_template_id'),
+                    _verificationTemplateIdController,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'password_reset_subject'),
+                    _passwordResetSubjectController,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'password_reset_body'),
+                    _passwordResetBodyController,
+                    maxLines: 3,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'password_reset_template_id'),
+                    _passwordResetTemplateIdController,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'approval_subject'),
+                    _approvalSubjectController,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'approval_body'),
+                    _approvalBodyController,
+                    maxLines: 3,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'approval_template_id'),
+                    _approvalTemplateIdController,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'rejection_subject'),
+                    _rejectionSubjectController,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'rejection_body'),
+                    _rejectionBodyController,
+                    maxLines: 3,
+                  ),
+                  _buildTextField(
+                    _tr('emailConfig', 'rejection_template_id'),
+                    _rejectionTemplateIdController,
+                  ),
 
                   SizedBox(height: AppTheme.spacing32),
                 ],
@@ -242,15 +335,20 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
         style: TextStyle(
           fontSize: AppTheme.fontSizeH6,
           fontWeight: FontWeight.w600,
-          color: AppTheme.onSurface,
+          color: Theme.of(context).colorScheme.onSurface,
           fontFamily: 'Poppins',
         ),
       ),
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller,
-      {TextInputType keyboardType = TextInputType.text, bool obscureText = false, int maxLines = 1}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller, {
+    TextInputType keyboardType = TextInputType.text,
+    bool obscureText = false,
+    int maxLines = 1,
+  }) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8),
       child: TextField(
@@ -259,31 +357,38 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
         obscureText: obscureText,
         maxLines: maxLines,
         style: TextStyle(
-          color: AppTheme.onSurface,
+          color: Theme.of(context).colorScheme.onSurface,
           fontFamily: 'Poppins',
         ),
         decoration: InputDecoration(
           labelText: label,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-            borderSide: BorderSide(color: AppTheme.greyShade400),
+            borderSide: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-            borderSide: BorderSide(color: AppTheme.greyShade400),
+            borderSide: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-            borderSide: BorderSide(color: AppTheme.primaryColor, width: 2),
+            borderSide: BorderSide(
+              color: Theme.of(context).colorScheme.primary,
+              width: 2,
+            ),
           ),
           filled: true,
-          fillColor: AppTheme.greyShade50,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
           labelStyle: TextStyle(
-            color: AppTheme.subtitleColor,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontFamily: 'Poppins',
           ),
           hintStyle: TextStyle(
-            color: AppTheme.subtitleColor,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontFamily: 'Poppins',
           ),
         ),
@@ -291,7 +396,11 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
     );
   }
 
-  Widget _buildSwitchField(String label, bool value, ValueChanged<bool> onChanged) {
+  Widget _buildSwitchField(
+    String label,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8),
       child: Row(
@@ -301,15 +410,17 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
             label,
             style: TextStyle(
               fontSize: AppTheme.fontSizeBody1,
-              color: AppTheme.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
               fontFamily: 'Poppins',
             ),
           ),
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: AppTheme.primaryColor,
-            activeTrackColor: AppTheme.primaryColor.withAlpha(128),
+            activeThumbColor: Theme.of(context).colorScheme.primary,
+            activeTrackColor: Theme.of(
+              context,
+            ).colorScheme.primary.withAlpha(128),
           ),
         ],
       ),

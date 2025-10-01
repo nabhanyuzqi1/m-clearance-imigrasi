@@ -81,17 +81,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     ];
 
     return Scaffold(
-      backgroundColor: AppTheme.whiteColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: pages.elementAt(_selectedIndex),
       bottomNavigationBar: CustomBottomNavbar(
         items: NavigationItems.officerItems,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: AppTheme.primaryColor,
-        unselectedItemColor: AppTheme.greyColor,
+        selectedItemColor: Theme.of(context).colorScheme.primary,
+        unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
         showSelectedLabels: true,
         showUnselectedLabels: true,
-        backgroundColor: AppTheme.whiteColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 8,
       ),
     );
@@ -123,10 +123,8 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _dashboardSubscription;
-  StreamSubscription<int>? _notificationSubscription;
   Map<String, dynamic>? _stats;
   bool _isLoadingStats = true;
-  int _unreadNotifications = 0;
   _PendingAction? _pendingAction;
 
   bool get _showSkeleton =>
@@ -137,13 +135,11 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     super.initState();
     _fetchInitialStats();
     _listenToRealtimeCounters();
-    _listenToNotifications();
   }
 
   @override
   void dispose() {
     _dashboardSubscription?.cancel();
-    _notificationSubscription?.cancel();
     super.dispose();
   }
 
@@ -197,18 +193,6 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
         );
   }
 
-  void _listenToNotifications() {
-    _notificationSubscription = _notificationService.getUnreadCount().listen(
-      (unreadTotal) {
-        if (!mounted) return;
-        setState(() => _unreadNotifications = unreadTotal);
-      },
-      onError: (error) {
-        LoggingService().error('Error listening to notification count', error);
-      },
-    );
-  }
-
   Future<void> _navigateWithGuard(
     _PendingAction action,
     Widget Function() builder,
@@ -221,7 +205,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
         MaterialPageRoute(builder: (_) => builder()),
       );
     } finally {
-      if (!mounted) return;
+      if (!mounted) {
+        // Do nothing if not mounted
+      }
       setState(() => _pendingAction = null);
     }
   }
@@ -242,17 +228,21 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
 
     final currentUser = FirebaseAuth.instance.currentUser;
 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return Scaffold(
-      backgroundColor: AppTheme.whiteColor,
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
-        title: LogoTitle(text: 'M-Clearance ISam'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        title: const LogoTitle(text: 'M-Clearance ISam'),
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
           NotificationIconWithBadge(
-            badgeCount: _unreadNotifications,
+            badgeCountStream: _notificationService.getUnreadCount(),
             onPressed: () {
               Navigator.push(
                 context,
@@ -311,7 +301,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   children: [
                     CircleAvatar(
                       radius: screenWidth * 0.08,
-                      backgroundColor: AppTheme.greyShade200,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
                       backgroundImage:
                           (displayPhotoUrl != null &&
                               displayPhotoUrl.isNotEmpty)
@@ -322,7 +312,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                           ? Icon(
                               Icons.person,
                               size: screenWidth * 0.08,
-                              color: AppTheme.greyColor,
+                              color: colorScheme.onSurfaceVariant,
                             )
                           : null,
                     ),
@@ -332,16 +322,14 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${tr('welcome')}',
-                            style: AppTheme.bodyMedium(
-                              context,
-                            ).copyWith(color: AppTheme.greyColor),
+                            tr('welcome'),
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
                           Text(
                             primaryName,
-                            style: AppTheme.headingSmall(
-                              context,
-                            ).copyWith(color: AppTheme.blackColor),
+                            style: textTheme.titleLarge,
                             overflow: TextOverflow.ellipsis,
                           ),
                           if (secondaryName.isNotEmpty)
@@ -349,9 +337,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                               padding: EdgeInsets.only(top: screenWidth * 0.01),
                               child: Text(
                                 secondaryName,
-                                style: AppTheme.bodyMedium(
-                                  context,
-                                ).copyWith(color: AppTheme.greyShade600),
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -361,12 +349,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   ],
                 ),
                 SizedBox(height: verticalSpacing * 1.5),
-                Text(
-                  tr('services'),
-                  style: AppTheme.headingSmall(
-                    context,
-                  ).copyWith(color: AppTheme.blackColor),
-                ),
+                Text(tr('services'), style: textTheme.titleLarge),
                 SizedBox(height: verticalSpacing),
                 _buildStatsAwareCard(
                   context,
@@ -374,7 +357,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   title: tr('arrival_verification'),
                   baseSubtitle: tr('agent_submissions'),
                   iconData: Icons.anchor,
-                  color: AppTheme.infoColor,
+                  color: colorScheme.primary,
                   badgeCount: _statValue('pendingArrival'),
                   isBusy: _pendingAction == _PendingAction.arrival,
                   onTap: () => _navigateWithGuard(
@@ -389,7 +372,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   title: tr('departure_verification'),
                   baseSubtitle: tr('agent_submissions'),
                   iconData: Icons.directions_boat,
-                  color: AppTheme.secondaryColor,
+                  color: colorScheme.secondary,
                   badgeCount: _statValue('pendingDeparture'),
                   isBusy: _pendingAction == _PendingAction.departure,
                   onTap: () => _navigateWithGuard(
@@ -405,7 +388,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   title: tr('account_verification'),
                   baseSubtitle: tr('agent_registrations'),
                   iconData: Icons.person_search,
-                  color: AppTheme.secondaryColor,
+                  color: colorScheme.tertiary,
                   badgeCount: _statValue('pendingAccounts'),
                   isBusy: _pendingAction == _PendingAction.account,
                   onTap: () => _navigateWithGuard(
@@ -420,7 +403,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                     title: tr('email_configuration'),
                     subtitle: tr('manage_email_settings'),
                     iconData: Icons.email_outlined,
-                    color: AppTheme.successColor,
+                    color: colorScheme.tertiary,
                     isPrimary: false,
                     onTap: () {
                       Navigator.push(
@@ -433,12 +416,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   ),
                 ],
                 SizedBox(height: verticalSpacing * 2),
-                Text(
-                  tr('recent_activities'),
-                  style: AppTheme.labelLarge(
-                    context,
-                  ).copyWith(color: AppTheme.blackColor),
-                ),
+                Text(tr('recent_activities'), style: textTheme.titleLarge),
                 SizedBox(height: verticalSpacing),
                 StreamBuilder<List<OfficerActivity>>(
                   stream: OfficerService().getOfficerActivities(limit: 3),
@@ -455,7 +433,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                       return Center(
                         child: Text(
                           tr('error_loading_activities'),
-                          style: TextStyle(color: AppTheme.errorColor),
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.error,
+                          ),
                         ),
                       );
                     }
@@ -470,14 +450,14 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                             Icon(
                               Icons.history,
                               size: 48,
-                              color: AppTheme.greyColor,
+                              color: colorScheme.onSurfaceVariant,
                             ),
-                            SizedBox(height: AppTheme.spacing16),
+                            const SizedBox(height: AppTheme.spacing16),
                             Text(
                               tr('no_recent_activities'),
-                              style: AppTheme.bodyMedium(
-                                context,
-                              ).copyWith(color: AppTheme.greyColor),
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                           ],
@@ -488,6 +468,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                     return Column(
                       children: activities.map((activity) {
                         final statusColor = _getActivityStatusColor(
+                          context,
                           activity.status,
                         );
                         final iconData = _getActivityIcon(activity.iconData);
@@ -498,12 +479,16 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                           ),
                           padding: EdgeInsets.all(verticalSpacing),
                           decoration: BoxDecoration(
-                            color: AppTheme.whiteColor,
+                            color: colorScheme.surface,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppTheme.greyShade200),
+                            border: Border.all(
+                              color: colorScheme.outlineVariant,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: AppTheme.greyColor.withAlpha(13),
+                                color: theme.shadowColor.withValues(
+                                  alpha: 0.08,
+                                ),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
@@ -513,7 +498,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                             children: [
                               Icon(
                                 iconData,
-                                color: AppTheme.primaryColor,
+                                color: statusColor,
                                 size: screenWidth * 0.06,
                               ),
                               SizedBox(width: horizontalPadding * 0.5),
@@ -523,21 +508,42 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                                   children: [
                                     Text(
                                       activity.title,
-                                      style: AppTheme.bodyMedium(context)
-                                          .copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: AppTheme.blackColor,
-                                          ),
+                                      style: textTheme.bodyLarge?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: colorScheme.onSurface,
+                                      ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
+                                    const SizedBox(height: AppTheme.spacing4),
                                     Text(
-                                      _formatActivityDate(
-                                        context,
-                                        activity.date,
+                                      activity.description,
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
                                       ),
-                                      style: AppTheme.bodySmall(
-                                        context,
-                                      ).copyWith(color: AppTheme.greyColor),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: AppTheme.spacing8),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.access_time,
+                                          size: 16,
+                                          color: colorScheme.onSurfaceVariant,
+                                        ),
+                                        const SizedBox(
+                                          width: AppTheme.spacing4,
+                                        ),
+                                        Text(
+                                          _formatActivityDate(
+                                            context,
+                                            activity.date,
+                                          ),
+                                          style: textTheme.bodySmall?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -549,16 +555,15 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                                     vertical: screenWidth * 0.01,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: statusColor.withAlpha(25),
+                                    color: statusColor.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
                                     activity.status!.toUpperCase(),
-                                    style: AppTheme.labelSmall(context)
-                                        .copyWith(
-                                          color: statusColor,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                    style: textTheme.labelSmall?.copyWith(
+                                      color: statusColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                             ],
@@ -621,6 +626,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     int badgeCount = 0,
     bool isBusy = false,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
     final screenWidth = MediaQuery.of(context).size.width;
     final cardPadding = screenWidth * 0.05;
     final iconSize = screenWidth * 0.08;
@@ -637,7 +645,9 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
       desktop: AppTheme.fontSizeBody1,
     );
 
-    final progressColor = isPrimary ? Colors.white : AppTheme.primaryColor;
+    final progressColor = isPrimary
+        ? colorScheme.onPrimary
+        : colorScheme.primary;
     final trailingWidget = isBusy
         ? SizedBox(
             width: iconSize,
@@ -656,18 +666,20 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
         : Icon(
             iconData,
             size: iconSize,
-            color: isPrimary ? Colors.white : AppTheme.primaryColor,
+            color: isPrimary ? colorScheme.onPrimary : colorScheme.primary,
           );
 
     final cardContent = Container(
       padding: EdgeInsets.all(cardPadding),
       decoration: BoxDecoration(
-        color: isPrimary ? color : AppTheme.whiteColor,
+        color: isPrimary ? color : colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: isPrimary ? null : Border.all(color: AppTheme.greyShade300),
+        border: isPrimary
+            ? null
+            : Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.greyColor.withAlpha(25),
+            color: theme.shadowColor.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -682,22 +694,39 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: titleFontSize,
-                    fontWeight: FontWeight.bold,
-                    color: isPrimary ? Colors.white : AppTheme.blackColor,
-                  ),
+                  style:
+                      textTheme.titleLarge?.copyWith(
+                        fontSize: titleFontSize,
+                        fontWeight: FontWeight.bold,
+                        color: isPrimary
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface,
+                      ) ??
+                      TextStyle(
+                        fontSize: titleFontSize,
+                        fontWeight: FontWeight.bold,
+                        color: isPrimary
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface,
+                      ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 SizedBox(height: screenWidth * 0.01),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: subtitleFontSize,
-                    color: isPrimary
-                        ? AppTheme.whiteColor70
-                        : AppTheme.greyColor,
-                  ),
+                  style:
+                      textTheme.bodyMedium?.copyWith(
+                        fontSize: subtitleFontSize,
+                        color: isPrimary
+                            ? colorScheme.onPrimary.withValues(alpha: 0.7)
+                            : colorScheme.onSurfaceVariant,
+                      ) ??
+                      TextStyle(
+                        fontSize: subtitleFontSize,
+                        color: isPrimary
+                            ? colorScheme.onPrimary.withValues(alpha: 0.7)
+                            : colorScheme.onSurfaceVariant,
+                      ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -739,21 +768,22 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
   }
 
   Widget _buildBadge(BuildContext context, int count, bool isPrimary) {
+    final colorScheme = Theme.of(context).colorScheme;
     final displayCount = count > 99 ? '99+' : count.toString();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppTheme.errorColor,
+        color: colorScheme.error,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isPrimary ? Colors.white : AppTheme.whiteColor,
+          color: isPrimary ? colorScheme.onPrimary : colorScheme.surface,
           width: 2,
         ),
       ),
       child: Text(
         displayCount,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: colorScheme.onError,
           fontSize: AppTheme.fontSizeBody2,
           fontWeight: FontWeight.bold,
         ),
@@ -761,22 +791,23 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     );
   }
 
-  Color _getActivityStatusColor(String? status) {
-    if (status == null) return AppTheme.greyColor;
+  Color _getActivityStatusColor(BuildContext context, String? status) {
+    final colorScheme = Theme.of(context).colorScheme;
+    if (status == null) return colorScheme.onSurfaceVariant;
     switch (status.toLowerCase()) {
       case 'approved':
-        return AppTheme.successColor;
+        return colorScheme.primary;
       case 'declined':
       case 'rejected':
-        return AppTheme.errorColor;
+        return colorScheme.error;
       case 'revision':
-        return AppTheme.warningColor;
+        return colorScheme.tertiary;
       case 'waiting':
-        return AppTheme.primaryColor;
+        return colorScheme.secondary;
       case 'completed':
-        return AppTheme.successColor;
+        return colorScheme.primary;
       default:
-        return AppTheme.greyColor;
+        return colorScheme.onSurfaceVariant;
     }
   }
 

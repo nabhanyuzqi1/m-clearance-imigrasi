@@ -1,18 +1,18 @@
 // lib/app/views/screens/officer/officer_report_screen.dart
 
-import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../../../localization/app_localizations.dart';
-import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
+import '../../../localization/app_localizations.dart';
+import '../../../models/report_model.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/functions_service.dart';
+import '../../../services/logging_service.dart';
 import '../../../services/report_service.dart';
-import '../../../models/report_model.dart';
 import '../../widgets/custom_app_bar.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../user/document_view_screen.dart';
 
 class OfficerReportScreen extends StatefulWidget {
@@ -27,12 +27,20 @@ class OfficerReportScreen extends StatefulWidget {
 class _OfficerReportScreenState extends State<OfficerReportScreen> {
   final FunctionsService _functionsService = FunctionsService();
   final ReportService _reportService = ReportService();
+
   bool _isGeneratingReport = false;
-  Map<String, dynamic> _todayStats = {};
-  Map<String, dynamic> _monthStats = {};
   bool _isLoadingStats = true;
-  List<ReportModel> _reports = [];
   bool _isLoadingReports = true;
+
+  OfficerStats? _stats;
+  List<ReportModel> _reports = const [];
+  DateTimeRange _selectedRange = _defaultRange();
+
+  static DateTimeRange _defaultRange() {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, 1);
+    return DateTimeRange(start: start, end: now);
+  }
 
   String _tr(String key) =>
       AppLocalizations.of(context).get('officerReport.$key');
@@ -40,7 +48,6 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   @override
   void initState() {
     super.initState();
-    LoggingService().info('OfficerReportScreen initialized');
     _loadStats();
     _loadReports();
   }
@@ -48,98 +55,45 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   Future<void> _loadStats() async {
     setState(() => _isLoadingStats = true);
     try {
-      final countersSnap = await FirebaseFirestore.instance
-          .collection('counters')
-          .doc('dashboard')
-          .get();
-
-      Map<String, int> todayStats = {
-        'pendingArrival': 0,
-        'pendingDeparture': 0,
-        'pendingAccounts': 0,
-      };
-      if (countersSnap.exists) {
-        final data = countersSnap.data() ?? {};
-        todayStats = {
-          'pendingArrival': (data['pendingArrival'] as num?)?.toInt() ?? 0,
-          'pendingDeparture': (data['pendingDeparture'] as num?)?.toInt() ?? 0,
-          'pendingAccounts': (data['pendingAccounts'] as num?)?.toInt() ?? 0,
-        };
-      }
-
-      Map<String, dynamic>? monthStats;
-      try {
-        monthStats = await _functionsService.getOfficerMonthlyStats();
-      } catch (e, stack) {
-        LoggingService().warning(
-          'Failed to fetch monthly stats via Cloud Function, falling back to dashboard counters.',
-          e,
-          stack,
-        );
-        monthStats = null;
-      }
-
-      final normalizedMonthStats = _normalizeStats(monthStats, todayStats);
-
-      if (mounted) {
-        setState(() {
-          _todayStats = todayStats;
-          _monthStats = normalizedMonthStats;
-          _isLoadingStats = false;
-        });
-      }
-    } catch (e) {
-      LoggingService().error('Error loading stats: $e', e);
-      // Provide default values if stats loading fails
-      if (mounted) {
-        setState(() {
-          _todayStats = const {
-            'pendingArrival': 0,
-            'pendingDeparture': 0,
-            'pendingAccounts': 0,
-          };
-          _monthStats = _todayStats;
-          _isLoadingStats = false;
-        });
-      }
+      final raw = await _functionsService.getOfficerStats(
+        start: _selectedRange.start,
+        end: _selectedRange.end,
+      );
+      if (!mounted) return;
+      setState(() {
+        _stats = OfficerStats.fromMap(raw);
+        _isLoadingStats = false;
+      });
+    } catch (error, stackTrace) {
+      LoggingService().error('Failed to load officer stats', error, stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _stats = null;
+        _isLoadingStats = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_tr('error_loading_stats')),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
-  }
-
-  Map<String, int> _normalizeStats(
-    Map<String, dynamic>? raw,
-    Map<String, int> fallback,
-  ) {
-    if (raw == null || raw.isEmpty) {
-      return Map<String, int>.from(fallback);
-    }
-    return {
-      'pendingArrival':
-          (raw['pendingArrival'] as num?)?.toInt() ??
-          fallback['pendingArrival'] ??
-          0,
-      'pendingDeparture':
-          (raw['pendingDeparture'] as num?)?.toInt() ??
-          fallback['pendingDeparture'] ??
-          0,
-      'pendingAccounts':
-          (raw['pendingAccounts'] as num?)?.toInt() ??
-          fallback['pendingAccounts'] ??
-          0,
-    };
   }
 
   Future<void> _loadReports() async {
     setState(() => _isLoadingReports = true);
     try {
       final reports = await _reportService.getReports().first;
+      if (!mounted) return;
       setState(() {
         _reports = reports;
         _isLoadingReports = false;
       });
-    } catch (e) {
-      LoggingService().error('Error loading reports: $e', e);
+    } catch (error, stackTrace) {
+      LoggingService().error('Error loading reports', error, stackTrace);
+      if (!mounted) return;
       setState(() {
-        _reports = []; // Ensure reports is empty list on error
+        _reports = const [];
         _isLoadingReports = false;
       });
     }
@@ -148,14 +102,12 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   Future<void> _downloadReport(ReportModel report) async {
     final pdfUrl = report.pdfUrl;
     if (pdfUrl == null || pdfUrl.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('pdf_not_available')),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_tr('pdf_not_available')),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
       return;
     }
 
@@ -178,7 +130,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         showSnack(
           SnackBar(
             content: Text(_tr('error_downloading_report')),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
         await _openReportExternally(pdfUrl);
@@ -188,7 +140,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
       showSnack(
         SnackBar(
           content: Text(_tr('opening_report')),
-          backgroundColor: AppTheme.primaryColor,
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
 
@@ -200,54 +152,16 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           ),
         ),
       );
-    } catch (e) {
-      LoggingService().error('Error downloading report', e);
-      if (mounted) {
-        messenger?.showSnackBar(
-          SnackBar(
-            content: Text(_tr('error_downloading_report')),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
+    } catch (error, stackTrace) {
+      LoggingService().error('Error downloading report', error, stackTrace);
+      if (!mounted) return;
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(_tr('error_downloading_report')),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
       await _openReportExternally(pdfUrl);
-    }
-  }
-
-  Future<void> _generateReport(String type) async {
-    setState(() => _isGeneratingReport = true);
-    try {
-      final stats = type == 'monthly' ? _monthStats : _todayStats;
-      final newReport = await _reportService.generateReport(type, stats);
-
-      if (newReport != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('report_generated_successfully')),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-        await _loadReports();
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('error_generating_report')),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
-    } catch (e) {
-      LoggingService().error('Error generating report: $e', e);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('error_generating_report')),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
-    } finally {
-      setState(() => _isGeneratingReport = false);
     }
   }
 
@@ -256,317 +170,304 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     if (uri == null) return;
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (e) {
-      LoggingService().warning('Unable to launch external viewer for $url', e);
+    } catch (error) {
+      LoggingService().warning(
+        'Unable to launch external viewer for $url',
+        error,
+      );
     }
+  }
+
+  Future<void> _pickDateRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: _selectedRange,
+      firstDate: DateTime(2023, 1, 1),
+      lastDate: DateTime.now(),
+      helpText: _tr('select_range'),
+    );
+    if (picked == null) return;
+    setState(() => _selectedRange = picked);
+    await _loadStats();
+  }
+
+  Future<void> _generateReport(String type) async {
+    if (_stats == null) return;
+    setState(() => _isGeneratingReport = true);
+    try {
+      final payload = _stats!.toMap();
+      final range = type == 'daily'
+          ? DateTimeRange(start: _selectedRange.end, end: _selectedRange.end)
+          : _selectedRange;
+      final newReport = await _reportService.generateReport(
+        type,
+        payload,
+        range: range,
+      );
+
+      if (!mounted) return;
+
+      if (newReport != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_tr('report_generated_successfully')),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+        await _loadReports();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_tr('error_generating_report')),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } catch (error, stackTrace) {
+      LoggingService().error('Error generating report', error, stackTrace);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_tr('error_generating_report')),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingReport = false);
+      }
+    }
+  }
+
+  void _showCreateReportSheet() {
+    if (_stats == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (bottomContext) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTheme.spacing24,
+            vertical: AppTheme.spacing16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.today_outlined),
+                title: Text(_tr('daily_report')),
+                subtitle: Text(_tr('daily_report_hint')),
+                onTap: _isGeneratingReport
+                    ? null
+                    : () {
+                        Navigator.of(bottomContext).pop();
+                        _generateReport('daily');
+                      },
+              ),
+              ListTile(
+                leading: const Icon(Icons.view_week_outlined),
+                title: Text(_tr('range_report')),
+                subtitle: Text(_tr('range_report_hint')),
+                onTap: _isGeneratingReport
+                    ? null
+                    : () {
+                        Navigator.of(bottomContext).pop();
+                        _generateReport('monthly');
+                      },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatRange(DateTimeRange range) {
+    final formatter = DateFormat('d MMM yyyy');
+    return '${formatter.format(range.start)} – ${formatter.format(range.end)}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final horizontalPadding = screenWidth * 0.06;
-    final verticalSpacing = screenWidth * 0.04;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: AppTheme.whiteColor,
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
         titleText: _tr('title'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
-        elevation: 0,
+        centerTitle: true,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _isGeneratingReport || _stats == null
+            ? null
+            : _showCreateReportSheet,
+        icon: _isGeneratingReport
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.summarize_outlined),
+        label: Text(_tr('create_new_report')),
       ),
       body: RefreshIndicator(
         onRefresh: () async {
           await _loadStats();
           await _loadReports();
         },
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(horizontalPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Stats Cards
-              if (_isLoadingStats)
-                const Center(child: CircularProgressIndicator())
-              else ...[
-                // Today Stats
-                _buildStatsCard(
-                  context,
-                  title: _tr('today'),
-                  stats: _todayStats,
-                  color: AppTheme.primaryColor,
-                ),
-                SizedBox(height: verticalSpacing),
-
-                // This Month Stats
-                _buildStatsCard(
-                  context,
-                  title: _tr('this_month'),
-                  stats: _monthStats,
-                  color: AppTheme.secondaryColor,
-                ),
-              ],
-
-              SizedBox(height: verticalSpacing * 2),
-
-              // Create New Report Section
-              _buildCreateReportSection(context),
-
-              if (_isGeneratingReport) ...[
-                SizedBox(height: verticalSpacing),
-                Center(
-                  child: Column(
-                    children: [
-                      const CircularProgressIndicator(),
-                      SizedBox(height: verticalSpacing * 0.5),
-                      Text(
-                        _tr('generating_pdf'),
-                        style: AppTheme.bodyMedium(
-                          context,
-                        ).copyWith(color: AppTheme.greyColor),
-                      ),
+        child: _isLoadingStats && _stats == null
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(AppTheme.spacing24),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildRangePickerCard(colorScheme),
+                    const SizedBox(height: AppTheme.spacing24),
+                    if (_stats != null) ...[
+                      _buildSummaryGrid(colorScheme),
+                      const SizedBox(height: AppTheme.spacing24),
+                      _buildAnalyticsChart(colorScheme),
+                      const SizedBox(height: AppTheme.spacing24),
+                      _buildTotalsRow(colorScheme),
+                      const SizedBox(height: AppTheme.spacing32),
                     ],
-                  ),
-                ),
-              ],
-
-              SizedBox(height: verticalSpacing),
-
-              // Statistics Chart
-              if (!_isLoadingStats) _buildStatsChart(context),
-
-              SizedBox(height: verticalSpacing * 2),
-
-              // Report History Section
-              Text(
-                _tr('report_history'),
-                style: AppTheme.labelLarge(context).copyWith(
-                  color: AppTheme.blackColor,
-                  fontWeight: FontWeight.bold,
+                    _buildReportHistorySection(colorScheme),
+                  ],
                 ),
               ),
-              SizedBox(height: verticalSpacing),
-
-              // Report History Items
-              if (_isLoadingReports)
-                const Center(child: CircularProgressIndicator())
-              else if (_reports.isEmpty)
-                Center(
-                  child: Text(
-                    _tr('no_reports_found'),
-                    style: AppTheme.bodyMedium(
-                      context,
-                    ).copyWith(color: AppTheme.greyColor),
-                  ),
-                )
-              else
-                ..._reports.map(
-                  (report) => _buildReportHistoryItem(
-                    context,
-                    report: report,
-                    onTap: () => _downloadReport(report),
-                  ),
-                ),
-            ],
-          ),
-        ),
       ),
     );
   }
 
-  Widget _buildStatsCard(
-    BuildContext context, {
-    required String title,
-    required Map<String, dynamic> stats,
-    required Color color,
-  }) {
-    String formatStat(String key) {
-      final value = stats[key];
-      if (value is num) return value.toStringAsFixed(0);
-      if (value is String) {
-        final parsed = double.tryParse(value);
-        if (parsed != null) return parsed.toStringAsFixed(0);
-      }
-      return '0';
-    }
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: color.withValues(alpha: 0.1),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: AppTheme.headingSmall(
-                context,
-              ).copyWith(color: color, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+  Widget _buildRangePickerCard(ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacing16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatItem(
-                  context,
-                  label: _tr('arrival'),
-                  value: formatStat('pendingArrival'),
-                  color: color,
+                Text(
+                  _tr('selected_range'),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
-                _buildStatItem(
-                  context,
-                  label: _tr('departure'),
-                  value: formatStat('pendingDeparture'),
-                  color: color,
-                ),
-                _buildStatItem(
-                  context,
-                  label: _tr('registration'),
-                  value: formatStat('pendingAccounts'),
-                  color: color,
+                const SizedBox(height: AppTheme.spacing4),
+                Text(
+                  _formatRange(_selectedRange),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          OutlinedButton.icon(
+            onPressed: _pickDateRange,
+            icon: const Icon(Icons.date_range_outlined),
+            label: Text(_tr('change_range')),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildStatItem(
-    BuildContext context, {
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Column(
+  Widget _buildSummaryGrid(ColorScheme colorScheme) {
+    final stats = _stats!;
+    return Wrap(
+      spacing: AppTheme.spacing16,
+      runSpacing: AppTheme.spacing16,
       children: [
-        Text(
-          value,
-          style: AppTheme.headingMedium(
-            context,
-          ).copyWith(color: color, fontWeight: FontWeight.bold),
+        _SummaryCard(
+          title: _tr('arrival'),
+          color: colorScheme.primary,
+          stats: stats.arrival,
+          icon: Icons.directions_boat_outlined,
         ),
-        SizedBox(height: MediaQuery.of(context).size.width * 0.01),
-        Text(
-          label,
-          style: AppTheme.bodySmall(
-            context,
-          ).copyWith(color: color.withAlpha(179)),
+        _SummaryCard(
+          title: _tr('departure'),
+          color: colorScheme.secondary,
+          stats: stats.departure,
+          icon: Icons.flight_takeoff_outlined,
+        ),
+        _SummaryCard(
+          title: _tr('registration'),
+          color: colorScheme.tertiary,
+          stats: stats.accounts.asDomain(),
+          icon: Icons.how_to_reg_outlined,
         ),
       ],
     );
   }
 
-  Widget _buildStatsChart(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final chartHeight = screenWidth * 0.6;
+  Widget _buildAnalyticsChart(ColorScheme colorScheme) {
+    final stats = _stats!;
+    final groups = <BarChartGroupData>[];
+    final maxY = _maxDomainValue(stats);
 
-    double getStatValue(String key) {
-      final value = _todayStats[key];
-      if (value is num) return value.toDouble();
-      if (value is String) {
-        return double.tryParse(value) ?? 0;
-      }
-      return 0;
+    DataColumnBuilder builder(DomainStats data, int x) {
+      return DataColumnBuilder(data, x, colorScheme);
     }
 
-    final arrival = getStatValue('pendingArrival');
-    final departure = getStatValue('pendingDeparture');
-    final accounts = getStatValue('pendingAccounts');
-    final maxStat = [
-      arrival,
-      departure,
-      accounts,
-    ].reduce((a, b) => a > b ? a : b);
-    final double chartMaxY = maxStat > 0 ? maxStat * 1.2 : 10.0;
+    final arrivalColumn = builder(stats.arrival, 0);
+    final departureColumn = builder(stats.departure, 1);
+    final accountsColumn = builder(stats.accounts.asDomain(), 2);
+
+    groups
+      ..add(arrivalColumn.toGroup())
+      ..add(departureColumn.toGroup())
+      ..add(accountsColumn.toGroup());
 
     return Container(
-      height: chartHeight,
-      padding: EdgeInsets.all(screenWidth * 0.05),
+      padding: const EdgeInsets.all(AppTheme.spacing16),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.greyShade200),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.greyColor.withAlpha(25),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
+      height: 320,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             _tr('statistics_overview'),
-            style: AppTheme.headingSmall(
+            style: Theme.of(
               context,
-            ).copyWith(color: AppTheme.blackColor, fontWeight: FontWeight.bold),
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
           ),
-          SizedBox(height: screenWidth * 0.03),
+          const SizedBox(height: AppTheme.spacing12),
           Expanded(
             child: BarChart(
               BarChartData(
+                maxY: maxY <= 0 ? 5 : maxY * 1.2,
                 alignment: BarChartAlignment.spaceAround,
-                maxY: chartMaxY,
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      String category;
-                      switch (group.x.toInt()) {
-                        case 0:
-                          category = _tr('arrival');
-                          break;
-                        case 1:
-                          category = _tr('departure');
-                          break;
-                        case 2:
-                          category = _tr('registration');
-                          break;
-                        default:
-                          category = '';
-                      }
-                      return BarTooltipItem(
-                        '$category\n${rod.toY.round()}',
-                        AppTheme.bodySmall(context).copyWith(
-                          color: AppTheme.whiteColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      );
-                    },
-                  ),
-                ),
                 titlesData: FlTitlesData(
-                  show: true,
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
-                        String title;
                         switch (value.toInt()) {
                           case 0:
-                            title = _tr('arrival');
-                            break;
+                            return Text(_tr('arrival'));
                           case 1:
-                            title = _tr('departure');
-                            break;
+                            return Text(_tr('departure'));
                           case 2:
-                            title = _tr('registration');
-                            break;
+                            return Text(_tr('registration'));
                           default:
-                            title = '';
+                            return const SizedBox.shrink();
                         }
-                        return Text(
-                          title,
-                          style: AppTheme.bodySmall(
-                            context,
-                          ).copyWith(color: AppTheme.greyColor),
-                        );
                       },
                     ),
                   ),
@@ -574,179 +475,629 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 40,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          value.toInt().toString(),
-                          style: AppTheme.bodySmall(
-                            context,
-                          ).copyWith(color: AppTheme.greyColor),
-                        );
-                      },
+                      getTitlesWidget: (value, meta) =>
+                          Text('${value.toInt()}'),
                     ),
-                  ),
-                  topTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
                   ),
                   rightTitles: AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                barTouchData: BarTouchData(
+                  enabled: true,
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final label = group.x == 0
+                          ? _tr('arrival')
+                          : group.x == 1
+                          ? _tr('departure')
+                          : _tr('registration');
+                      final tooltipStyle =
+                          Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ) ??
+                          const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          );
+                      return BarTooltipItem(
+                        '$label\n${rod.toY.toStringAsFixed(0)}',
+                        tooltipStyle,
+                      );
+                    },
+                  ),
                 ),
                 gridData: FlGridData(show: false),
                 borderData: FlBorderData(show: false),
-                barGroups: [
-                  BarChartGroupData(
-                    x: 0,
-                    barRods: [
-                      BarChartRodData(
-                        toY: arrival,
-                        color: AppTheme.primaryColor,
-                        width: screenWidth * 0.08,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ],
-                  ),
-                  BarChartGroupData(
-                    x: 1,
-                    barRods: [
-                      BarChartRodData(
-                        toY: departure,
-                        color: AppTheme.secondaryColor,
-                        width: screenWidth * 0.08,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ],
-                  ),
-                  BarChartGroupData(
-                    x: 2,
-                    barRods: [
-                      BarChartRodData(
-                        toY: accounts,
-                        color: AppTheme.secondaryColor,
-                        width: screenWidth * 0.08,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ],
-                  ),
-                ],
+                barGroups: groups,
               ),
             ),
           ),
+          const SizedBox(height: AppTheme.spacing12),
+          _ChartLegend(colorScheme: colorScheme, tr: _tr),
         ],
       ),
     );
   }
 
-  Widget _buildCreateReportSection(BuildContext context) {
+  double _maxDomainValue(OfficerStats stats) {
+    final values = [
+      stats.arrival.total,
+      stats.departure.total,
+      stats.accounts.total,
+    ];
+    return values.reduce((a, b) => a > b ? a : b).toDouble();
+  }
+
+  Widget _buildTotalsRow(ColorScheme colorScheme) {
+    final stats = _stats!;
+    final textTheme = Theme.of(context).textTheme;
+    final items = [
+      _TotalMetric(label: _tr('total_pending'), value: stats.totals.pending),
+      _TotalMetric(label: _tr('total_processed'), value: stats.totalProcessed),
+      _TotalMetric(label: _tr('total_produced'), value: stats.totals.produced),
+    ];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children:
+          items
+              .map(
+                (metric) => Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.only(right: AppTheme.spacing12),
+                    padding: const EdgeInsets.all(AppTheme.spacing16),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                      border: Border.all(color: colorScheme.outlineVariant),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          metric.label,
+                          style: textTheme.labelMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spacing8),
+                        Text(
+                          metric.value.toString(),
+                          style: textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+              .toList()
+            ..last = Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(AppTheme.spacing16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      items.last.label,
+                      style: textTheme.labelMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spacing8),
+                    Text(
+                      items.last.value.toString(),
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildReportHistorySection(ColorScheme colorScheme) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _tr('create_new_report'),
-          style: AppTheme.headingSmall(
-            context,
-          ).copyWith(fontWeight: FontWeight.bold),
+          _tr('report_history'),
+          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.calendar_today),
-                label: Text(_tr('daily_report')),
-                onPressed: _isGeneratingReport
-                    ? null
-                    : () => _generateReport('daily'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+        const SizedBox(height: AppTheme.spacing16),
+        if (_isLoadingReports)
+          const Center(child: CircularProgressIndicator())
+        else if (_reports.isEmpty)
+          Center(
+            child: Text(
+              _tr('no_reports_found'),
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.calendar_view_month),
-                label: Text(_tr('monthly_report_type')),
-                onPressed: _isGeneratingReport
-                    ? null
-                    : () => _generateReport('monthly'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
+          )
+        else
+          ..._reports.map(
+            (report) => _ReportListTile(
+              report: report,
+              onTap: () => _downloadReport(report),
+              tr: _tr,
             ),
-          ],
-        ),
+          ),
       ],
     );
   }
+}
 
-  Widget _buildReportHistoryItem(
-    BuildContext context, {
-    ReportModel? report,
-    String? title,
-    String? createdBy,
-    required VoidCallback onTap,
-  }) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final itemPadding = screenWidth * 0.04;
+class OfficerStats {
+  OfficerStats({
+    required this.start,
+    required this.end,
+    required this.arrival,
+    required this.departure,
+    required this.accounts,
+    required this.totals,
+  });
 
-    final displayTitle = report?.title ?? title ?? '';
-    final displayCreatedBy = report?.createdBy ?? createdBy ?? '';
+  factory OfficerStats.fromMap(Map<String, dynamic> map) {
+    DateTime parseDate(dynamic value) {
+      if (value is String && value.isNotEmpty) return DateTime.parse(value);
+      if (value is DateTime) return value;
+      return DateTime.now();
+    }
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+    Map<String, dynamic> mapFor(dynamic value) =>
+        (value is Map) ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+
+    final range = mapFor(map['range']);
+
+    return OfficerStats(
+      start: parseDate(range['start']),
+      end: parseDate(range['end']),
+      arrival: DomainStats.fromMap(mapFor(map['arrival'])),
+      departure: DomainStats.fromMap(mapFor(map['departure'])),
+      accounts: AccountStats.fromMap(mapFor(map['accounts'])),
+      totals: OverviewTotals.fromMap(mapFor(map['totals'])),
+    );
+  }
+
+  final DateTime start;
+  final DateTime end;
+  final DomainStats arrival;
+  final DomainStats departure;
+  final AccountStats accounts;
+  final OverviewTotals totals;
+
+  int get totalProcessed =>
+      arrival.processed + departure.processed + accounts.processed;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'range': {'start': start.toIso8601String(), 'end': end.toIso8601String()},
+      'arrival': arrival.toMap(),
+      'departure': departure.toMap(),
+      'accounts': accounts.toMap(),
+      'totals': totals.toMap(),
+    };
+  }
+}
+
+class DomainStats {
+  DomainStats({
+    required this.total,
+    required this.pending,
+    required this.approved,
+    required this.declined,
+    required this.revision,
+    required this.produced,
+    required this.processed,
+  });
+
+  factory DomainStats.fromMap(Map<String, dynamic> map) {
+    int asInt(dynamic value) {
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    return DomainStats(
+      total: asInt(map['total']),
+      pending: asInt(map['pending']),
+      approved: asInt(map['approved']),
+      declined: asInt(map['declined']),
+      revision: asInt(map['revision']),
+      produced: asInt(map['produced']),
+      processed: asInt(map['processed']),
+    );
+  }
+
+  final int total;
+  final int pending;
+  final int approved;
+  final int declined;
+  final int revision;
+  final int produced;
+  final int processed;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'total': total,
+      'pending': pending,
+      'approved': approved,
+      'declined': declined,
+      'revision': revision,
+      'produced': produced,
+      'processed': processed,
+    };
+  }
+}
+
+class AccountStats {
+  AccountStats({
+    required this.total,
+    required this.pending,
+    required this.approved,
+    required this.rejected,
+    required this.processed,
+  });
+
+  factory AccountStats.fromMap(Map<String, dynamic> map) {
+    int asInt(dynamic value) {
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    return AccountStats(
+      total: asInt(map['total']),
+      pending: asInt(map['pending']),
+      approved: asInt(map['approved']),
+      rejected: asInt(map['rejected']),
+      processed: asInt(map['processed']),
+    );
+  }
+
+  final int total;
+  final int pending;
+  final int approved;
+  final int rejected;
+  final int processed;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'total': total,
+      'pending': pending,
+      'approved': approved,
+      'rejected': rejected,
+      'processed': processed,
+    };
+  }
+
+  DomainStats asDomain() {
+    return DomainStats(
+      total: total,
+      pending: pending,
+      approved: approved,
+      declined: rejected,
+      revision: 0,
+      produced: 0,
+      processed: processed,
+    );
+  }
+}
+
+class OverviewTotals {
+  OverviewTotals({
+    required this.pending,
+    required this.approved,
+    required this.rejected,
+    required this.revision,
+    required this.produced,
+    required this.applications,
+  });
+
+  factory OverviewTotals.fromMap(Map<String, dynamic> map) {
+    int asInt(dynamic value) {
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    return OverviewTotals(
+      pending: asInt(map['pending']),
+      approved: asInt(map['approved']),
+      rejected: asInt(map['rejected']),
+      revision: asInt(map['revision']),
+      produced: asInt(map['produced']),
+      applications: asInt(map['applications']),
+    );
+  }
+
+  final int pending;
+  final int approved;
+  final int rejected;
+  final int revision;
+  final int produced;
+  final int applications;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'pending': pending,
+      'approved': approved,
+      'rejected': rejected,
+      'revision': revision,
+      'produced': produced,
+      'applications': applications,
+    };
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.title,
+    required this.color,
+    required this.stats,
+    required this.icon,
+  });
+
+  final String title;
+  final Color color;
+  final DomainStats stats;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      width: 280,
       child: Container(
-        padding: EdgeInsets.all(itemPadding),
-        margin: EdgeInsets.only(bottom: screenWidth * 0.02),
+        padding: const EdgeInsets.all(AppTheme.spacing16),
         decoration: BoxDecoration(
-          color: AppTheme.greyShade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.greyShade200),
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+          border: Border.all(color: colorScheme.outlineVariant),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.description,
-              color: AppTheme.primaryColor,
-              size: screenWidth * 0.06,
-            ),
-            SizedBox(width: screenWidth * 0.03),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    displayTitle,
-                    style: AppTheme.bodyMedium(context).copyWith(
-                      color: AppTheme.blackColor,
-                      fontWeight: FontWeight.w500,
-                    ),
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: color.withValues(alpha: 0.12),
+                  foregroundColor: color,
+                  child: Icon(icon),
+                ),
+                const SizedBox(width: AppTheme.spacing12),
+                Text(
+                  title,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-                  SizedBox(height: screenWidth * 0.01),
-                  Text(
-                    '${_tr('created_by')} $displayCreatedBy',
-                    style: AppTheme.bodySmall(
-                      context,
-                    ).copyWith(color: AppTheme.greyColor),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Icon(
-              Icons.chevron_right,
-              color: AppTheme.greyColor,
-              size: screenWidth * 0.06,
+            const SizedBox(height: AppTheme.spacing12),
+            _SummaryMetric(label: 'Total', value: stats.total.toString()),
+            _SummaryMetric(label: 'Pending', value: stats.pending.toString()),
+            _SummaryMetric(
+              label: 'Processed',
+              value: stats.processed.toString(),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+class _SummaryMetric extends StatelessWidget {
+  const _SummaryMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTheme.spacing8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          Text(
+            value,
+            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartLegend extends StatelessWidget {
+  const _ChartLegend({required this.colorScheme, required this.tr});
+
+  final ColorScheme colorScheme;
+  final String Function(String) tr;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = [
+      _LegendEntry(colorScheme.primary, tr('pending')),
+      _LegendEntry(Colors.green, tr('approved')),
+      _LegendEntry(colorScheme.error, tr('declined')),
+      _LegendEntry(Colors.orange, tr('revision')),
+      _LegendEntry(colorScheme.secondary, tr('produced')),
+    ];
+    return Wrap(
+      spacing: AppTheme.spacing12,
+      runSpacing: AppTheme.spacing8,
+      children: entries
+          .map(
+            (entry) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: entry.color,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacing8),
+                Text(entry.label),
+              ],
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _LegendEntry {
+  const _LegendEntry(this.color, this.label);
+
+  final Color color;
+  final String label;
+}
+
+class DataColumnBuilder {
+  DataColumnBuilder(this.data, this.x, this.scheme);
+
+  final DomainStats data;
+  final int x;
+  final ColorScheme scheme;
+
+  BarChartGroupData toGroup() {
+    final rod = BarChartRodData(
+      toY: data.total.toDouble(),
+      width: 32,
+      borderRadius: BorderRadius.circular(6),
+      rodStackItems: _buildStacks(),
+      color: scheme.primary,
+    );
+    return BarChartGroupData(x: x, barRods: [rod]);
+  }
+
+  List<BarChartRodStackItem> _buildStacks() {
+    double current = 0;
+    final items = <BarChartRodStackItem>[];
+
+    void addStack(int value, Color color) {
+      if (value <= 0) return;
+      final start = current;
+      current += value;
+      items.add(BarChartRodStackItem(start, current, color));
+    }
+
+    addStack(data.pending, scheme.primary);
+    addStack(data.approved, Colors.green);
+    addStack(data.declined, scheme.error);
+    addStack(data.revision, Colors.orange);
+    addStack(data.produced, scheme.secondary);
+
+    if (items.isEmpty) {
+      items.add(BarChartRodStackItem(0, 0, scheme.primary));
+    }
+
+    return items;
+  }
+}
+
+class _ReportListTile extends StatelessWidget {
+  const _ReportListTile({
+    required this.report,
+    required this.onTap,
+    required this.tr,
+  });
+
+  final ReportModel report;
+  final VoidCallback onTap;
+  final String Function(String) tr;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spacing16),
+        margin: const EdgeInsets.only(bottom: AppTheme.spacing12),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.description_outlined,
+              color: colorScheme.primary,
+              size: 28,
+            ),
+            const SizedBox(width: AppTheme.spacing16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    report.title,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spacing4),
+                  Text(
+                    '${tr('created_by')} ${report.createdBy}',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TotalMetric {
+  const _TotalMetric({required this.label, required this.value});
+
+  final String label;
+  final int value;
 }

@@ -1,10 +1,14 @@
 import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:http/http.dart' as http;
+
 import '../models/report_model.dart';
 import 'logging_service.dart';
 import 'officer_service.dart';
@@ -14,7 +18,6 @@ class ReportService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  // Get all reports for current officer
   Stream<List<ReportModel>> getReports() {
     final user = _auth.currentUser;
     if (user == null) return Stream.value([]);
@@ -31,68 +34,57 @@ class ReportService {
         );
   }
 
-  // Generate and save report
   Future<ReportModel?> generateReport(
     String type,
-    Map<String, dynamic> stats,
-  ) async {
-    LoggingService().info(
-      'Generating report of type: $type with stats: $stats',
-    );
+    Map<String, dynamic> stats, {
+    DateTimeRange? range,
+  }) async {
+    LoggingService().info('Generating report: type=$type payload=$stats');
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        LoggingService().error('No authenticated user found');
+        LoggingService().error('No authenticated user found while generating report');
         return null;
       }
-      LoggingService().info('User found: ${user.uid}');
 
       final now = DateTime.now();
-      final date = type == 'daily' ? now : DateTime(now.year, now.month, 1);
-      final title = type == 'daily'
-          ? 'Daily Report - ${date.toString().split(' ')[0]}'
-          : 'Monthly Report - ${date.month}/${date.year}';
-      LoggingService().info('Report title: $title');
+      final effectiveRange = range ?? DateTimeRange(start: now, end: now);
+      final DateFormat shortFormat = DateFormat('d MMM yyyy');
 
-      // Generate PDF
-      LoggingService().info('Generating PDF...');
-      final pdfBytes = await _generatePdf(title, stats, type, user.uid);
-      LoggingService().info('PDF generated, size: ${pdfBytes.length}');
+      final DateTime reportDate =
+          type == 'daily' ? effectiveRange.end : effectiveRange.start;
+      final String title = type == 'daily'
+          ? 'Daily Report - ${shortFormat.format(effectiveRange.end)}'
+          : 'Range Report - ${shortFormat.format(effectiveRange.start)} – '
+              '${shortFormat.format(effectiveRange.end)}';
 
-      // Upload to Firebase Storage
-      LoggingService().info('Uploading PDF to storage...');
-      final pdfUrl = await _uploadPdfToStorage(
-        pdfBytes,
-        '${type}_${date.millisecondsSinceEpoch}.pdf',
+      final pdfBytes = await _generatePdf(
+        title,
+        stats,
+        type,
+        user.uid,
+        range: effectiveRange,
       );
-      LoggingService().info('PDF uploaded to: $pdfUrl');
+      LoggingService().info('PDF generated (${pdfBytes.length} bytes)');
 
-      // Create a ReportModel instance
+      final pdfName =
+          '${type}_${reportDate.millisecondsSinceEpoch.toString()}.pdf';
+      final pdfUrl = await _uploadPdfToStorage(pdfBytes, pdfName);
+
       final newReport = ReportModel(
-        id: '', // Firestore will generate this
+        id: '',
         type: type,
-        date: date,
+        date: reportDate,
         createdBy: user.uid,
         stats: stats,
         pdfUrl: pdfUrl,
         createdAt: DateTime.now(),
         title: title,
       );
-      LoggingService().info('Report model created');
 
-      // Save to Firestore
-      LoggingService().info('Saving report to Firestore...');
-      final docRef = await _firestore
-          .collection('reports')
-          .add(newReport.toFirestore());
-      LoggingService().info('Report saved with ID: ${docRef.id}');
-
-      // Return the created report with its ID
-      final createdReport = newReport.copyWith(id: docRef.id);
-
-      LoggingService().info(
-        'Report generated and saved successfully: ${docRef.id}',
-      );
+      final docRef = await _firestore.collection('reports').add(
+            newReport.toFirestore(),
+          );
 
       await OfficerService().logActivity(
         title: title,
@@ -100,25 +92,52 @@ class ReportService {
         type: 'reportGenerated',
         iconData: 'analytics',
       );
-      return createdReport;
-    } catch (e, stackTrace) {
-      LoggingService().error('Error generating report', e, stackTrace);
+
+      return newReport.copyWith(id: docRef.id);
+    } catch (error, stackTrace) {
+      LoggingService().error('Error generating report', error, stackTrace);
       return null;
     }
   }
 
-  // Generate PDF with charts
   Future<Uint8List> _generatePdf(
     String title,
     Map<String, dynamic> stats,
     String type,
-    String officerId,
-  ) async {
+    String officerId, {
+    DateTimeRange? range,
+  }) async {
     final pdf = pw.Document();
+
+    DateTime parseDate(dynamic value) {
+      if (value is String && value.isNotEmpty) return DateTime.parse(value);
+      if (value is DateTime) return value;
+      return DateTime.now();
+    }
+
+    int asInt(dynamic value) {
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    Map<String, dynamic> toMap(dynamic value) =>
+        value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+
+    final arrival = toMap(stats['arrival']);
+    final departure = toMap(stats['departure']);
+    final accounts = toMap(stats['accounts']);
+    final totals = toMap(stats['totals']);
+    final rangeMap = toMap(stats['range']);
+
+    final DateFormat dateFormat = DateFormat('d MMM yyyy');
+    final DateTime start = range?.start ?? parseDate(rangeMap['start']);
+    final DateTime end = range?.end ?? parseDate(rangeMap['end']);
 
     pdf.addPage(
       pw.Page(
-        build: (pw.Context context) {
+        build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
@@ -134,16 +153,18 @@ class ReportService {
               ),
               pw.SizedBox(height: 20),
               pw.Text(
-                'Generated on: ${DateTime.now().toString()}',
+                'Generated on: ${DateFormat('d MMM yyyy, HH:mm').format(DateTime.now())}',
                 style: const pw.TextStyle(fontSize: 12),
               ),
               pw.Text(
                 'Generated by: Officer $officerId',
                 style: const pw.TextStyle(fontSize: 12),
               ),
-              pw.SizedBox(height: 30),
-
-              // Statistics Summary
+              pw.Text(
+                'Data range: ${dateFormat.format(start)} – ${dateFormat.format(end)}',
+                style: const pw.TextStyle(fontSize: 12),
+              ),
+              pw.SizedBox(height: 24),
               pw.Text(
                 'Statistics Summary',
                 style: pw.TextStyle(
@@ -151,57 +172,72 @@ class ReportService {
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
-              pw.SizedBox(height: 10),
+              pw.SizedBox(height: 12),
               pw.Table(
                 border: pw.TableBorder.all(),
                 children: [
                   pw.TableRow(
                     children: [
-                      pw.Text(
-                        'Category',
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-                      pw.Text(
-                        'Count',
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
+                      _tableHeader('Category'),
+                      _tableHeader('Pending'),
+                      _tableHeader('Approved'),
+                      _tableHeader('Rejected'),
+                      _tableHeader('Revision'),
+                      _tableHeader('Produced'),
+                      _tableHeader('Total'),
                     ],
                   ),
                   pw.TableRow(
                     children: [
-                      pw.Text('Pending Arrivals'),
-                      pw.Text(stats['pendingArrival']?.toString() ?? '0'),
+                      pw.Text('Arrival'),
+                      pw.Text('${asInt(arrival['pending'])}'),
+                      pw.Text('${asInt(arrival['approved'])}'),
+                      pw.Text('${asInt(arrival['declined'])}'),
+                      pw.Text('${asInt(arrival['revision'])}'),
+                      pw.Text('${asInt(arrival['produced'])}'),
+                      pw.Text('${asInt(arrival['total'])}'),
                     ],
                   ),
                   pw.TableRow(
                     children: [
-                      pw.Text('Pending Departures'),
-                      pw.Text(stats['pendingDeparture']?.toString() ?? '0'),
+                      pw.Text('Departure'),
+                      pw.Text('${asInt(departure['pending'])}'),
+                      pw.Text('${asInt(departure['approved'])}'),
+                      pw.Text('${asInt(departure['declined'])}'),
+                      pw.Text('${asInt(departure['revision'])}'),
+                      pw.Text('${asInt(departure['produced'])}'),
+                      pw.Text('${asInt(departure['total'])}'),
                     ],
                   ),
                   pw.TableRow(
                     children: [
-                      pw.Text('Pending Accounts'),
-                      pw.Text(stats['pendingAccounts']?.toString() ?? '0'),
+                      pw.Text('Accounts'),
+                      pw.Text('${asInt(accounts['pending'])}'),
+                      pw.Text('${asInt(accounts['approved'])}'),
+                      pw.Text('${asInt(accounts['rejected'])}'),
+                      pw.Text('-'),
+                      pw.Text('-'),
+                      pw.Text('${asInt(accounts['total'])}'),
                     ],
                   ),
                 ],
               ),
-
-              pw.SizedBox(height: 30),
-
-              // Placeholder for chart (PDF charts are complex, would need custom implementation)
+              pw.SizedBox(height: 24),
               pw.Text(
-                'Chart Visualization',
+                'Overall Totals',
                 style: pw.TextStyle(
                   fontSize: 16,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
-              pw.SizedBox(height: 10),
-              pw.Text(
-                'Chart data will be displayed here in future updates',
-                style: pw.TextStyle(fontSize: 10),
+              pw.SizedBox(height: 8),
+              pw.Bullet(text: 'Pending items: ${asInt(totals['pending'])}'),
+              pw.Bullet(
+                text:
+                    'Processed items: ${asInt(totals['approved']) + asInt(totals['rejected'])}',
+              ),
+              pw.Bullet(
+                text: 'Produced certificates: ${asInt(totals['produced'])}',
               ),
             ],
           );
@@ -212,121 +248,70 @@ class ReportService {
     return pdf.save();
   }
 
-  // Upload PDF to Firebase Storage
-  Future<String?> _uploadPdfToStorage(
-    Uint8List pdfBytes,
-    String fileName,
-  ) async {
+  pw.Widget _tableHeader(String text) {
+    return pw.Text(
+      text,
+      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+      textAlign: pw.TextAlign.center,
+    );
+  }
+
+  Future<String?> _uploadPdfToStorage(Uint8List pdfBytes, String fileName) async {
     try {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      final storageRef = _storage.ref();
-      final pdfRef = storageRef.child('reports/${user.uid}/$fileName');
-
-      final uploadTask = pdfRef.putData(pdfBytes);
-      final snapshot = await uploadTask.whenComplete(() => null);
-
-      if (snapshot.state == TaskState.success) {
-        final downloadUrl = await pdfRef.getDownloadURL();
-        LoggingService().info('PDF uploaded successfully: $downloadUrl');
-        return downloadUrl;
-      } else {
-        LoggingService().error('PDF upload failed');
-        return null;
-      }
-    } catch (e) {
-      LoggingService().error('Error uploading PDF', e);
+      final storageRef = _storage.ref('reports/${user.uid}/$fileName');
+      final uploadTask = storageRef.putData(pdfBytes);
+      await uploadTask.whenComplete(() => null);
+      final downloadUrl = await storageRef.getDownloadURL();
+      LoggingService().info('PDF uploaded: $downloadUrl');
+      return downloadUrl;
+    } catch (error, stackTrace) {
+      LoggingService().error('Error uploading PDF', error, stackTrace);
       return null;
     }
   }
 
-  // Download and share PDF
   Future<void> downloadReport(String pdfUrl, String fileName) async {
     try {
       await Printing.sharePdf(
         bytes: await _downloadPdfBytes(pdfUrl),
         filename: fileName,
       );
-    } catch (e) {
-      LoggingService().error('Error downloading report', e);
+    } catch (error, stackTrace) {
+      LoggingService().error('Error downloading report', error, stackTrace);
     }
   }
 
-  // Get PDF bytes from URL
   Future<Uint8List> _downloadPdfBytes(String url) async {
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       return Uint8List.fromList(response.bodyBytes);
-    } else {
-      throw Exception('Failed to download PDF');
     }
+    throw Exception('Failed to download PDF');
   }
 
-  // Delete report
   Future<bool> deleteReport(String reportId) async {
     try {
       final user = _auth.currentUser;
       if (user == null) return false;
 
-      // Get report to check ownership and get PDF URL
       final doc = await _firestore.collection('reports').doc(reportId).get();
       if (!doc.exists) return false;
 
       final report = ReportModel.fromFirestore(doc);
       if (report.createdBy != user.uid) return false;
 
-      // Delete PDF from storage if exists
       if (report.pdfUrl != null) {
-        try {
-          final pdfRef = _storage.refFromURL(report.pdfUrl!);
-          await pdfRef.delete();
-        } catch (e) {
-          LoggingService().warning('Error deleting PDF from storage', e);
-        }
+        await _storage.refFromURL(report.pdfUrl!).delete();
       }
 
-      // Delete from Firestore
-      await _firestore.collection('reports').doc(reportId).delete();
-
-      LoggingService().info('Report deleted successfully: $reportId');
+      await doc.reference.delete();
       return true;
-    } catch (e) {
-      LoggingService().error('Error deleting report', e);
+    } catch (error, stackTrace) {
+      LoggingService().error('Error deleting report', error, stackTrace);
       return false;
-    }
-  }
-
-  // Get report statistics
-  Future<Map<String, int>> getReportStats() async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return {};
-
-      final snapshot = await _firestore
-          .collection('reports')
-          .where('createdBy', isEqualTo: user.uid)
-          .get();
-
-      final stats = <String, int>{
-        'total': snapshot.docs.length,
-        'daily': 0,
-        'monthly': 0,
-      };
-
-      for (final doc in snapshot.docs) {
-        final report = ReportModel.fromFirestore(doc);
-        if (report.type == 'daily') {
-          stats['daily'] = (stats['daily'] ?? 0) + 1;
-        } else if (report.type == 'monthly') {
-          stats['monthly'] = (stats['monthly'] ?? 0) + 1;
-        }
-      }
-
-      return stats;
-    } catch (e) {
-      LoggingService().error('Error getting report stats', e);
-      return {};
     }
   }
 }

@@ -28,6 +28,10 @@ import '../views/screens/user/submission_waiting_screen.dart';
 import '../views/screens/officer/admin_home_screen.dart';
 import '../views/screens/officer/email_config_screen.dart';
 import '../views/screens/user/privacy_security_screen.dart';
+import '../views/screens/common/legal_document_screen.dart';
+import '../models/legal_document.dart';
+
+import '../views/screens/officer/legal_content_editor_screen.dart';
 
 import '../views/screens/user/language_selection_screen.dart';
 import '../views/screens/user/notification_settings_screen.dart';
@@ -60,7 +64,10 @@ class AppRoutes {
   static const String privacySecurity = '/privacy-security';
   static const String languageSelection = '/language-selection';
   static const String notificationSettings = '/notification-settings';
+  static const String terms = '/terms';
+  static const String privacy = '/privacy';
   static const String userSettings = '/user-settings';
+  static const String legalEditor = '/legal-editor';
 
   static const String adminHome = '/admin-home';
   static const String adminNotification = '/admin-notification';
@@ -138,6 +145,18 @@ class AppRoutes {
         return FadeRoute(page: SubmissionWaitingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
       case privacySecurity:
         return FadeRoute(page: const PrivacySecurityScreen());
+      case terms:
+        return FadeRoute(
+          page: const LegalDocumentScreen(
+            documentType: LegalDocumentType.terms,
+          ),
+        );
+      case privacy:
+        return FadeRoute(
+          page: const LegalDocumentScreen(
+            documentType: LegalDocumentType.privacy,
+          ),
+        );
       case languageSelection:
         return FadeRoute(page: const LanguageSelectionScreen());
       case notificationSettings:
@@ -153,6 +172,8 @@ class AppRoutes {
             initialLanguage: arguments['initialLanguage'] ?? 'EN',
           ),
         );
+      case legalEditor:
+        return FadeRoute(page: const LegalContentEditorScreen());
 
       case adminHome:
         final arguments = args as Map<String, dynamic>? ?? {};

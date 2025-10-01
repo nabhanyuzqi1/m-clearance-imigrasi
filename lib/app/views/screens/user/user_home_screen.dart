@@ -45,8 +45,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   bool _isLoadingUser = true;
   final UserService _userService = UserService();
   final NotificationService _notificationService = NotificationService();
-  StreamSubscription<int>? _notificationSubscription;
-  int _unreadNotifications = 0;
 
   @override
   void initState() {
@@ -56,18 +54,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     );
     _loadSelectedIndex();
     _loadCurrentUser();
-    _notificationSubscription = _notificationService.getUnreadCount().listen(
-      (count) {
-        if (!mounted) return;
-        setState(() => _unreadNotifications = count);
-      },
-      onError: (error) {
-        LoggingService().error(
-          'Error listening to user notification count',
-          error,
-        );
-      },
-    );
   }
 
   Future<void> _loadCurrentUser() async {
@@ -102,7 +88,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   @override
   void dispose() {
-    _notificationSubscription?.cancel();
     super.dispose();
   }
 
@@ -223,7 +208,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           UserMenuScreen(
             userAccount: currentUser!,
             initialLanguage: currentLangCode,
-            unreadNotifications: _unreadNotifications,
+            notificationService: _notificationService,
             onNotificationsTap: () {
               Navigator.pushNamed(context, AppRoutes.userNotification);
             },
@@ -265,15 +250,15 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 class UserMenuScreen extends StatelessWidget {
   final UserAccount userAccount;
   final String initialLanguage;
-  final int unreadNotifications;
   final VoidCallback onNotificationsTap;
+  final NotificationService notificationService;
 
   const UserMenuScreen({
     super.key,
     required this.userAccount,
     required this.initialLanguage,
-    required this.unreadNotifications,
     required this.onNotificationsTap,
+    required this.notificationService,
   });
 
   String _tr(BuildContext context, String screenKey, String stringKey) =>
@@ -296,7 +281,7 @@ class UserMenuScreen extends StatelessWidget {
         elevation: 0,
         actions: [
           NotificationIconWithBadge(
-            badgeCount: unreadNotifications,
+            badgeCountStream: notificationService.getUnreadCount(),
             onPressed: onNotificationsTap,
           ),
         ],

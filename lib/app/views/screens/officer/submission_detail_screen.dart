@@ -106,7 +106,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(l10n.get('submissionDetail.action_failed')),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -210,7 +210,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Poppins',
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -220,7 +220,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
               value,
               style: TextStyle(
                 fontFamily: 'Poppins',
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -230,15 +230,16 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
   }
 
   Color _getStatusColor(ApplicationStatus status) {
+    final colorScheme = Theme.of(context).colorScheme;
     switch (status) {
       case ApplicationStatus.waiting:
-        return AppTheme.primaryColor;
+        return colorScheme.primary;
       case ApplicationStatus.approved:
-        return AppTheme.successColor;
+        return colorScheme.primary;
       case ApplicationStatus.revision:
-        return AppTheme.warningColor;
+        return colorScheme.secondary;
       case ApplicationStatus.declined:
-        return AppTheme.errorColor;
+        return colorScheme.error;
     }
   }
 
@@ -273,11 +274,11 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     return Container(
       padding: EdgeInsets.all(AppTheme.spacing16),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.greyColor.withAlpha(25),
+            color: Theme.of(context).colorScheme.shadow.withAlpha(25),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -291,7 +292,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
             style: TextStyle(
               fontSize: AppTheme.fontSizeH6,
               fontWeight: FontWeight.bold,
-              color: AppTheme.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
               fontFamily: 'Poppins',
             ),
           ),
@@ -300,21 +301,23 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
             l10n.get('submissionDetail.decision_hint'),
             style: TextStyle(
               fontSize: AppTheme.fontSizeBody2,
-              color: AppTheme.subtitleColor,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontFamily: 'Poppins',
             ),
           ),
           SizedBox(height: AppTheme.spacing16),
           CustomButton(
             text: l10n.get('submissionDetail.select_action'),
-            backgroundColor: AppTheme.primaryColor,
-            foregroundColor: AppTheme.whiteColor,
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
             isFullWidth: true,
-            leadingIcon: const Icon(
+            leadingIcon: Icon(
               Icons.gavel_outlined,
-              color: AppTheme.whiteColor,
+              color: Theme.of(context).colorScheme.onPrimary,
             ),
-            onPressed: _isProcessingAction ? null : () => _showDecisionSheet(appId),
+            onPressed: _isProcessingAction
+                ? null
+                : () => _showDecisionSheet(appId),
           ),
         ],
       ),
@@ -335,7 +338,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
             children: [
               _buildDecisionTile(
                 icon: Icons.edit_outlined,
-                color: AppTheme.warningColor,
+                color: Theme.of(context).colorScheme.secondary,
                 title: l10n.get('submissionDetail.review_submission'),
                 subtitle: l10n.get('submissionDetail.revision_notes_hint'),
                 onTap: () {
@@ -345,7 +348,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
               ),
               _buildDecisionTile(
                 icon: Icons.cancel_outlined,
-                color: AppTheme.errorColor,
+                color: Theme.of(context).colorScheme.error,
                 title: l10n.get('submissionDetail.reject_submission'),
                 subtitle: l10n.get('submissionDetail.reason_label'),
                 onTap: () {
@@ -355,7 +358,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
               ),
               _buildDecisionTile(
                 icon: Icons.check_circle_outline,
-                color: AppTheme.successColor,
+                color: Theme.of(context).colorScheme.primary,
                 title: l10n.get('submissionDetail.finish_verification'),
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -476,7 +479,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                       content: Text(
                         l10n.get('submissionDetail.reason_required'),
                       ),
-                      backgroundColor: AppTheme.errorColor,
+                      backgroundColor: Theme.of(context).colorScheme.error,
                     ),
                   );
                   return;
@@ -522,15 +525,13 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       child: IgnorePointer(
         ignoring: false,
         child: Container(
-          color: AppTheme.blackColor.withOpacity(0.45),
+          color: Colors.black.withAlpha(115),
           child: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppTheme.whiteColor,
-                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
                 const SizedBox(height: AppTheme.spacing16),
                 Padding(
@@ -539,11 +540,10 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                   ),
                   child: Text(
                     AppLocalizations.of(context).get(
-                      'submissionDetail.' +
-                          (_processingMessageKey ?? 'processing_request'),
+                      'submissionDetail.${_processingMessageKey ?? 'processing_request'}',
                     ),
                     style: TextStyle(
-                      color: AppTheme.whiteColor,
+                      color: Theme.of(context).colorScheme.surface,
                       fontSize: AppTheme.fontSizeBody1,
                       fontWeight: FontWeight.w600,
                       fontFamily: 'Poppins',
@@ -580,8 +580,8 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppTheme.primaryColor,
-                  AppTheme.primaryColor.withAlpha(204),
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.primary.withAlpha(204),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -589,7 +589,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.primaryColor.withAlpha(51),
+                  color: Theme.of(context).colorScheme.primary.withAlpha(51),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -600,12 +600,12 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                 Container(
                   padding: EdgeInsets.all(AppTheme.spacing12),
                   decoration: BoxDecoration(
-                    color: AppTheme.whiteColor.withAlpha(51),
+                    color: Colors.white.withAlpha(51),
                     borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                   ),
                   child: Icon(
                     Icons.anchor,
-                    color: AppTheme.whiteColor,
+                    color: Colors.white,
                     size: screenWidth > 600 ? 32.0 : screenWidth * 0.08,
                   ),
                 ),
@@ -619,7 +619,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                         style: TextStyle(
                           fontSize: AppTheme.fontSizeH5,
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.whiteColor,
+                          color: Colors.white,
                           fontFamily: 'Poppins',
                         ),
                       ),
@@ -628,7 +628,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                         '${AppLocalizations.of(context).get('submissionDetail.application_id')}: ${widget.application.id}',
                         style: TextStyle(
                           fontSize: AppTheme.fontSizeBody2,
-                          color: AppTheme.whiteColor.withAlpha(204),
+                          color: Colors.white.withAlpha(204),
                           fontFamily: 'Poppins',
                         ),
                       ),
@@ -645,11 +645,11 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
           Container(
             padding: EdgeInsets.all(AppTheme.spacing16),
             decoration: BoxDecoration(
-              color: AppTheme.whiteColor,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.greyColor.withAlpha(25),
+                  color: Theme.of(context).colorScheme.shadow.withAlpha(25),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -662,7 +662,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                   children: [
                     Icon(
                       Icons.info_outline,
-                      color: AppTheme.primaryColor,
+                      color: Theme.of(context).colorScheme.primary,
                       size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
                     ),
                     SizedBox(width: AppTheme.spacing12),
@@ -673,7 +673,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                       style: TextStyle(
                         fontSize: AppTheme.fontSizeH6,
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.onSurface,
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontFamily: 'Poppins',
                       ),
                     ),
@@ -728,11 +728,11 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
           Container(
             padding: EdgeInsets.all(AppTheme.spacing16),
             decoration: BoxDecoration(
-              color: AppTheme.whiteColor,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.greyColor.withAlpha(25),
+                  color: Theme.of(context).colorScheme.shadow.withAlpha(25),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -745,7 +745,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                   children: [
                     Icon(
                       Icons.description,
-                      color: AppTheme.primaryColor,
+                      color: Theme.of(context).colorScheme.primary,
                       size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
                     ),
                     SizedBox(width: AppTheme.spacing12),
@@ -756,7 +756,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                       style: TextStyle(
                         fontSize: AppTheme.fontSizeH6,
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.onSurface,
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontFamily: 'Poppins',
                       ),
                     ),
@@ -842,11 +842,11 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
           Container(
             padding: EdgeInsets.all(AppTheme.spacing16),
             decoration: BoxDecoration(
-              color: AppTheme.whiteColor,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.greyColor.withAlpha(25),
+                  color: Theme.of(context).colorScheme.shadow.withAlpha(25),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -859,7 +859,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                   children: [
                     Icon(
                       Icons.attach_file,
-                      color: AppTheme.primaryColor,
+                      color: Theme.of(context).colorScheme.primary,
                       size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
                     ),
                     SizedBox(width: AppTheme.spacing12),
@@ -890,13 +890,13 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     );
 
     final scaffold = Scaffold(
-      backgroundColor: AppTheme.greyShade50,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
       appBar: CustomAppBar(
         titleText: AppLocalizations.of(
           context,
         ).get('submissionDetail.application_detail'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
       ),
       body: scrollContent,

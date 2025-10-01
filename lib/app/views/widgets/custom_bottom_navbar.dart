@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../services/logging_service.dart';
-import '../../config/theme.dart';
 import '../../localization/app_strings.dart';
 
 class NavigationItem {
@@ -53,16 +52,32 @@ class CustomBottomNavbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    LoggingService().debug('Building CustomBottomNavbar with currentIndex: $currentIndex');
+    LoggingService().debug(
+      'Building CustomBottomNavbar with currentIndex: $currentIndex',
+    );
     final screenWidth = MediaQuery.of(context).size.width;
-    final defaultIconSize = iconSize ?? (screenWidth > 600 ? 24.0 : screenWidth * 0.06);
-    final defaultSelectedLabelStyle = TextStyle(
-      fontSize: screenWidth > 600 ? 12.0 : screenWidth * 0.03,
-      fontWeight: FontWeight.w500,
-    );
-    final defaultUnselectedLabelStyle = TextStyle(
-      fontSize: screenWidth > 600 ? 12.0 : screenWidth * 0.03,
-    );
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final defaultIconSize =
+        iconSize ?? (screenWidth > 600 ? 24.0 : screenWidth * 0.06);
+    final defaultSelectedLabelStyle =
+        (selectedLabelStyle ?? theme.textTheme.bodySmall)?.copyWith(
+          fontSize: screenWidth > 600 ? 12.0 : screenWidth * 0.03,
+          fontWeight: FontWeight.w600,
+          color: selectedItemColor ?? colorScheme.primary,
+        );
+    final defaultUnselectedLabelStyle =
+        (unselectedLabelStyle ?? theme.textTheme.bodySmall)?.copyWith(
+          fontSize: screenWidth > 600 ? 12.0 : screenWidth * 0.03,
+          color:
+              unselectedItemColor ??
+              colorScheme.onSurfaceVariant.withAlpha(153),
+        );
+
+    final resolvedBackground = backgroundColor ?? colorScheme.surface;
+    final resolvedSelectedColor = selectedItemColor ?? colorScheme.primary;
+    final resolvedUnselectedColor =
+        unselectedItemColor ?? colorScheme.onSurfaceVariant.withAlpha(153);
 
     return BottomNavigationBar(
       type: type,
@@ -76,12 +91,12 @@ class CustomBottomNavbar extends StatelessWidget {
           icon: Icon(
             item.icon,
             size: defaultIconSize,
-            color: unselectedItemColor ?? AppTheme.onSurface.withAlpha(102), // 0.4 * 255
+            color: resolvedUnselectedColor,
           ),
           activeIcon: Icon(
             item.activeIcon ?? item.icon,
             size: defaultIconSize,
-            color: selectedItemColor ?? AppTheme.primaryColor,
+            color: resolvedSelectedColor,
           ),
           label: localizedLabel,
           backgroundColor: item.color,
@@ -89,18 +104,22 @@ class CustomBottomNavbar extends StatelessWidget {
       }).toList(),
       currentIndex: currentIndex,
       onTap: onTap,
-      backgroundColor: backgroundColor ?? AppTheme.surfaceColor,
-      selectedItemColor: selectedItemColor ?? AppTheme.primaryColor,
-      unselectedItemColor: unselectedItemColor ?? AppTheme.onSurface.withAlpha(102), // 0.4 * 255
+      backgroundColor: resolvedBackground,
+      selectedItemColor: resolvedSelectedColor,
+      unselectedItemColor: resolvedUnselectedColor,
       showSelectedLabels: showSelectedLabels,
       showUnselectedLabels: showUnselectedLabels,
-      selectedLabelStyle: selectedLabelStyle ?? defaultSelectedLabelStyle,
-      unselectedLabelStyle: unselectedLabelStyle ?? defaultUnselectedLabelStyle,
+      selectedLabelStyle: defaultSelectedLabelStyle,
+      unselectedLabelStyle: defaultUnselectedLabelStyle,
       elevation: elevation ?? 8,
     );
   }
 
-  String _getLocalizedLabel(BuildContext context, String label, String languageCode) {
+  String _getLocalizedLabel(
+    BuildContext context,
+    String label,
+    String languageCode,
+  ) {
     // Map hardcoded labels to localized keys
     final labelMap = {
       'Home': {'screenKey': 'userHome', 'stringKey': 'home'},

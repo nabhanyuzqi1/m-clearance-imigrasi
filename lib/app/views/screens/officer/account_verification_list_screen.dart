@@ -75,7 +75,11 @@ class _AccountVerificationListScreenState
     return filtered;
   }
 
-  Widget _buildFilterButton(String filter, String label) {
+  Widget _buildFilterButton(
+    String filter,
+    String label,
+    ColorScheme colorScheme,
+  ) {
     final isSelected = _selectedFilter == filter;
     return Expanded(
       child: ElevatedButton(
@@ -84,11 +88,11 @@ class _AccountVerificationListScreenState
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: isSelected
-              ? AppTheme.primaryColor
-              : AppTheme.greyShade200,
+              ? colorScheme.primary
+              : colorScheme.surfaceContainerHighest,
           foregroundColor: isSelected
-              ? AppTheme.whiteColor
-              : AppTheme.blackColor87,
+              ? colorScheme.onPrimary
+              : colorScheme.onSurfaceVariant,
           elevation: isSelected ? 2 : 0,
           padding: const EdgeInsets.symmetric(vertical: 8),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -105,41 +109,41 @@ class _AccountVerificationListScreenState
   }
 
   // Helper to get status properties
-  Map<String, dynamic> _getStatusProperties(String status) {
+  Map<String, dynamic> _getStatusProperties(
+    String status,
+    ColorScheme colorScheme,
+  ) {
     switch (status) {
       case 'approved':
-        return {
-          'color': AppTheme.successColor,
-          'label': _tr('status_approved'),
-        };
+        return {'color': colorScheme.tertiary, 'label': _tr('status_approved')};
       case 'rejected':
-        return {'color': AppTheme.errorColor, 'label': _tr('status_rejected')};
+        return {'color': colorScheme.error, 'label': _tr('status_rejected')};
       case 'pending_documents':
       case 'pending_upload_docs':
         return {
-          'color': AppTheme.infoColor,
+          'color': colorScheme.primary,
           'label': _tr('status_pending_documents'),
         };
       case 'pending_email_verification':
       case 'pending_email':
         return {
-          'color': AppTheme.infoColor,
+          'color': colorScheme.primary,
           'label': _tr('status_pending_email_verification'),
         };
       case 'pending_verification_officer':
       case 'pending_approval':
         return {
-          'color': AppTheme.accentColor,
+          'color': colorScheme.secondary,
           'label': _tr('status_pending_approval'),
         };
       default:
-        return {'color': AppTheme.warningColor, 'label': _tr('status_pending')};
+        return {'color': colorScheme.secondary, 'label': _tr('status_pending')};
     }
   }
 
-  Widget _buildUserCard(UserModel user) {
+  Widget _buildUserCard(UserModel user, ColorScheme colorScheme) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final statusProps = _getStatusProperties(user.status);
+    final statusProps = _getStatusProperties(user.status, colorScheme);
     final statusColor = statusProps['color'] as Color;
     final statusLabel = statusProps['label'] as String;
 
@@ -150,12 +154,12 @@ class _AccountVerificationListScreenState
         vertical: AppTheme.spacing16,
       ),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.greyShade200),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.greyColor.withAlpha(13),
+            color: colorScheme.shadow.withAlpha(13),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -175,7 +179,7 @@ class _AccountVerificationListScreenState
           children: [
             Icon(
               Icons.person_outline,
-              color: AppTheme.primaryColor,
+              color: colorScheme.primary,
               size: screenWidth * 0.08,
             ),
             const SizedBox(width: AppTheme.spacing16),
@@ -187,7 +191,7 @@ class _AccountVerificationListScreenState
                     user.username.isNotEmpty ? user.username : user.email,
                     style: AppTheme.bodyMedium(context).copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.blackColor,
+                      color: colorScheme.onSurface,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -197,7 +201,7 @@ class _AccountVerificationListScreenState
                         : user.email,
                     style: AppTheme.bodySmall(
                       context,
-                    ).copyWith(color: AppTheme.greyColor),
+                    ).copyWith(color: colorScheme.onSurfaceVariant),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
@@ -206,7 +210,7 @@ class _AccountVerificationListScreenState
                       Icon(
                         Icons.alternate_email,
                         size: screenWidth * 0.04,
-                        color: AppTheme.greyColor,
+                        color: colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 4),
                       Expanded(
@@ -214,7 +218,7 @@ class _AccountVerificationListScreenState
                           user.email,
                           style: AppTheme.bodySmall(
                             context,
-                          ).copyWith(color: AppTheme.greyShade600),
+                          ).copyWith(color: colorScheme.onSurfaceVariant),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -236,7 +240,7 @@ class _AccountVerificationListScreenState
                 statusLabel,
                 style: AppTheme.labelSmall(
                   context,
-                  ).copyWith(color: statusColor, fontWeight: FontWeight.bold),
+                ).copyWith(color: statusColor, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -248,20 +252,21 @@ class _AccountVerificationListScreenState
   @override
   Widget build(BuildContext context) {
     LoggingService().debug('Building AccountVerificationListScreen');
+    final colorScheme = Theme.of(context).colorScheme;
     final horizontalInset = AppTheme.responsivePadding(context);
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
         titleText: AppLocalizations.of(
           context,
         ).get('accountVerificationList.title'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         showBackButton: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh, color: AppTheme.onSurface),
+            icon: Icon(Icons.refresh, color: colorScheme.onSurface),
             onPressed: _refreshList,
           ),
         ],
@@ -278,7 +283,7 @@ class _AccountVerificationListScreenState
               horizontal: horizontalInset * 0.75,
               vertical: 12,
             ),
-            color: AppTheme.whiteColor,
+            color: colorScheme.surface,
             child: TextField(
               controller: _searchController,
               onChanged: (value) => setState(() {}),
@@ -287,21 +292,18 @@ class _AccountVerificationListScreenState
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppTheme.greyShade300),
+                  borderSide: BorderSide(color: colorScheme.outlineVariant),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppTheme.greyShade300),
+                  borderSide: BorderSide(color: colorScheme.outlineVariant),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: AppTheme.primaryColor,
-                    width: 2,
-                  ),
+                  borderSide: BorderSide(color: colorScheme.primary, width: 2),
                 ),
                 filled: true,
-                fillColor: AppTheme.greyShade50,
+                fillColor: colorScheme.surfaceContainerHighest,
                 contentPadding: const EdgeInsets.symmetric(
                   vertical: 12,
                   horizontal: 16,
@@ -320,14 +322,14 @@ class _AccountVerificationListScreenState
               horizontal: horizontalInset * 0.75,
               vertical: 8,
             ),
-            color: AppTheme.whiteColor,
+            color: colorScheme.surface,
             child: Row(
               children: [
-                _buildFilterButton('all', _tr('all')),
+                _buildFilterButton('all', _tr('all'), colorScheme),
                 const SizedBox(width: 8),
-                _buildFilterButton('waiting', _tr('waiting')),
+                _buildFilterButton('waiting', _tr('waiting'), colorScheme),
                 const SizedBox(width: 8),
-                _buildFilterButton('reviewed', _tr('reviewed')),
+                _buildFilterButton('reviewed', _tr('reviewed'), colorScheme),
               ],
             ),
           ),
@@ -359,7 +361,7 @@ class _AccountVerificationListScreenState
                     ),
                     itemCount: users.length,
                     itemBuilder: (context, index) {
-                      return _buildUserCard(users[index]);
+                      return _buildUserCard(users[index], colorScheme);
                     },
                   );
                 },

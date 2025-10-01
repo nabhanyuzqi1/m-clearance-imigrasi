@@ -68,7 +68,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(_tr(key)),
-          backgroundColor: AppTheme.successColor,
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
       navigator.pop(true);
@@ -78,7 +78,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text(_tr('error_occurred')),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -96,9 +96,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       final descriptionBuffer = StringBuffer(
         'Account $subject marked as ${decision.toUpperCase()}.',
       );
-      if (decision != 'approved' &&
-          reason != null &&
-          reason.isNotEmpty) {
+      if (decision != 'approved' && reason != null && reason.isNotEmpty) {
         descriptionBuffer.write(' Reason: $reason.');
       }
       await _officerService.logActivity(
@@ -153,7 +151,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppTheme.primaryColor, size: 24),
+          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 24),
           const SizedBox(width: 16.0),
           Expanded(
             child: Column(
@@ -161,9 +159,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.blackColor,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: AppTheme.fontSizeMedium,
                   ),
                 ),
@@ -172,7 +170,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                   Text(
                     displaySubtitle,
                     style: TextStyle(
-                      color: subtitleColor ?? AppTheme.blackColor54,
+                      color:
+                          subtitleColor ??
+                          Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: AppTheme.fontSizeMedium,
                     ),
                   ),
@@ -194,9 +194,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         ? [
             Text(
               emptyMessage,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.blackColor54),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ]
         : children;
@@ -205,11 +205,11 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       margin: const EdgeInsets.symmetric(vertical: 8.0),
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12.0),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.greyShade200.withAlpha(120),
+            color: Theme.of(context).colorScheme.shadow.withAlpha(120),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 3),
@@ -223,7 +223,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
-              color: AppTheme.primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(height: 12.0),
@@ -238,11 +238,11 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12.0),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.greyShade200.withAlpha(120),
+            color: Theme.of(context).colorScheme.shadow.withAlpha(120),
             spreadRadius: 1,
             blurRadius: 6,
             offset: const Offset(0, 3),
@@ -255,24 +255,27 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
           Text(
             l10n.get('accountDetail.select_action'),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.onSurface,
-                ),
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             l10n.get('accountDetail.decision_hint'),
-            style: const TextStyle(
-              color: AppTheme.blackColor54,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: AppTheme.fontSizeSmall,
             ),
           ),
           const SizedBox(height: 16),
           CustomButton(
             text: l10n.get('accountDetail.select_action'),
-            leadingIcon: const Icon(Icons.gavel_outlined, color: AppTheme.whiteColor),
-            backgroundColor: AppTheme.primaryColor,
-            foregroundColor: AppTheme.whiteColor,
+            leadingIcon: Icon(
+              Icons.gavel_outlined,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
             isFullWidth: true,
             onPressed: _loadingAction ? null : _showDecisionSheet,
           ),
@@ -294,7 +297,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             children: [
               _buildDecisionOption(
                 icon: Icons.check_circle_outline,
-                color: AppTheme.successColor,
+                color: Theme.of(context).colorScheme.primary,
                 title: _tr('approve'),
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -303,7 +306,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
               ),
               _buildDecisionOption(
                 icon: Icons.cancel_outlined,
-                color: AppTheme.errorColor,
+                color: Theme.of(context).colorScheme.error,
                 title: _tr('reject'),
                 subtitle: _tr('reason_label'),
                 onTap: () {
@@ -408,7 +411,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(_tr('reason_required')),
-                      backgroundColor: AppTheme.errorColor,
+                      backgroundColor: Theme.of(context).colorScheme.error,
                     ),
                   );
                   return;
@@ -439,8 +442,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       final key = _normalizeDocumentKey(raw);
       if (key.isEmpty) continue;
 
-      final url =
-          (doc['storagePath'] ?? doc['path'] ?? doc['url'] ?? '').toString();
+      final url = (doc['storagePath'] ?? doc['path'] ?? doc['url'] ?? '')
+          .toString();
       labels.putIfAbsent(key, () => _labelForDocumentKey(key, raw));
       grouped.putIfAbsent(key, () => <String>{});
       if (url.trim().isNotEmpty) {
@@ -449,7 +452,10 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     }
 
     for (final expected in const ['ktp', 'nib']) {
-      labels.putIfAbsent(expected, () => _labelForDocumentKey(expected, expected));
+      labels.putIfAbsent(
+        expected,
+        () => _labelForDocumentKey(expected, expected),
+      );
       grouped.putIfAbsent(expected, () => <String>{});
     }
 
@@ -515,10 +521,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DocumentViewScreen(
-          storagePath: url,
-          fileName: fileName,
-        ),
+        builder: (context) =>
+            DocumentViewScreen(storagePath: url, fileName: fileName),
       ),
     );
   }
@@ -529,34 +533,34 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       case 'approved':
         return {
           'label': l10n.get('accountVerificationList.status_approved'),
-          'color': AppTheme.successColor,
+          'color': Theme.of(context).colorScheme.primary,
         };
       case 'rejected':
         return {
           'label': l10n.get('accountVerificationList.status_rejected'),
-          'color': AppTheme.errorColor,
+          'color': Theme.of(context).colorScheme.error,
         };
       case 'pending_documents':
         return {
           'label': l10n.get('accountVerificationList.status_pending_documents'),
-          'color': AppTheme.warningColor,
+          'color': Theme.of(context).colorScheme.secondary,
         };
       case 'pending_email_verification':
         return {
           'label': l10n.get(
             'accountVerificationList.status_pending_email_verification',
           ),
-          'color': AppTheme.infoColor,
+          'color': Theme.of(context).colorScheme.primary,
         };
       case 'pending_approval':
         return {
           'label': l10n.get('accountVerificationList.status_pending_approval'),
-          'color': AppTheme.accentColor,
+          'color': Theme.of(context).colorScheme.secondary,
         };
       default:
         return {
           'label': status.replaceAll('_', ' ').toUpperCase(),
-          'color': AppTheme.greyColor,
+          'color': Theme.of(context).colorScheme.onSurfaceVariant,
         };
     }
   }
@@ -570,11 +574,11 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     final verticalSpacing = horizontalPadding * 0.6;
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: CustomAppBar(
         titleText: _tr('user_details'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
       ),
       body: FutureBuilder<UserModel?>(
@@ -659,8 +663,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                           : 'email_not_verified',
                     ),
                     subtitleColor: user.isEmailVerified
-                        ? AppTheme.successColor
-                        : AppTheme.warningColor,
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.secondary,
                   ),
                   _buildInfoTile(
                     hasUploadedDocs
@@ -673,8 +677,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                           : 'documents_missing',
                     ),
                     subtitleColor: hasUploadedDocs
-                        ? AppTheme.infoColor
-                        : AppTheme.warningColor,
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.secondary,
                   ),
                   _buildInfoTile(
                     Icons.schedule_outlined,
@@ -699,10 +703,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
           );
 
           return Stack(
-            children: [
-              content,
-              if (_loadingAction) _buildLoadingOverlay(),
-            ],
+            children: [content, if (_loadingAction) _buildLoadingOverlay()],
           );
         },
       ),
@@ -712,10 +713,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
   Widget _buildLoadingOverlay() {
     return Positioned.fill(
       child: ColoredBox(
-        color: Colors.black.withOpacity(0.35),
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        color: Colors.black.withAlpha(89),
+        child: const Center(child: CircularProgressIndicator()),
       ),
     );
   }

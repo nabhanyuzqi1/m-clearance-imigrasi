@@ -395,6 +395,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 fontFamily: 'Poppins',
               ),
             ),
+            centerTitle: true,
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
             elevation: 0,
