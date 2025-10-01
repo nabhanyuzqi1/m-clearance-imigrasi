@@ -733,10 +733,30 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
       LoggingService().info('File uploads completed successfully');
 
-      final combinedCrewListFiles = <String>[
+      final combinedCrewListFiles = <String>{
         ..._existingCrewListFiles.where((url) => url.trim().isNotEmpty),
         ...newCrewListUrls,
-      ];
+      }.toList();
+
+      final existingPortFiles =
+          widget.existingApplication?.portClearanceFiles ?? const [];
+      final finalPortFiles = (portClearanceUrl != null &&
+              portClearanceUrl.isNotEmpty)
+          ? [portClearanceUrl]
+          : (_portClearanceFileUrl != null &&
+                  _portClearanceFileUrl!.isNotEmpty)
+              ? [_portClearanceFileUrl!]
+              : List<String>.from(existingPortFiles);
+
+      final existingNotificationFiles =
+          widget.existingApplication?.notificationLetterFiles ?? const [];
+      final finalNotificationFiles = (notificationLetterUrl != null &&
+              notificationLetterUrl.isNotEmpty)
+          ? [notificationLetterUrl]
+          : (_notificationLetterFileUrl != null &&
+                  _notificationLetterFileUrl!.isNotEmpty)
+              ? [_notificationLetterFileUrl!]
+              : List<String>.from(existingNotificationFiles);
 
       final application = ClearanceApplication(
         id: widget.existingApplication?.id ?? '',
@@ -758,12 +778,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         wnaCrew: _wnaCrewController.text.trim().isEmpty
             ? null
             : _wnaCrewController.text.trim(),
-        portClearanceFile:
-            portClearanceUrl ?? widget.existingApplication?.portClearanceFile,
+        portClearanceFiles: finalPortFiles,
         crewListFiles: combinedCrewListFiles,
-        notificationLetterFile:
-            notificationLetterUrl ??
-            widget.existingApplication?.notificationLetterFile,
+        notificationLetterFiles: finalNotificationFiles,
       );
 
       LoggingService().debug(

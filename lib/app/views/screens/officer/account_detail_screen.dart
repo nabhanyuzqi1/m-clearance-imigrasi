@@ -11,6 +11,8 @@ import '../../../services/officer_service.dart';
 import '../../../utils/file_utils.dart';
 import '../../screens/user/document_view_screen.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/attachment_status_tile.dart';
+import '../../widgets/custom_button.dart';
 
 class AccountDetailScreen extends StatefulWidget {
   final String uid;
@@ -25,8 +27,6 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
   final _fx = FunctionsService();
   final OfficerService _officerService = OfficerService();
   late final Future<UserModel?> _userFuture;
-  final TextEditingController _reasonController = TextEditingController();
-  String? _rejectionReason;
   bool _loadingAction = false;
   UserModel? _userModel;
 
@@ -39,13 +39,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     });
   }
 
-  @override
-  void dispose() {
-    _reasonController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _decide(String decision) async {
+  Future<void> _decide(String decision, {String? reason}) async {
     LoggingService().info(
       'Officer decision for account ${widget.uid}: $decision',
     );
@@ -54,35 +48,17 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
-    _rejectionReason = _reasonController.text.trim();
-    if (decision != 'approved' &&
-        (_rejectionReason == null || _rejectionReason!.isEmpty)) {
-      LoggingService().warning(
-        'Rejection/revision reason required but not provided',
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('reason_required')),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
-      setState(() => _loadingAction = false);
-      return;
-    }
-
     try {
       await _fx.officerDecideAccount(
         targetUid: widget.uid,
         decision: decision,
-        reason: _rejectionReason,
+        reason: reason?.trim().isEmpty == true ? null : reason?.trim(),
       );
       LoggingService().info(
         'Officer decision processed successfully: $decision for UID: ${widget.uid}',
       );
 
-      await _logAccountActivity(decision);
+      await _logAccountActivity(decision, reason: reason);
 
       if (!mounted) return;
       final key = decision == 'approved'
@@ -107,51 +83,23 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         );
       }
     } finally {
-      if (decision == 'approved') {
-        _reasonController.clear();
-        _rejectionReason = null;
-      }
       if (mounted) setState(() => _loadingAction = false);
     }
-  }
-
-  void _showDocumentPreview(
-    BuildContext context,
-    Map<String, dynamic> document,
-  ) {
-    final documentName = (document['documentName'] ?? document['name'] ?? 'Document')
-        .toString();
-    final storagePath =
-        (document['storagePath'] ?? document['path'] ?? document['url'] ?? '')
-            .toString();
-    final displayName = storagePath.isNotEmpty
-        ? getFileNameFromUrl(storagePath)
-        : documentName;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DocumentViewScreen(
-          storagePath: storagePath,
-          fileName: displayName,
-        ),
-      ),
-    );
   }
 
   String _tr(String key) =>
       AppLocalizations.of(context).get('accountDetail.$key');
 
-  Future<void> _logAccountActivity(String decision) async {
+  Future<void> _logAccountActivity(String decision, {String? reason}) async {
     try {
       final subject = _deriveAccountSubject();
       final descriptionBuffer = StringBuffer(
         'Account $subject marked as ${decision.toUpperCase()}.',
       );
       if (decision != 'approved' &&
-          _rejectionReason != null &&
-          _rejectionReason!.isNotEmpty) {
-        descriptionBuffer.write(' Reason: $_rejectionReason.');
+          reason != null &&
+          reason.isNotEmpty) {
+        descriptionBuffer.write(' Reason: $reason.');
       }
       await _officerService.logActivity(
         title: subject,
@@ -285,124 +233,293 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     );
   }
 
-  Widget _buildDocumentTile(Map<String, dynamic> doc) {
-    final rawName =
-        (doc['documentName'] ?? doc['name'] ?? doc['type'] ?? 'Document')
-            .toString();
-    final storagePath =
-        (doc['storagePath'] ?? doc['path'] ?? doc['url'] ?? '').toString();
-    final displayName = storagePath.isNotEmpty
-        ? getFileNameFromUrl(storagePath)
-        : rawName;
-    final uploadedAt = doc['uploadedAt'];
-    final hasFile = storagePath.isNotEmpty;
-    final statusText =
-        hasFile ? _tr('file_attached') : _tr('file_missing');
-    final statusColor = hasFile ? AppTheme.successColor : AppTheme.errorColor;
-    final timestampText = uploadedAt != null ? _formatTimestamp(uploadedAt) : null;
-
+  Widget _buildDecisionSection() {
+    final l10n = AppLocalizations.of(context);
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+      padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: AppTheme.whiteColor,
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: AppTheme.greyShade200),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.greyShade200.withAlpha(120),
+            spreadRadius: 1,
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.insert_drive_file_outlined,
-              color: AppTheme.primaryColor),
-          const SizedBox(width: 12.0),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: AppTheme.fontSizeMedium,
-                    color: AppTheme.blackColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+          Text(
+            l10n.get('accountDetail.select_action'),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.onSurface,
                 ),
-                const SizedBox(height: 4.0),
-                Text(
-                  statusText,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: AppTheme.fontSizeSmall,
-                  ),
-                ),
-                if (timestampText != null) ...[
-                  const SizedBox(height: 2.0),
-                  Text(
-                    timestampText,
-                    style: const TextStyle(
-                      color: AppTheme.blackColor54,
-                      fontSize: AppTheme.fontSizeSmall,
-                    ),
-                  ),
-                ],
-              ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.get('accountDetail.decision_hint'),
+            style: const TextStyle(
+              color: AppTheme.blackColor54,
+              fontSize: AppTheme.fontSizeSmall,
             ),
           ),
-          IconButton(
-            tooltip: _tr('view'),
-            icon: const Icon(Icons.visibility_outlined,
-                color: AppTheme.primaryColor),
-            onPressed: hasFile
-                ? () => _showDocumentPreview(context, doc)
-                : null,
+          const SizedBox(height: 16),
+          CustomButton(
+            text: l10n.get('accountDetail.select_action'),
+            leadingIcon: const Icon(Icons.gavel_outlined, color: AppTheme.whiteColor),
+            backgroundColor: AppTheme.primaryColor,
+            foregroundColor: AppTheme.whiteColor,
+            isFullWidth: true,
+            onPressed: _loadingAction ? null : _showDecisionSheet,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDecisionButtons() {
-    if (_loadingAction) {
-      return const Center(child: CircularProgressIndicator());
+  void _showDecisionSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDecisionOption(
+                icon: Icons.check_circle_outline,
+                color: AppTheme.successColor,
+                title: _tr('approve'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _onSelectApprove();
+                },
+              ),
+              _buildDecisionOption(
+                icon: Icons.cancel_outlined,
+                color: AppTheme.errorColor,
+                title: _tr('reject'),
+                subtitle: _tr('reason_label'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _onSelectReject();
+                },
+              ),
+              const SizedBox(height: AppTheme.spacing12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDecisionOption({
+    required IconData icon,
+    required Color color,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: color.withAlpha(32),
+        child: Icon(icon, color: color),
+      ),
+      title: Text(title),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: const TextStyle(fontSize: AppTheme.fontSizeSmall),
+            )
+          : null,
+      onTap: onTap,
+    );
+  }
+
+  Future<void> _onSelectApprove() async {
+    if (!await _confirmAccountApproval()) return;
+    await _decide('approved');
+  }
+
+  Future<void> _onSelectReject() async {
+    final reason = await _promptAccountReason(
+      title: _tr('reject'),
+      hint: _tr('reason_hint'),
+    );
+    if (reason == null) return;
+    await _decide('rejected', reason: reason);
+  }
+
+  Future<bool> _confirmAccountApproval() async {
+    final l10n = AppLocalizations.of(context);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          title: Text(_tr('approve')),
+          content: Text(l10n.get('accountDetail.decision_hint')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              child: Text(l10n.get('submissionDetail.cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(true),
+              child: Text(_tr('approve')),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
+  }
+
+  Future<String?> _promptAccountReason({
+    required String title,
+    required String hint,
+  }) async {
+    final controller = TextEditingController();
+    final l10n = AppLocalizations.of(context);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            maxLines: 4,
+            decoration: InputDecoration(hintText: hint),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: Text(l10n.get('submissionDetail.cancel')),
+            ),
+            TextButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(_tr('reason_required')),
+                      backgroundColor: AppTheme.errorColor,
+                    ),
+                  );
+                  return;
+                }
+                Navigator.of(dialogCtx).pop(value);
+              },
+              child: Text(l10n.get('submissionDetail.save')),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    final trimmed = result?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  List<Widget> _buildRegistrationDocumentTiles(
+    List<Map<String, dynamic>> docs,
+  ) {
+    final grouped = <String, Set<String>>{};
+    final labels = <String, String>{};
+
+    for (final doc in docs) {
+      final raw = (doc['documentName'] ?? doc['name'] ?? doc['type'] ?? '')
+          .toString()
+          .trim();
+      final key = _normalizeDocumentKey(raw);
+      if (key.isEmpty) continue;
+
+      final url =
+          (doc['storagePath'] ?? doc['path'] ?? doc['url'] ?? '').toString();
+      labels.putIfAbsent(key, () => _labelForDocumentKey(key, raw));
+      grouped.putIfAbsent(key, () => <String>{});
+      if (url.trim().isNotEmpty) {
+        grouped[key]!.add(url.trim());
+      }
     }
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.check_circle_outline),
-            label: Text(_tr('approve')),
-            onPressed: () => _decide('approved'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.successColor,
-              foregroundColor: AppTheme.whiteColor,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30.0),
-              ),
-              elevation: 2,
-            ),
+
+    for (final expected in const ['ktp', 'nib']) {
+      labels.putIfAbsent(expected, () => _labelForDocumentKey(expected, expected));
+      grouped.putIfAbsent(expected, () => <String>{});
+    }
+
+    final keys = labels.keys.toList()
+      ..sort((a, b) {
+        const priority = {'ktp': 0, 'nib': 1, 'siup': 2, 'npwp': 3};
+        final pa = priority[a] ?? 999;
+        final pb = priority[b] ?? 999;
+        if (pa != pb) return pa.compareTo(pb);
+        return labels[a]!.compareTo(labels[b]!);
+      });
+
+    return keys
+        .map(
+          (key) => AttachmentStatusTile(
+            label: labels[key]!,
+            fileUrls: grouped[key]!.toList(),
+            onViewFile: (ctx, url) => _openDocumentUrl(url),
           ),
+        )
+        .toList();
+  }
+
+  String _normalizeDocumentKey(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('ktp')) return 'ktp';
+    if (lower.contains('nib')) return 'nib';
+    if (lower.contains('siup')) return 'siup';
+    if (lower.contains('npwp')) return 'npwp';
+    return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
+  }
+
+  String _labelForDocumentKey(String key, String fallback) {
+    switch (key) {
+      case 'ktp':
+        return 'KTP';
+      case 'nib':
+        return 'NIB';
+      case 'siup':
+        return 'SIUP';
+      case 'npwp':
+        return 'NPWP';
+      default:
+        if (fallback.trim().isEmpty) {
+          return _tr('registration_docs');
+        }
+        final words = fallback
+            .replaceAll('_', ' ')
+            .split(RegExp(r'\s+'))
+            .where((word) => word.isNotEmpty)
+            .map(
+              (word) =>
+                  '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
+            );
+        return words.join(' ');
+    }
+  }
+
+  Future<void> _openDocumentUrl(String url) async {
+    if (url.isEmpty) return;
+    final fileName = getFileNameFromUrl(url);
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DocumentViewScreen(
+          storagePath: url,
+          fileName: fileName,
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.cancel_outlined),
-            label: Text(_tr('reject')),
-            onPressed: () => _decide('rejected'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.errorColor,
-              foregroundColor: AppTheme.whiteColor,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30.0),
-              ),
-              elevation: 2,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -572,44 +689,11 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                 ]),
                 _buildSectionCard(
                   _tr('registration_docs'),
-                  documents.map(_buildDocumentTile).toList(),
+                  _buildRegistrationDocumentTiles(documents),
                   emptyMessage: _tr('documents_empty'),
                 ),
                 SizedBox(height: verticalSpacing),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 12.0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.whiteColor,
-                    borderRadius: BorderRadius.circular(12.0),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.greyShade200.withAlpha(120),
-                        spreadRadius: 1,
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: TextFormField(
-                    controller: _reasonController,
-                    decoration: InputDecoration(
-                      labelText: _tr('reason_label'),
-                      hintText: _tr('reason_hint'),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: AppTheme.greyShade50,
-                    ),
-                    maxLines: 4,
-                    onChanged: (value) => _rejectionReason = value,
-                  ),
-                ),
-                SizedBox(height: verticalSpacing),
-                _buildDecisionButtons(),
+                _buildDecisionSection(),
               ],
             ),
           );

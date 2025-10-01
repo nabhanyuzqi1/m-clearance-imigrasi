@@ -8,6 +8,7 @@ import '../../../services/auth_service.dart';
 import '../../../config/theme.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/attachment_status_tile.dart';
 import '../user/document_view_screen.dart';
 import '../../../utils/file_utils.dart';
 
@@ -28,7 +29,6 @@ class SubmissionDetailScreen extends StatefulWidget {
 }
 
 class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
-  String? _rejectionReason; // Reason for rejection or revision request
   bool _isProcessingAction = false;
   String? _processingMessageKey;
   late final ApplicationRepository repo;
@@ -122,118 +122,24 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
 
   Widget _buildDocumentList() {
     final l10n = AppLocalizations.of(context);
-    final crewLabel = l10n.get('submissionDetail.crew_list');
-    final documents = <Map<String, dynamic>>[
-      {
-        'name': l10n.get('submissionDetail.port_clearance'),
-        'attached': widget.application.portClearanceFile?.isNotEmpty ?? false,
-        'file': widget.application.portClearanceFile,
-      },
-      ..._buildCrewDocuments(crewLabel),
-      {
-        'name': l10n.get('submissionDetail.notification_letter'),
-        'attached':
-            widget.application.notificationLetterFile?.isNotEmpty ?? false,
-        'file': widget.application.notificationLetterFile,
-      },
-    ];
-
     return Column(
-      children: documents.map((doc) => _buildFileItem(doc)).toList(),
-    );
-  }
-
-  List<Map<String, dynamic>> _buildCrewDocuments(String baseLabel) {
-    final crewFiles = widget.application.crewListFiles;
-    if (crewFiles.isEmpty) {
-      return [
-        {'name': baseLabel, 'attached': false, 'file': null},
-      ];
-    }
-    return crewFiles.asMap().entries.map((entry) {
-      final index = entry.key;
-      final fileUrl = entry.value;
-      final label = crewFiles.length > 1
-          ? '$baseLabel #${index + 1}'
-          : baseLabel;
-      return {'name': label, 'attached': fileUrl.isNotEmpty, 'file': fileUrl};
-    }).toList();
-  }
-
-  Widget _buildFileItem(Map<String, dynamic> document) {
-    final attached = document['attached'] as bool;
-    final filePath = document['file'] as String?;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final fileName = attached && filePath != null
-        ? getFileNameFromUrl(filePath)
-        : '';
-
-    return Container(
-      margin: EdgeInsets.only(bottom: AppTheme.spacing12),
-      padding: EdgeInsets.all(AppTheme.spacing12),
-      decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        border: Border.all(color: AppTheme.greyShade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: screenWidth > 600 ? 40.0 : screenWidth * 0.1,
-            height: screenWidth > 600 ? 40.0 : screenWidth * 0.1,
-            decoration: BoxDecoration(
-              color: attached && fileName.toLowerCase().endsWith('.pdf')
-                  ? AppTheme.errorColor.withAlpha(25)
-                  : AppTheme.primaryColor.withAlpha(25),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-            ),
-            child: Icon(
-              attached && fileName.toLowerCase().endsWith('.pdf')
-                  ? Icons.picture_as_pdf
-                  : Icons.image,
-              color: attached && fileName.toLowerCase().endsWith('.pdf')
-                  ? AppTheme.errorColor
-                  : AppTheme.primaryColor,
-              size: screenWidth > 600 ? 20.0 : screenWidth * 0.05,
-            ),
-          ),
-          SizedBox(width: AppTheme.spacing12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  document['name']!,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.onSurface,
-                    fontFamily: 'Poppins',
-                    fontSize: AppTheme.fontSizeBody2,
-                  ),
-                ),
-                Text(
-                  attached ? 'Attached' : 'Not Attached',
-                  style: TextStyle(
-                    color: AppTheme.subtitleColor,
-                    fontFamily: 'Poppins',
-                    fontSize: AppTheme.fontSizeBody2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (attached)
-            CustomButton(
-              text: AppLocalizations.of(context).get('submissionDetail.view'),
-              type: CustomButtonType.outlined,
-              onPressed: () => _viewDocument(filePath!),
-              height: 36,
-              textStyle: TextStyle(fontSize: AppTheme.fontSizeSmall),
-            )
-          else
-            SizedBox.shrink(),
-        ],
-      ),
+      children: [
+        AttachmentStatusTile(
+          label: l10n.get('submissionDetail.port_clearance'),
+          fileUrls: widget.application.portClearanceFiles,
+          onViewFile: (ctx, url) => _viewDocument(url),
+        ),
+        AttachmentStatusTile(
+          label: l10n.get('submissionDetail.crew_list'),
+          fileUrls: widget.application.crewListFiles,
+          onViewFile: (ctx, url) => _viewDocument(url),
+        ),
+        AttachmentStatusTile(
+          label: l10n.get('submissionDetail.notification_letter'),
+          fileUrls: widget.application.notificationLetterFiles,
+          onViewFile: (ctx, url) => _viewDocument(url),
+        ),
+      ],
     );
   }
 
@@ -362,103 +268,253 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     }
   }
 
-  Widget _buildActionButtons(BuildContext context, String appId) {
+  Widget _buildDecisionSection(BuildContext context, String appId) {
     final l10n = AppLocalizations.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.get('submissionDetail.action'),
-          style: TextStyle(
-            fontSize: AppTheme.fontSizeH6,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.onSurface,
-            fontFamily: 'Poppins',
+    return Container(
+      padding: EdgeInsets.all(AppTheme.spacing16),
+      decoration: BoxDecoration(
+        color: AppTheme.whiteColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.greyColor.withAlpha(25),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        ),
-        SizedBox(height: AppTheme.spacing16),
-        SizedBox(
-          width: double.infinity,
-          child: CustomButton(
-            text: 'Request Revision',
-            backgroundColor: AppTheme.warningColor,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.get('submissionDetail.decision'),
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeH6,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.onSurface,
+              fontFamily: 'Poppins',
+            ),
+          ),
+          SizedBox(height: AppTheme.spacing8),
+          Text(
+            l10n.get('submissionDetail.decision_hint'),
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeBody2,
+              color: AppTheme.subtitleColor,
+              fontFamily: 'Poppins',
+            ),
+          ),
+          SizedBox(height: AppTheme.spacing16),
+          CustomButton(
+            text: l10n.get('submissionDetail.select_action'),
+            backgroundColor: AppTheme.primaryColor,
             foregroundColor: AppTheme.whiteColor,
-            onPressed: () async {
-              if (_isProcessingAction) return;
-              if (_rejectionReason == null || _rejectionReason!.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.get('submissionDetail.reason_required')),
-                    backgroundColor: AppTheme.errorColor,
-                  ),
-                );
-                return;
-              }
-              await _handleDecision(
-                decision: 'revision',
-                note: _rejectionReason ?? 'Needs fixing',
-                logMessage:
-                    'Officer decision: revision requested for application $appId by ${widget.adminName}, reason: $_rejectionReason',
-                successMessageKey: 'revision_sent_success',
-                processingKey: 'processing_revision',
-              );
-            },
+            isFullWidth: true,
+            leadingIcon: const Icon(
+              Icons.gavel_outlined,
+              color: AppTheme.whiteColor,
+            ),
+            onPressed: _isProcessingAction ? null : () => _showDecisionSheet(appId),
           ),
-        ),
-        SizedBox(height: AppTheme.spacing12),
-        SizedBox(
-          width: double.infinity,
-          child: CustomButton(
-            text: l10n.get('submissionDetail.reject_submission'),
-            type: CustomButtonType.elevated,
-            backgroundColor: AppTheme.errorColor,
-            foregroundColor: AppTheme.whiteColor,
-            onPressed: () async {
-              if (_isProcessingAction) return;
-              if (_rejectionReason == null || _rejectionReason!.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n.get('submissionDetail.reason_required')),
-                    backgroundColor: AppTheme.errorColor,
-                  ),
-                );
-                return;
-              }
-              final rejectionNote =
-                  _rejectionReason ?? 'Rejected by ${widget.adminName}';
-              await _handleDecision(
-                decision: 'declined',
-                note: rejectionNote,
-                logMessage:
-                    'Officer decision: declined for application $appId by ${widget.adminName}, reason: $_rejectionReason',
-                successMessageKey: 'declined_message',
-                processingKey: 'processing_rejection',
-              );
-            },
-          ),
-        ),
-        SizedBox(height: AppTheme.spacing12),
-        SizedBox(
-          width: double.infinity,
-          child: CustomButton(
-            text: l10n.get('submissionDetail.finish_verification'),
-            type: CustomButtonType.elevated,
-            backgroundColor: AppTheme.successColor,
-            onPressed: () async {
-              if (_isProcessingAction) return;
-              await _handleDecision(
-                decision: 'approved',
-                logMessage:
-                    'Officer decision: approved for application $appId by ${widget.adminName}',
-                successMessageKey: 'approved_success',
-                processingKey: 'processing_approval',
-              );
-            },
-          ),
-        ),
-      ],
+        ],
+      ),
     );
+  }
+
+  void _showDecisionSheet(String appId) {
+    final l10n = AppLocalizations.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDecisionTile(
+                icon: Icons.edit_outlined,
+                color: AppTheme.warningColor,
+                title: l10n.get('submissionDetail.review_submission'),
+                subtitle: l10n.get('submissionDetail.revision_notes_hint'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _onSelectRevision(appId);
+                },
+              ),
+              _buildDecisionTile(
+                icon: Icons.cancel_outlined,
+                color: AppTheme.errorColor,
+                title: l10n.get('submissionDetail.reject_submission'),
+                subtitle: l10n.get('submissionDetail.reason_label'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _onSelectDecline(appId);
+                },
+              ),
+              _buildDecisionTile(
+                icon: Icons.check_circle_outline,
+                color: AppTheme.successColor,
+                title: l10n.get('submissionDetail.finish_verification'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _onSelectApprove(appId);
+                },
+              ),
+              const SizedBox(height: AppTheme.spacing12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDecisionTile({
+    required IconData icon,
+    required Color color,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: color.withAlpha(32),
+        child: Icon(icon, color: color),
+      ),
+      title: Text(title),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: const TextStyle(fontSize: AppTheme.fontSizeSmall),
+            )
+          : null,
+      onTap: onTap,
+    );
+  }
+
+  Future<void> _onSelectRevision(String appId) async {
+    final l10n = AppLocalizations.of(context);
+    final reason = await _promptForReason(
+      title: l10n.get('submissionDetail.review_submission'),
+      hint: l10n.get('submissionDetail.revision_notes_hint'),
+    );
+    if (reason == null) return;
+
+    final trimmed = reason.trim();
+    await _handleDecision(
+      decision: 'revision',
+      note: trimmed,
+      logMessage:
+          'Officer decision: revision requested for application $appId by ${widget.adminName}${trimmed.isNotEmpty ? ', reason: $trimmed' : ''}',
+      successMessageKey: 'revision_sent_success',
+      processingKey: 'processing_revision',
+    );
+  }
+
+  Future<void> _onSelectDecline(String appId) async {
+    final l10n = AppLocalizations.of(context);
+    final reason = await _promptForReason(
+      title: l10n.get('submissionDetail.reject_submission'),
+      hint: l10n.get('submissionDetail.reason_label'),
+    );
+    if (reason == null) return;
+
+    final trimmed = reason.trim().isEmpty
+        ? 'Rejected by ${widget.adminName}'
+        : reason.trim();
+    await _handleDecision(
+      decision: 'declined',
+      note: trimmed,
+      logMessage:
+          'Officer decision: declined for application $appId by ${widget.adminName}${trimmed.isNotEmpty ? ', reason: $trimmed' : ''}',
+      successMessageKey: 'declined_message',
+      processingKey: 'processing_rejection',
+    );
+  }
+
+  Future<void> _onSelectApprove(String appId) async {
+    final confirmed = await _confirmApproval();
+    if (!confirmed) return;
+
+    await _handleDecision(
+      decision: 'approved',
+      logMessage:
+          'Officer decision: approved for application $appId by ${widget.adminName}',
+      successMessageKey: 'approved_success',
+      processingKey: 'processing_approval',
+    );
+  }
+
+  Future<String?> _promptForReason({
+    required String title,
+    required String hint,
+  }) async {
+    final controller = TextEditingController();
+    final l10n = AppLocalizations.of(context);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            maxLines: 4,
+            decoration: InputDecoration(hintText: hint),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: Text(l10n.get('submissionDetail.cancel')),
+            ),
+            TextButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        l10n.get('submissionDetail.reason_required'),
+                      ),
+                      backgroundColor: AppTheme.errorColor,
+                    ),
+                  );
+                  return;
+                }
+                Navigator.of(dialogCtx).pop(value);
+              },
+              child: Text(l10n.get('submissionDetail.save')),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return result?.trim().isEmpty ?? true ? null : result!.trim();
+  }
+
+  Future<bool> _confirmApproval() async {
+    final l10n = AppLocalizations.of(context);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          title: Text(l10n.get('submissionDetail.finish_verification')),
+          content: Text(l10n.get('submissionDetail.decision_hint')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              child: Text(l10n.get('submissionDetail.cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(true),
+              child: Text(l10n.get('submissionDetail.finish_verification')),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
   }
 
   Widget _buildLoadingOverlay(BuildContext context) {
@@ -823,50 +879,9 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
           SizedBox(height: AppTheme.spacing24),
 
           // Decision Section
-          Container(
-            padding: EdgeInsets.all(AppTheme.spacing16),
-            decoration: BoxDecoration(
-              color: AppTheme.whiteColor,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.greyColor.withAlpha(25),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppLocalizations.of(context).get('submissionDetail.decision'),
-                  style: TextStyle(
-                    fontSize: AppTheme.fontSizeH6,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.onSurface,
-                    fontFamily: 'Poppins',
-                  ),
-                ),
-                SizedBox(height: AppTheme.spacing16),
-                TextFormField(
-                  decoration: InputDecoration(
-                    labelText: AppLocalizations.of(
-                      context,
-                    ).get('submissionDetail.reason_label'),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _rejectionReason = value;
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
+          _buildDecisionSection(context, appId),
 
           SizedBox(height: AppTheme.spacing32),
-          _buildActionButtons(context, appId),
           SizedBox(
             height: AppTheme.spacing24 + MediaQuery.of(context).padding.bottom,
           ),

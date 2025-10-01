@@ -137,15 +137,18 @@ class _AccountVerificationListScreenState
     }
   }
 
-  Widget _buildUserCard(UserModel user, double horizontalInset) {
+  Widget _buildUserCard(UserModel user) {
     final screenWidth = MediaQuery.of(context).size.width;
     final statusProps = _getStatusProperties(user.status);
     final statusColor = statusProps['color'] as Color;
     final statusLabel = statusProps['label'] as String;
 
     return Container(
-      margin: EdgeInsets.only(bottom: screenWidth * 0.02),
-      padding: EdgeInsets.all(horizontalInset * 0.75),
+      margin: const EdgeInsets.only(bottom: AppTheme.spacing16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacing16,
+        vertical: AppTheme.spacing16,
+      ),
       decoration: BoxDecoration(
         color: AppTheme.whiteColor,
         borderRadius: BorderRadius.circular(12),
@@ -175,7 +178,7 @@ class _AccountVerificationListScreenState
               color: AppTheme.primaryColor,
               size: screenWidth * 0.08,
             ),
-            SizedBox(width: horizontalInset * 0.5),
+            const SizedBox(width: AppTheme.spacing16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,9 +224,9 @@ class _AccountVerificationListScreenState
               ),
             ),
             Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: screenWidth * 0.02,
-                vertical: screenWidth * 0.01,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacing12,
+                vertical: AppTheme.spacing8,
               ),
               decoration: BoxDecoration(
                 color: statusColor.withAlpha(25),
@@ -233,7 +236,7 @@ class _AccountVerificationListScreenState
                 statusLabel,
                 style: AppTheme.labelSmall(
                   context,
-                ).copyWith(color: statusColor, fontWeight: FontWeight.bold),
+                  ).copyWith(color: statusColor, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -352,11 +355,11 @@ class _AccountVerificationListScreenState
                   return ListView.builder(
                     padding: EdgeInsets.symmetric(
                       horizontal: horizontalInset,
-                      vertical: horizontalInset,
+                      vertical: AppTheme.spacing16,
                     ),
                     itemCount: users.length,
                     itemBuilder: (context, index) {
-                      return _buildUserCard(users[index], horizontalInset);
+                      return _buildUserCard(users[index]);
                     },
                   );
                 },

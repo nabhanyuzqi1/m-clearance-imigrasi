@@ -337,99 +337,120 @@ class ArrivalDetailScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _generatePDF(BuildContext context) async {
-    try {
-      // Show loading dialog
-      final screenWidth = MediaQuery.of(context).size.width;
-      final isTablet = screenWidth > 600;
-      final maxWidth = isTablet ? 400.0 : double.infinity;
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return Container(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            child: AlertDialog(
-              content: Row(
-                children: [
-                  CircularProgressIndicator(color: AppTheme.primaryColor),
-                  SizedBox(width: AppTheme.spacing16),
-                  Expanded(
-                    child: Text(
-                      'Generating PDF...',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.04,
-                        color: AppTheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
+  Widget _buildAttachmentsSection(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      padding: EdgeInsets.all(AppTheme.spacing16),
+      decoration: BoxDecoration(
+        color: AppTheme.whiteColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.greyColor.withAlpha(25),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.attach_file,
+                color: AppTheme.primaryColor,
+                size: 22,
               ),
-            ),
-          );
-        },
-      );
-
-      // Call Firebase Function to generate PDF
-      final functions = FunctionsService();
-      final result = await functions.generateHistoryPDF(application.id);
-
-      // Close loading dialog
-      Navigator.of(context).pop();
-
-      if (result['success'] == true) {
-        final pdfUrl = result['pdfUrl'];
-
-        // Show loading for download
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Downloading PDF...')));
-
-        try {
-          // Download PDF data
-          final authService = AuthService();
-          final pdfData = await authService.downloadFileData(pdfUrl);
-
-          if (pdfData != null) {
-            // Navigate to internal PDF viewer
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DocumentViewScreen(
-                  fileData: pdfData,
-                  fileName: 'Application_Report_${application.id}.pdf',
+              SizedBox(width: AppTheme.spacing12),
+              Text(
+                l10n.get('clearanceResult.attached_documents'),
+                style: TextStyle(
+                  fontSize: AppTheme.fontSizeH6,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.onSurface,
+                  fontFamily: 'Poppins',
                 ),
               ),
-            );
-          } else {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Failed to download PDF')));
-          }
-        } catch (e) {
-          LoggingService().error('Error downloading PDF: $e');
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error downloading PDF')));
-        }
-      } else {
-        throw Exception('PDF generation failed');
-      }
-    } catch (e) {
-      // Close loading dialog if open
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
+            ],
+          ),
+          SizedBox(height: AppTheme.spacing16),
+          AttachmentStatusTile(
+            label: l10n.get('submissionDetail.port_clearance'),
+            fileUrls: application.portClearanceFiles,
+            onViewFile: _openDocument,
+          ),
+          AttachmentStatusTile(
+            label: l10n.get('submissionDetail.crew_list'),
+            fileUrls: application.crewListFiles,
+            onViewFile: _openDocument,
+          ),
+          AttachmentStatusTile(
+            label: l10n.get('submissionDetail.notification_letter'),
+            fileUrls: application.notificationLetterFiles,
+            onViewFile: _openDocument,
+          ),
+        ],
+      ),
+    );
+  }
 
-      // Show error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to generate PDF: ${e.toString()}'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+  Widget _buildDownloadCertificateCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final certificateUrl = application.clearanceResultFile;
+    if (certificateUrl == null || certificateUrl.isEmpty) {
+      return const SizedBox.shrink();
     }
+
+    final subtitleKey = application.type == ApplicationType.kedatangan
+        ? 'clearanceResult.approved_subtitle_arrival'
+        : 'clearanceResult.approved_subtitle_departure';
+
+    return Container(
+      padding: EdgeInsets.all(AppTheme.spacing16),
+      decoration: BoxDecoration(
+        color: AppTheme.whiteColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryColor.withAlpha(25),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.get('clearanceResult.clearance_certificate'),
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeH6,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.onSurface,
+              fontFamily: 'Poppins',
+            ),
+          ),
+          SizedBox(height: AppTheme.spacing8),
+          Text(
+            l10n.get(subtitleKey),
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeBody2,
+              color: AppTheme.subtitleColor,
+              fontFamily: 'Poppins',
+            ),
+          ),
+          SizedBox(height: AppTheme.spacing12),
+          CustomButton(
+            text: l10n.get('clearanceResult.download_certificate'),
+            type: CustomButtonType.elevated,
+            backgroundColor: AppTheme.primaryColor,
+            onPressed: () => _openDocument(context, certificateUrl),
+            isFullWidth: true,
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDetailItem(BuildContext context, String label, String value) {
@@ -521,64 +542,7 @@ class ArrivalDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFileItem(BuildContext context, String label, String? fileUrl) {
-    final l10n = AppLocalizations.of(context);
-    final resolvedUrl = fileUrl ?? '';
-    final hasFile = resolvedUrl.isNotEmpty;
-    final displayName = hasFile ? getFileNameFromUrl(resolvedUrl) : label;
-    final statusText = hasFile
-        ? l10n.get('submissionDetail.file_status_uploaded')
-        : l10n.get('submissionDetail.file_status_missing');
-    final statusColor = hasFile ? AppTheme.successColor : AppTheme.errorColor;
-
-    return Container(
-      margin: EdgeInsets.only(bottom: AppTheme.spacing12),
-      padding: EdgeInsets.all(AppTheme.spacing12),
-      decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        border: Border.all(color: AppTheme.greyShade200),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.onSurface,
-                    fontFamily: 'Poppins',
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: AppTheme.spacing4),
-                Text(
-                  statusText,
-                  style: TextStyle(color: statusColor, fontFamily: 'Poppins'),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.visibility_outlined),
-            color: hasFile ? AppTheme.primaryColor : AppTheme.greyShade300,
-            onPressed: hasFile
-                ? () => _openDocument(context, resolvedUrl, displayName)
-                : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _openDocument(
-    BuildContext context,
-    String fileUrl,
-    String fileName,
-  ) async {
+  Future<void> _openDocument(BuildContext context, String fileUrl) async {
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.get('clearanceForm.download_start'))),
@@ -591,6 +555,7 @@ class ArrivalDetailScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       if (fileData != null) {
+        final fileName = getFileNameFromUrl(fileUrl);
         Navigator.push(
           context,
           MaterialPageRoute(

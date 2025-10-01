@@ -855,22 +855,32 @@ class ClearanceResultScreen extends StatelessWidget {
     String Function(String) tr,
     BuildContext context,
   ) {
-    final widgets = <Widget>[
-      _buildFileCard(
-        tr('port_clearance'),
-        application.portClearanceFile,
-        context,
-      ),
-    ];
+    final widgets = <Widget>[];
 
     if (application.clearanceResultFile != null &&
         application.clearanceResultFile!.isNotEmpty) {
-      widgets.insert(
-        0,
+      widgets.add(
         _buildFileCard(
           tr('clearance_certificate'),
           application.clearanceResultFile,
           context,
+        ),
+      );
+    }
+
+    final portFiles = application.portClearanceFiles;
+    if (portFiles.isEmpty) {
+      widgets.add(_buildFileCard(tr('port_clearance'), null, context));
+    } else {
+      widgets.addAll(
+        portFiles.asMap().entries.map(
+          (entry) => _buildFileCard(
+            portFiles.length > 1
+                ? '${tr('port_clearance')} #${entry.key + 1}'
+                : tr('port_clearance'),
+            entry.value,
+            context,
+          ),
         ),
       );
     }
@@ -891,13 +901,22 @@ class ClearanceResultScreen extends StatelessWidget {
       );
     }
 
-    widgets.add(
-      _buildFileCard(
-        tr('notification_letter'),
-        application.notificationLetterFile,
-        context,
-      ),
-    );
+    final notificationFiles = application.notificationLetterFiles;
+    if (notificationFiles.isEmpty) {
+      widgets.add(_buildFileCard(tr('notification_letter'), null, context));
+    } else {
+      widgets.addAll(
+        notificationFiles.asMap().entries.map(
+          (entry) => _buildFileCard(
+            notificationFiles.length > 1
+                ? '${tr('notification_letter')} #${entry.key + 1}'
+                : tr('notification_letter'),
+            entry.value,
+            context,
+          ),
+        ),
+      );
+    }
 
     return widgets;
   }

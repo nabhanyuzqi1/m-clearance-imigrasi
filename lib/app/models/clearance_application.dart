@@ -45,17 +45,27 @@ class ClearanceApplication {
     this.officerName,
     this.location,
     List<String>? portClearanceFiles,
+    String? portClearanceFile,
     List<String>? crewListFiles,
     List<String>? notificationLetterFiles,
+    String? notificationLetterFile,
     this.clearanceResultFile,
     this.clearanceResultGeneratedAt,
     this.clearanceResultSignedBy,
     this.clearanceResultSignedByCorporate,
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) : portClearanceFiles = portClearanceFiles ?? const [],
-       crewListFiles = crewListFiles ?? const [],
-       notificationLetterFiles = notificationLetterFiles ?? const [],
+  }) : portClearanceFiles = _normalizeList(
+           explicit: portClearanceFiles,
+           single: portClearanceFile,
+         ),
+       crewListFiles = crewListFiles != null
+           ? List<String>.from(crewListFiles)
+           : const [],
+       notificationLetterFiles = _normalizeList(
+           explicit: notificationLetterFiles,
+           single: notificationLetterFile,
+         ),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now();
 
@@ -274,4 +284,17 @@ List<String> _resolveFileList(
     }
   }
   return files;
+}
+
+List<String> _normalizeList({
+  List<String>? explicit,
+  String? single,
+}) {
+  if (explicit != null) {
+    return explicit.whereType<String>().map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+  }
+  if (single != null && single.trim().isNotEmpty) {
+    return [single.trim()];
+  }
+  return const [];
 }
