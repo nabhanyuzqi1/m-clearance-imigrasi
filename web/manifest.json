@@ -1,11 +1,11 @@
 {
-    "name": "m_clearance_imigrasi",
-    "short_name": "m_clearance_imigrasi",
+    "name": "M-Clearance ISAM",
+    "short_name": "M-Clearance",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Maritime Clearance Application System for Immigration Services",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

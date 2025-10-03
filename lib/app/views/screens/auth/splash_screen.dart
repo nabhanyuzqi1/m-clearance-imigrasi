@@ -1,7 +1,12 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:m_clearance_imigrasi/app/views/widgets/bouncing_dots_loader.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../config/routes.dart';
+import '../../../config/theme.dart';
+import '../../../providers/language_provider.dart';
+import '../../../services/logging_service.dart';
 
 /// SplashScreen
 ///
@@ -16,9 +21,16 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  String _tr(String key) {
+    Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
+    return AppLocalizations.of(context).get('splash.$key');
+  }
+
   @override
   void initState() {
     super.initState();
+    LoggingService().info('SplashScreen initialized, starting navigation timer');
+
     // Atur gaya System UI Overlay agar sesuai dengan latar belakang splash screen
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
@@ -27,9 +39,9 @@ class _SplashScreenState extends State<SplashScreen> {
       ),
     );
 
-    // Atur timer untuk navigasi otomatis setelah 3 detik
-    Timer(const Duration(seconds: 3), () {
-      // Pastikan widget masih ada di tree sebelum navigasi
+    // Navigasi setelah penundaan singkat
+    Future.delayed(const Duration(seconds: 1), () {
+      LoggingService().info('Splash screen timer completed, navigating to login');
       if (mounted) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
       }
@@ -37,9 +49,15 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   @override
+  void dispose() {
+    LoggingService().debug('Disposing SplashScreen');
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -51,8 +69,20 @@ class _SplashScreenState extends State<SplashScreen> {
               height: 150,
               // Fallback jika gambar gagal dimuat
               errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.directions_boat, size: 150, color: Colors.blue),
+                  Icon(Icons.directions_boat, size: 150, color: AppTheme.primaryColor),
             ),
+            SizedBox(height: AppTheme.spacing24),
+            Text(
+              _tr('app_name'),
+              style: TextStyle(
+                color: AppTheme.onSurface,
+                fontSize: AppTheme.responsiveFontSize(context, mobile: 28, tablet: 32, desktop: 36),
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Poppins',
+              ),
+            ),
+            SizedBox(height: AppTheme.spacing24),
+            const BouncingDotsLoader(),
           ],
         ),
       ),

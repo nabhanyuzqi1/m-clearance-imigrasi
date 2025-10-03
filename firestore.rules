@@ -15,7 +15,9 @@ service cloud.firestore {
     function isOfficerOrAdmin() {
       return isSignedIn() && (
         request.auth.token.role == 'officer' ||
-        request.auth.token.role == 'admin'
+        request.auth.token.role == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'officer' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
 
@@ -32,27 +34,24 @@ service cloud.firestore {
     }
 
     function immutablesUnchanged(old, new) {
-      // uid, email, role, createdAt must not change
+      // uid, role, createdAt must not change
       return new.uid == old.uid &&
-             new.email == old.email &&
              new.role == old.role &&
              new.createdAt == old.createdAt;
     }
 
     function ownerOnlyAllowedFieldsUnchanged(old, new) {
-      // Owner may ONLY change: isEmailVerified, hasUploadedDocuments, documents, status, updatedAt
-      // Keep other known profile fields unchanged in client updates
-      return new.corporateName == old.corporateName &&
-             new.username == old.username &&
-             new.nationality == old.nationality;
+      // Owner may change: isEmailVerified, hasUploadedDocuments, documents, status, updatedAt, corporateName, username, nationality, email
+      // Keep other known profile fields unchanged in client updates if any
+      return true; // Allow profile field updates
     }
 
     function validOwnerStatusTransition(old, new) {
       let bs = old.status;
       let ns = new.status;
 
-      // Only allow client-set statuses within the allowed set
-      return isClientAllowedStatus(ns) && (
+      // Allow no-op status transitions for all user statuses
+      return (isClientAllowedStatus(ns) && (
         // Transition 1: pending_email_verification -> pending_documents
         (bs == 'pending_email_verification' && ns == 'pending_documents'
           && request.auth.token.email_verified == true
@@ -61,17 +60,14 @@ service cloud.firestore {
         // Transition 2: pending_documents -> pending_approval
         (bs == 'pending_documents' && ns == 'pending_approval'
           && new.hasUploadedDocuments == true
-          && size(new.documents) >= size(old.documents))
-        ||
-        // Otherwise, status must be no-op
-        (ns == bs)
-      );
+          && new.documents.size() >= old.documents.size())
+      )) || (ns == bs);
     }
 
     function isOwnerAllowedUpdate(old, new) {
       return immutablesUnchanged(old, new)
         && noBackslide(old, new)
-        && size(new.documents) >= size(old.documents)
+        && new.documents.size() >= old.documents.size()
         && ownerOnlyAllowedFieldsUnchanged(old, new)
         && validOwnerStatusTransition(old, new);
     }
@@ -90,7 +86,7 @@ service cloud.firestore {
         && new.username == old.username
         && new.nationality == old.nationality
         && (
-          (bs == 'pending_approval' && (ns == 'approved' || ns == 'rejected'))
+          (bs in ['waiting', 'revision', 'pending_approval'] && (ns == 'approved' || ns == 'rejected' || ns == 'revision'))
           || (ns == bs) // allow no-op
         );
     }
@@ -119,15 +115,84 @@ service cloud.firestore {
 
     // Notifications: notifications/{uid}/items/{notifId}
     // Read allowed for owner; client writes denied (Functions use admin privileges)
-    match /notifications/{uid}/{document=**} {
+    match /notifications/{uid} {
       allow read: if isSignedIn() && isOwner(uid);
-      allow write: if false;
+
+      match /items/{notifId} {
+        allow read: if isSignedIn() && isOwner(uid);
+        allow update: if isSignedIn() && isOwner(uid)
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['isRead'])
+          && request.resource.data['isRead'] is bool;
+        allow delete: if isSignedIn() && isOwner(uid);
+        allow create: if false; // only server-side
+      }
     }
 
     // Review queue (used by backoffice): reviewQueue/{reviewId}
     match /reviewQueue/{reviewId} {
       // Officers/Admins only
       allow read, write: if isOfficerOrAdmin();
+    }
+
+    // Applications: applications/{appId}
+    // Fields (suggested):
+    // - agentUid: string (owner)
+    // - type: 'arrival' | 'departure'
+    // - status: 'waiting' | 'revision' | 'approved' | 'declined'
+    // - notes, officerName, createdAt, updatedAt
+    match /applications/{appId} {
+      // Allow read for owners and officers/admins
+      allow read: if isSignedIn() && (
+        (request.auth.uid == resource.data.agentUid) ||
+        isOfficerOrAdmin()
+      );
+
+      // Allow list/query operations for authenticated users
+      // This is needed for queries like where('agentUid', '==', user.uid)
+      allow list: if isSignedIn();
+
+      // Owner create: must set agentUid to own uid; initial status 'waiting' or 0
+      allow create: if isSignedIn() && request.resource.data.agentUid == request.auth.uid
+        && (request.resource.data.status == 'waiting' || request.resource.data.status == 0 || request.resource.data.status == null)
+        && request.resource.data.type in ['arrival','departure'];
+
+      // Owner update: only when not finalized; cannot change agentUid/type; cannot set terminal decisions
+      allow update: if isSignedIn() &&
+        get(/databases/$(database)/documents/applications/$(appId)).data.agentUid == request.auth.uid &&
+        resource.data.status in ['waiting','revision'] &&
+        request.resource.data.agentUid == resource.data.agentUid &&
+        request.resource.data.type == resource.data.type &&
+        // Owner may not set status to approved/declined
+        !(request.resource.data.status in ['approved','declined']);
+
+      // Officer/Admin update: can move waiting/revision -> approved/declined/revision; may set notes, officerName, updatedAt
+      allow update: if isOfficerOrAdmin();
+
+      allow delete: if false;
+    }
+
+    // Officer reports (aggregates/metrics)
+    match /officerReports/{reportId} {
+      allow read: if isOfficerOrAdmin();
+      allow write: if isOfficerOrAdmin();
+    }
+
+    // Reports collection
+    match /reports/{reportId} {
+      allow read, list: if isOfficerOrAdmin();
+      allow write: if isOfficerOrAdmin();
+    }
+
+    // Officer activities
+    match /officer_activities/{activityId} {
+      allow read, list: if isOfficerOrAdmin();
+      allow write: if false; // Only backend can write
+    }
+
+    // Cached counters (dashboard metrics)
+    match /counters/{counterId} {
+      allow read, list: if isOfficerOrAdmin();
+      allow write: if false;
     }
 
     // Default: deny everything else

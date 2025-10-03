@@ -12,6 +12,22 @@ service firebase.storage {
         (request.auth.token.role == 'officer' || request.auth.token.role == 'admin');
     }
 
+    // Applicant uploads: allow owners to manage their own application documents
+    match /applications/{userId}/documents/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Officers/Admins may review any application documents
+    match /applications/{allPaths=**} {
+      allow read: if request.auth != null &&
+        (request.auth.token.role == 'officer' || request.auth.token.role == 'admin');
+    }
+
+    // Reports path
+    match /reports/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Allow admins to write to any location
     match /{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.token.role == 'admin';

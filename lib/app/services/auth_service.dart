@@ -1,54 +1,76 @@
-import 'dart:io';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
+import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
+import 'package:m_clearance_imigrasi/app/services/cache_manager.dart';
+import 'package:m_clearance_imigrasi/app/services/network_utils.dart';
+import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  late final CacheManager _cacheManager;
 
   AuthService({
     FirebaseAuth? firebaseAuth,
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
-  })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-        _firestore = firestore ?? FirebaseFirestore.instanceFor(app: Firebase.app(), databaseId: 'm-clearance-imigrasi-db'),
-        _storage = storage ?? FirebaseStorage.instanceFor(bucket: 'm-clearance-imigrasi.firebasestorage.app');
+  }) : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
+       _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance {
+    _initializeCacheManager();
+  }
+
+  Future<void> _initializeCacheManager() async {
+    _cacheManager = await CacheManager.getInstance();
+  }
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
   Future<UserModel?> signInWithEmailAndPassword(
-      String email, String password) async {
+    String email,
+    String password,
+  ) async {
+    final startTime = DateTime.now();
     try {
-      final UserCredential userCredential =
-          await _firebaseAuth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final UserCredential userCredential = await _firebaseAuth
+          .signInWithEmailAndPassword(email: email, password: password);
+      final authTime = DateTime.now().difference(startTime);
+      LoggingService().debug('Auth sign-in took ${authTime.inMilliseconds}ms');
       if (userCredential.user != null) {
-        return await getUserData(userCredential.user!.uid);
+        final userModel = await getUserData(userCredential.user!.uid);
+        final totalTime = DateTime.now().difference(startTime);
+        LoggingService().debug(
+          'Total sign-in process took ${totalTime.inMilliseconds}ms',
+        );
+        return userModel;
       }
       return null;
     } on FirebaseAuthException catch (e) {
-      print('Firebase Auth Exception: ${e.message}');
+      LoggingService().error('Firebase Auth Exception: ${e.message}', e);
       return null;
     } catch (e) {
-      print('An unexpected error occurred: $e');
+      LoggingService().error('An unexpected error occurred during sign-in', e);
       return null;
     }
   }
 
-  Future<UserModel?> registerWithEmailAndPassword(String email, String password,
-      String corporateName, String username, String nationality) async {
+  Future<UserModel?> registerWithEmailAndPassword(
+    String email,
+    String password,
+    String corporateName,
+    String username,
+    String fullName,
+    String nationality,
+  ) async {
     try {
-      final UserCredential userCredential =
-          await _firebaseAuth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final UserCredential userCredential = await _firebaseAuth
+          .createUserWithEmailAndPassword(email: email, password: password);
       final User? user = userCredential.user;
       if (user != null) {
         final newUser = UserModel(
@@ -56,6 +78,7 @@ class AuthService {
           email: email,
           corporateName: corporateName,
           username: username,
+          fullName: fullName,
           nationality: nationality,
           role: 'user',
           status: 'pending_email_verification',
@@ -70,34 +93,106 @@ class AuthService {
             .collection('users')
             .doc(user.uid)
             .set(newUser.toFirestore());
-        await user.sendEmailVerification();
+        // Fire-and-forget email verification code issuance to avoid blocking registration
+        FunctionsService().issueEmailVerificationCode().catchError((e) {
+          LoggingService().warning('Failed issuing verification code', e);
+          // Non-critical error, don't fail registration
+        });
+
         return newUser;
       }
       return null;
     } on FirebaseAuthException catch (e) {
-      print('Firebase Auth Exception: ${e.message}');
+      LoggingService().error(
+        'Firebase Auth Exception during registration: ${e.message}',
+        e,
+      );
       return null;
     } catch (e) {
-      print('An unexpected error occurred during registration: $e');
+      LoggingService().error(
+        'An unexpected error occurred during registration',
+        e,
+      );
       return null;
     }
   }
 
-  Future<UserModel?> getUserData(String uid) async {
-    try {
-      final DocumentSnapshot doc =
-          await _firestore.collection('users').doc(uid).get();
+  Future<UserModel?> getUserData(
+    String uid, {
+    bool forceRefresh = false,
+  }) async {
+    final startTime = DateTime.now();
 
-      if (!doc.exists || doc.data() == null) {
-        return null;
+    final shouldSkipCache = forceRefresh || kDebugMode;
+
+    if (!shouldSkipCache) {
+      final cachedData = _cacheManager.getCachedUserData();
+      if (cachedData != null && cachedData['uid'] == uid) {
+        try {
+          final userModel = UserModel.fromJson(cachedData);
+          final cacheTime = DateTime.now().difference(startTime);
+          LoggingService().debug(
+            'Cache hit - getUserData took ${cacheTime.inMilliseconds}ms',
+          );
+          return userModel;
+        } catch (e) {
+          LoggingService().warning(
+            'Cache data corrupted, fetching from server',
+            e,
+          );
+          await _cacheManager.clearUserDataCache();
+        }
+      }
+    } else {
+      LoggingService().debug(
+        'Skipping cache for getUserData due to forceRefresh/debug',
+      );
+      await _cacheManager.clearUserDataCache();
+    }
+
+    // Fetch from server with retry logic
+    try {
+      final userModel = await NetworkUtils.executeWithRetry(() async {
+        final serverStart = DateTime.now();
+        final DocumentSnapshot doc = await NetworkUtils.withTimeout(
+          _firestore.collection('users').doc(uid).get(),
+          const Duration(seconds: 10),
+        );
+        final serverTime = DateTime.now().difference(serverStart);
+        LoggingService().debug(
+          'Server fetch took ${serverTime.inMilliseconds}ms',
+        );
+
+        if (!doc.exists || doc.data() == null) {
+          throw NetworkException('User document not found', isRetryable: false);
+        }
+
+        return UserModel.fromFirestore(doc);
+      }, shouldRetry: NetworkUtils.isRetryableError);
+
+      // Cache the result unless explicitly skipped
+      if (!shouldSkipCache) {
+        await _cacheManager.cacheUserData(userModel.toJson());
       }
 
-      return UserModel.fromFirestore(doc);
+      final totalTime = DateTime.now().difference(startTime);
+      LoggingService().debug(
+        'getUserData took ${totalTime.inMilliseconds}ms (with caching)',
+      );
+      return userModel;
     } catch (e) {
-      print('An unexpected error occurred: $e');
+      if (e is NetworkException) {
+        LoggingService().error('Network error in getUserData: ${e.message}', e);
+      } else {
+        LoggingService().error(
+          'An unexpected error occurred in getUserData',
+          e,
+        );
+      }
       return null;
     }
   }
+
   Future<UserModel?> getUserByEmail(String email) async {
     try {
       final QuerySnapshot snapshot = await _firestore
@@ -110,33 +205,86 @@ class AuthService {
       }
       return null;
     } catch (e) {
-      print('An unexpected error occurred: $e');
+      LoggingService().error(
+        'An unexpected error occurred in getUserByEmail',
+        e,
+      );
       return null;
     }
   }
 
-  Future<String?> uploadDocument(String uid, File file, String docName) async {
+  /// Uploads a document to Firebase Storage.
+  ///
+  /// Uses file bytes for upload, handled uniformly across platforms by file_picker.
+  /// Generates unique filename using timestamp and UUID to prevent overwrites.
+  Future<String?> uploadDocument(
+    String uid,
+    Uint8List fileBytes,
+    String docName, {
+    String? docType,
+  }) async {
     try {
-      final ref = _storage.ref().child('users/$uid/documents/$docName');
-      await ref.putFile(file);
-      final String downloadUrl = await ref.getDownloadURL();
-      await _firestore.collection('users').doc(uid).update({
-        'documents': FieldValue.arrayUnion([
-          {
-            'documentName': docName,
-            'storagePath': downloadUrl,
-            'uploadedAt': Timestamp.now(),
-          }
-        ]),
-        'status': 'pending_approval',
-        'hasUploadedDocuments': true,
-        'updatedAt': Timestamp.now(),
-      });
-      return downloadUrl;
+      final uniqueFileName = _generateUniqueFileName(
+        uid,
+        docName,
+        docType: docType,
+      );
+
+      final ref = _storage.ref().child('users/$uid/documents/$uniqueFileName');
+      final uploadTask = ref.putData(fileBytes);
+      final snapshot = await NetworkUtils.withTimeout(
+        uploadTask.whenComplete(() => null),
+        const Duration(seconds: 90),
+      );
+
+      if (snapshot.state == TaskState.success) {
+        final String downloadUrl = await NetworkUtils.withTimeout(
+          ref.getDownloadURL(),
+          const Duration(seconds: 15),
+        );
+        await _firestore.collection('users').doc(uid).update({
+          'documents': FieldValue.arrayUnion([
+            {
+              'documentName': docName, // Keep original name for display
+              'storagePath': downloadUrl,
+              'uploadedAt': Timestamp.now(),
+            },
+          ]),
+          'status': 'pending_approval',
+          'hasUploadedDocuments': true,
+          'updatedAt': Timestamp.now(),
+        });
+        return downloadUrl;
+      } else {
+        throw NetworkException('Upload failed', isRetryable: true);
+      }
+    } on FirebaseException catch (e) {
+      LoggingService().error(
+        'Firebase Storage error during upload: ${e.message}',
+        e,
+      );
+      return null;
     } catch (e) {
-      print('An unexpected error occurred: $e');
+      LoggingService().error('An unexpected error occurred during upload', e);
       return null;
     }
+  }
+
+  String _generateUniqueFileName(
+    String uid,
+    String originalName, {
+    String? docType,
+  }) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileExtension = originalName.split('.').last;
+    final documentType = docType ?? 'document';
+
+    // Sanitize docType to be filesystem-friendly
+    final sanitizedDocType = documentType
+        .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
+        .toLowerCase();
+
+    return '${sanitizedDocType}_${uid}_$timestamp.$fileExtension';
   }
 
   Future<void> sendVerificationEmail() async {
@@ -160,73 +308,123 @@ class AuthService {
   /// If verified, sets isEmailVerified=true and transitions status from
   /// 'pending_email_verification' -> 'pending_documents' once. Idempotent.
   Future<UserModel?> updateEmailVerified() async {
+    LoggingService().debug('updateEmailVerified called');
     final user = _firebaseAuth.currentUser;
-    if (user == null) return null;
+    if (user == null) {
+      LoggingService().debug('updateEmailVerified: user is null');
+      return null;
+    }
 
     await user.reload();
     final refreshed = _firebaseAuth.currentUser;
     final verified = refreshed?.emailVerified ?? false;
+    LoggingService().debug('updateEmailVerified: verified = $verified');
     if (!verified) {
       // No Firestore writes when not verified
+      LoggingService().debug(
+        'updateEmailVerified: not verified, returning getUserData',
+      );
       return await getUserData(user.uid);
     }
 
-    try {
-      final docRef = _firestore.collection('users').doc(user.uid);
-      final doc = await docRef.get();
-      if (!doc.exists) {
-        return null;
+    const int maxRetries = 3;
+    int retryCount = 0;
+
+    while (retryCount < maxRetries) {
+      try {
+        final docRef = _firestore.collection('users').doc(user.uid);
+        final doc = await docRef.get();
+        if (!doc.exists) {
+          LoggingService().debug('updateEmailVerified: doc does not exist');
+          return null;
+        }
+
+        final data = doc.data() as Map<String, dynamic>;
+        final Map<String, dynamic> updates = {
+          'isEmailVerified': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        final currentStatus =
+            (data['status'] as String?) ?? 'pending_email_verification';
+        LoggingService().debug(
+          'updateEmailVerified: currentStatus = $currentStatus',
+        );
+        if (currentStatus == 'pending_email_verification') {
+          updates['status'] = 'pending_documents';
+          LoggingService().debug(
+            'updateEmailVerified: updating status to pending_documents',
+          );
+        }
+
+        await docRef.update(updates);
+        final result = await getUserData(user.uid);
+        LoggingService().debug(
+          'updateEmailVerified: returning userModel with status ${result?.status}',
+        );
+        return result;
+      } catch (e) {
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          LoggingService().error(
+            'Failed to update email verification after $maxRetries attempts',
+            e,
+          );
+          return null;
+        }
+        // Wait before retrying (exponential backoff)
+        await Future.delayed(Duration(seconds: retryCount));
       }
-
-      final data = doc.data() as Map<String, dynamic>;
-      final Map<String, dynamic> updates = {
-        'isEmailVerified': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      final currentStatus =
-          (data['status'] as String?) ?? 'pending_email_verification';
-      if (currentStatus == 'pending_email_verification') {
-        updates['status'] = 'pending_documents';
-      }
-
-      await docRef.update(updates);
-      return await getUserData(user.uid);
-    } catch (e) {
-      print('An unexpected error occurred: $e');
-      return null;
     }
+
+    return null;
   }
 
   /// Guard to ensure the current user can upload documents.
   /// Requires FirebaseAuth.currentUser.emailVerified == true and
   /// Firestore user status == 'pending_documents'.
   Future<void> ensureCanUploadDocuments() async {
+    LoggingService().debug('ensureCanUploadDocuments called');
     final user = _firebaseAuth.currentUser;
+    LoggingService().debug('currentUser = $user');
     if (user == null) {
+      LoggingService().error('ensureCanUploadDocuments: No authenticated user');
       throw StateError('No authenticated user.');
     }
 
     await user.reload();
+    LoggingService().debug(
+      'after reload, emailVerified = ${user.emailVerified}',
+    );
     if (!(user.emailVerified)) {
+      LoggingService().error('ensureCanUploadDocuments: Email is not verified');
       throw StateError('Email is not verified.');
     }
 
     final userModel = await getUserData(user.uid);
+    LoggingService().debug('userModel = $userModel');
     if (userModel == null) {
+      LoggingService().error('ensureCanUploadDocuments: User data not found');
       throw StateError('User data not found.');
     }
+    LoggingService().debug('userModel.status = ${userModel.status}');
     if (userModel.status != 'pending_documents') {
+      LoggingService().error(
+        'ensureCanUploadDocuments: Status not pending_documents, throwing',
+      );
       throw StateError(
-          'User is not eligible to upload documents. Current status: ${userModel.status}.');
+        'User is not eligible to upload documents. Current status: ${userModel.status}.',
+      );
     }
+    LoggingService().debug('ensureCanUploadDocuments: All checks passed');
   }
 
   /// Mark documents as uploaded and move user to 'pending_approval' if in
   /// 'pending_documents'. Accepts a list of storage paths or references.
   /// Idempotent: only adds document entries whose storagePath is not already present.
-  Future<UserModel?> markDocumentsUploaded(
-      {required List<String> storagePathsOrRefs}) async {
+  Future<UserModel?> markDocumentsUploaded({
+    required List<String> storagePathsOrRefs,
+  }) async {
     final user = _firebaseAuth.currentUser;
     if (user == null) return null;
 
@@ -280,24 +478,130 @@ class AuthService {
       await docRef.update(updates);
       return await getUserData(user.uid);
     } catch (e) {
-      print('An unexpected error occurred: $e');
+      LoggingService().error(
+        'An unexpected error occurred in markDocumentsUploaded',
+        e,
+      );
       return null;
     }
   }
- 
+
   Future<void> sendPasswordResetEmail(String email) async {
     try {
       await _firebaseAuth.sendPasswordResetEmail(email: email);
     } on FirebaseAuthException catch (e) {
-      print('Firebase Auth Exception: ${e.message}');
+      LoggingService().error(
+        'Firebase Auth Exception during password reset: ${e.message}',
+        e,
+      );
       rethrow;
     } catch (e) {
-      print('An unexpected error occurred: $e');
+      LoggingService().error(
+        'An unexpected error occurred during password reset',
+        e,
+      );
       rethrow;
     }
   }
- 
+
+  Future<bool> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    bool success = false;
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) {
+        throw Exception('No user is currently signed in.');
+      }
+
+      // Re-authenticate the user with their current password
+      final cred = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      await user.reauthenticateWithCredential(cred);
+
+      // If re-authentication is successful, update the password
+      await user.updatePassword(newPassword);
+
+      LoggingService().info(
+        'Password updated successfully for user: ${user.uid}',
+      );
+      success = true;
+    } on FirebaseAuthException catch (e) {
+      LoggingService().error('Error changing password: ${e.message}', e);
+      // Consider mapping specific error codes to user-friendly messages
+      rethrow;
+    } catch (e) {
+      LoggingService().error(
+        'An unexpected error occurred while changing password',
+        e,
+      );
+      rethrow;
+    }
+    return success;
+  }
+
+  Future<void> updateUserEmail(String newEmail) async {
+    final user = _firebaseAuth.currentUser;
+    if (user != null && user.email != newEmail) {
+      await user.verifyBeforeUpdateEmail(newEmail);
+    }
+  }
+
   Future<void> signOut() async {
     await _firebaseAuth.signOut();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_selected_index');
+    await prefs.remove('officer_selected_index');
+    // Clear cache on sign out
+    await _cacheManager.clearUserDataCache();
+  }
+
+  /// Clear user data cache (useful when user data is updated)
+  Future<void> clearUserDataCache() async {
+    await _cacheManager.clearUserDataCache();
+  }
+
+  /// Download file data from Firebase Storage using download URL or storage path
+  Future<Uint8List?> downloadFileData(String filePathOrUrl) async {
+    try {
+      // Validate the input
+      if (filePathOrUrl.isEmpty) {
+        LoggingService().error('File path or URL is empty');
+        return null;
+      }
+
+      final ref = filePathOrUrl.startsWith('https')
+          ? _storage.refFromURL(filePathOrUrl)
+          : _storage.ref().child(filePathOrUrl);
+      const int maxDownloadSize = 25 * 1024 * 1024; // Cap download to 25MB
+      final data = await ref.getData(maxDownloadSize);
+
+      if (data == null || data.isEmpty) {
+        LoggingService().error('Downloaded file data is null or empty');
+        return null;
+      }
+
+      return data;
+    } catch (e) {
+      LoggingService().error(
+        'Error downloading file data from $filePathOrUrl: $e',
+      );
+
+      // Handle specific Firebase exceptions
+      if (kIsWeb && e.toString().contains('FirebaseException')) {
+        LoggingService().error('A web-specific Firebase error occurred: $e');
+      } else if (e.toString().contains('ClientException') ||
+          e.toString().contains('JavaScriptObject')) {
+        LoggingService().error(
+          'ClientException detected - this may be a web-specific error with Firebase Storage',
+        );
+      }
+
+      return null;
+    }
   }
 }

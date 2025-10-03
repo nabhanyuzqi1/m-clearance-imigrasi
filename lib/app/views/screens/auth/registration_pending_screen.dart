@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 // PERBAIKAN: Mengimpor widget loader dari file terpusat.
 import '../../widgets/bouncing_dots_loader.dart';
+import '../../../localization/app_localizations.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/logging_service.dart';
 import '../../../config/routes.dart';
+import '../../../config/theme.dart';
 
 class RegistrationPendingScreen extends StatefulWidget {
   final String initialLanguage;
@@ -15,52 +18,45 @@ class RegistrationPendingScreen extends StatefulWidget {
 class _RegistrationPendingScreenState extends State<RegistrationPendingScreen> {
   final AuthService _authService = AuthService();
 
+  String _tr(String key) {
+    return AppLocalizations.of(context).get('registrationPending.$key');
+  }
+
   Future<void> _signOutAndGoToLogin() async {
-    await _authService.signOut();
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+    LoggingService().info('User signing out from registration pending screen');
+    try {
+      await _authService.signOut();
+      LoggingService().info('Sign out successful, navigating to login');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+      }
+    } catch (e) {
+      LoggingService().error('Error during sign out: $e', e);
     }
   }
 
   @override
   Widget build(BuildContext context) {
 
-    final Map<String, Map<String, String>> translations = {
-      'EN': {
-        'title': 'Waiting for Verification',
-        'message': 'You have successfully registered, please wait for verification. Check your email regularly.',
-        'done_button': 'Done',
-      },
-      'ID': {
-        'title': 'Menunggu Verifikasi',
-        'message': 'Anda telah berhasil mendaftar, mohon tunggu verifikasi. Periksa email Anda secara berkala.',
-        'done_button': 'Selesai',
-      }
-    };
-
-    String tr(String key) {
-      return translations[widget.initialLanguage]![key] ?? key;
-    }
-
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(AppTheme.spacing24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
               BouncingDotsLoader(),
-              const SizedBox(height: 48),
-              Text(tr('title'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
-              const SizedBox(height: 16),
-              Text(tr('message'), textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey.shade600, height: 1.5)),
+              SizedBox(height: AppTheme.spacing48),
+              Text(_tr('title'), textAlign: TextAlign.center, style: TextStyle(fontSize: AppTheme.fontSizeH5, fontWeight: FontWeight.bold, color: AppTheme.onSurface, fontFamily: 'Poppins')),
+              SizedBox(height: AppTheme.spacing16),
+              Text(_tr('message'), textAlign: TextAlign.center, style: TextStyle(fontSize: AppTheme.fontSizeBody1, color: AppTheme.subtitleColor, height: 1.5, fontFamily: 'Poppins')),
               const Spacer(),
               ElevatedButton(
                 onPressed: _signOutAndGoToLogin,
-                child: Text(tr('done_button')),
+                child: Text(_tr('done_button')),
               ),
             ],
           ),

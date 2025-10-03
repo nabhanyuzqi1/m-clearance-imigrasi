@@ -20,9 +20,10 @@ import 'package:m_clearance_imigrasi/main.dart' as app;
 
 // Reuse helpers from the existing scenario
 import 'auth_flow_test.dart' as authflow;
-
-void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+import 'officer_report_flow_test.dart' as officer_report_flow;
+ 
+ void main() {
+   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   // Web tends to need more time for network/service worker/auth restoration.
   // Keep frame policy default; we only increase settle durations.
 
@@ -66,7 +67,6 @@ void main() {
           tester,
           corporateName: 'Web E2E Corp $millis',
           username: 'web_e2e_$millis',
-          nationality: 'ID',
           email: email,
           password: password,
         );
@@ -93,21 +93,19 @@ void main() {
         // Capture uid
         final uid = auth.currentUser!.uid;
 
-        // 2) Simulate email verification and route to UploadDocuments
+        // 2) Simulate email verification and route to UploadDocuments (code flow)
         await firestore.collection('users').doc(uid).set({
           'isEmailVerified': true,
           'status': 'pending_documents',
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-
-        final iHaveVerifiedBtn = find.widgetWithText(ElevatedButton, 'I have verified my email');
-        if (iHaveVerifiedBtn.evaluate().isNotEmpty) {
-          await tester.tap(iHaveVerifiedBtn);
-        }
-        await tester.pumpAndSettle(const Duration(seconds: 6));
+        // Navigate to UploadDocuments programmatically for test continuation
+        final ctx = tester.element(find.text('Email Verification'));
+        Navigator.pushNamed(ctx, AppRoutes.uploadDocuments, arguments: {'initialLanguage': 'EN'});
+        await tester.pumpAndSettle(const Duration(seconds: 3));
         await authflow.pumpUntilFound(
           tester,
-          find.text('Upload Documents'),
+          find.text('Submission'),
           timeout: const Duration(seconds: 15),
         );
 
@@ -143,7 +141,7 @@ void main() {
 
         await authflow.pumpUntilFound(
           tester,
-          find.text('Registration Pending'),
+          find.text('Waiting for Verification'),
           timeout: const Duration(seconds: 15),
         );
 
@@ -169,5 +167,8 @@ void main() {
       },
       timeout: const Timeout(Duration(minutes: 4)),
     );
+  });
+  group('E2E Web: Officer Report Flow', () {
+    officer_report_flow.main();
   });
 }

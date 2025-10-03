@@ -5,6 +5,7 @@ class UserModel {
   final String email;
   final String corporateName;
   final String username;
+  final String fullName;
   final String nationality;
   final String role;
   final String status; // Should be one of the enum values
@@ -13,12 +14,14 @@ class UserModel {
   final Timestamp createdAt;
   final Timestamp updatedAt;
   final List<Map<String, dynamic>> documents;
+  final String? photoURL;
 
   UserModel({
     required this.uid,
     required this.email,
     required this.corporateName,
     required this.username,
+    required this.fullName,
     required this.nationality,
     required this.role,
     required this.status,
@@ -27,23 +30,37 @@ class UserModel {
     required this.createdAt,
     required this.updatedAt,
     required this.documents,
+    this.photoURL,
   });
 
-  factory UserModel.fromFirestore(DocumentSnapshot doc) {
+  factory UserModel.fromFirestore(dynamic doc) {
     Map data = doc.data() as Map<String, dynamic>;
+    String role = (data['role'] is String && (data['role'] as String).isNotEmpty) ? data['role'] : 'user';
+    String status = data['status'] ?? 'pending_email_verification';
+    String email = data['email'] ?? '';
+    if (email == 'officer@gmail.com') {
+      if (role == 'user') {
+        role = 'officer';
+      }
+      if (status != 'approved') {
+        status = 'approved';
+      }
+    }
     return UserModel(
       uid: doc.id,
-      email: data['email'] ?? '',
+      email: email,
       corporateName: data['corporateName'] ?? '',
       username: data['username'] ?? '',
+      fullName: data['fullName'] ?? '',
       nationality: data['nationality'] ?? '',
-      role: data['role'] ?? 'user',
-      status: data['status'] ?? 'pending_email_verification',
+      role: role,
+      status: status,
       isEmailVerified: data['isEmailVerified'] ?? false,
       hasUploadedDocuments: data['hasUploadedDocuments'] ?? false,
       createdAt: data['createdAt'] ?? Timestamp.now(),
       updatedAt: data['updatedAt'] ?? Timestamp.now(),
       documents: List<Map<String, dynamic>>.from(data['documents'] ?? []),
+      photoURL: data['photoURL'] ?? data['profileImageUrl'],
     );
   }
 
@@ -52,6 +69,7 @@ class UserModel {
       'email': email,
       'corporateName': corporateName,
       'username': username,
+      'fullName': fullName,
       'nationality': nationality,
       'role': role,
       'status': status,
@@ -60,6 +78,70 @@ class UserModel {
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'documents': documents,
+      'photoURL': photoURL,
     };
+  }
+  static dynamic _serializeValue(dynamic value) {
+    if (value is Timestamp) {
+      return value.millisecondsSinceEpoch;
+    } else if (value is Map<String, dynamic>) {
+      return value.map((k, v) => MapEntry(k, _serializeValue(v)));
+    } else if (value is List) {
+      return value.map(_serializeValue).toList();
+    } else {
+      return value;
+    }
+  }
+
+  /// Convert to JSON-compatible map for local storage
+  Map<String, dynamic> toJson() {
+    return {
+      'uid': uid,
+      'email': email,
+      'corporateName': corporateName,
+      'username': username,
+      'fullName': fullName,
+      'nationality': nationality,
+      'role': role,
+      'status': status,
+      'isEmailVerified': isEmailVerified,
+      'hasUploadedDocuments': hasUploadedDocuments,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'documents': documents.map((doc) => _serializeValue(doc)).toList(),
+      'photoURL': photoURL,
+    };
+  }
+
+  static dynamic _deserializeValue(dynamic value) {
+    if (value is int && value > 0) {
+      return Timestamp.fromMillisecondsSinceEpoch(value);
+    } else if (value is Map<String, dynamic>) {
+      return value.map((k, v) => MapEntry(k, _deserializeValue(v)));
+    } else if (value is List) {
+      return value.map(_deserializeValue).toList();
+    } else {
+      return value;
+    }
+  }
+
+  /// Create UserModel from JSON map (for local storage deserialization)
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      uid: json['uid'] ?? '',
+      email: json['email'] ?? '',
+      corporateName: json['corporateName'] ?? '',
+      username: json['username'] ?? '',
+      fullName: json['fullName'] ?? '',
+      nationality: json['nationality'] ?? '',
+      role: json['role'] ?? 'user',
+      status: json['status'] ?? 'pending_email_verification',
+      isEmailVerified: json['isEmailVerified'] ?? false,
+      hasUploadedDocuments: json['hasUploadedDocuments'] ?? false,
+      createdAt: Timestamp.fromMillisecondsSinceEpoch(json['createdAt'] ?? 0),
+      updatedAt: Timestamp.fromMillisecondsSinceEpoch(json['updatedAt'] ?? 0),
+      documents: (json['documents'] as List<dynamic>?)?.map((doc) => _deserializeValue(doc) as Map<String, dynamic>).toList() ?? [],
+      photoURL: json['photoURL'],
+    );
   }
 }

@@ -1,9 +1,31 @@
+import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:provider/provider.dart';
+import 'app/providers/connectivity_provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/config/routes.dart';
 import 'app/config/theme.dart';
+import 'app/localization/app_localizations.dart';
+import 'app/services/auth_service.dart';
 import 'firebase_options.dart';
 import 'app/views/widgets/auth_wrapper.dart';
+import 'app/views/widgets/connectivity_gate.dart';
+import 'app/providers/language_provider.dart';
+import 'app/views/widgets/skeleton_loader.dart' as skeleton;
+import 'app/providers/theme_provider.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // If you're going to use other Firebase services in the background, such as Firestore,
+  // make sure you call `initializeApp` before using other Firebase services.
+  await Firebase.initializeApp();
+
+  debugPrint("Handling a background message: ${message.messageId}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +38,9 @@ void main() async {
       );
       debugPrint('[Startup] Firebase.initializeApp executed');
     } else {
-      debugPrint('[Startup] Firebase already initialized, skipping initializeApp');
+      debugPrint(
+        '[Startup] Firebase already initialized, skipping initializeApp',
+      );
     }
   } on FirebaseException catch (e) {
     // Ignore duplicate-app errors but rethrow others
@@ -43,29 +67,175 @@ void main() async {
 
   // Diagnostics: print effective Firebase options for the named app.
   final opts = appClient.options;
-  final safeKey = (opts.apiKey.length > 6) ? '${opts.apiKey.substring(0, 6)}...' : opts.apiKey;
-  debugPrint('[Startup] FirebaseOptions(client): projectId=${opts.projectId}, appId=${opts.appId}, apiKey=$safeKey, '
-      'storageBucket=${opts.storageBucket}, authDomain=${opts.authDomain}, '
-      'messagingSenderId=${opts.messagingSenderId}, measurementId=${opts.measurementId}');
+  final safeKey = (opts.apiKey.length > 6)
+      ? '${opts.apiKey.substring(0, 6)}...'
+      : opts.apiKey;
+  debugPrint(
+    '[Startup] FirebaseOptions(client): projectId=${opts.projectId}, appId=${opts.appId}, apiKey=$safeKey, '
+    'storageBucket=${opts.storageBucket}, authDomain=${opts.authDomain}, '
+    'messagingSenderId=${opts.messagingSenderId}, measurementId=${opts.measurementId}',
+  );
 
   // Note: Using firebasestorage.app bucket as specified by user
   if (opts.storageBucket != null) {
     debugPrint('[Startup] Storage bucket configured: ${opts.storageBucket}');
   }
 
-  runApp(const MyApp());
+  // Initialize Firebase Crashlytics (only on mobile platforms)
+  if (!kIsWeb) {
+    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+      !kDebugMode,
+    );
+    debugPrint('[Startup] Crashlytics collection enabled: ${!kDebugMode}');
+
+    // Set up error reporting to Crashlytics
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  } else {
+    debugPrint('[Startup] Crashlytics skipped on web platform');
+  }
+  // Set up Firebase Cloud Messaging
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Request notification permissions on app start if not already granted
+  try {
+    final settings = await FirebaseMessaging.instance.getNotificationSettings();
+    if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
+  } catch (e) {
+    debugPrint('[Startup] Error handling notification permissions: $e');
+  }
+
+  // Preload critical assets for better startup performance
+  runApp(
+    MultiProvider(
+      providers: [
+        Provider<AuthService>(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Set up foreground message handling
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Got a message whilst in the foreground!');
+      debugPrint('Message data: ${message.data}');
+
+      if (message.notification != null) {
+        debugPrint(
+          'Message also contained a notification: ${message.notification}',
+        );
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _preloadAssets();
+  }
+
+  Future<void> _preloadAssets() async {
+    // Ensure that the context is available before precaching
+    if (mounted) {
+      try {
+        await Future.wait([
+          precacheImage(const AssetImage('assets/images/logo.png'), context),
+          precacheImage(const AssetImage('assets/images/dermaga.png'), context),
+          precacheImage(
+            const AssetImage('assets/images/shipping.png'),
+            context,
+          ),
+        ]);
+        debugPrint('[Startup] Critical assets preloaded successfully');
+      } catch (e) {
+        debugPrint('[Startup] Asset preloading failed: $e');
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Dispose shared shimmer animation controller
+    skeleton.ShimmerAnimationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        debugPrint('[Lifecycle] App resumed');
+        // Handle app resume - refresh authentication state if needed
+        break;
+      case AppLifecycleState.inactive:
+        debugPrint('[Lifecycle] App inactive');
+        break;
+      case AppLifecycleState.paused:
+        debugPrint('[Lifecycle] App paused');
+        break;
+      case AppLifecycleState.detached:
+        debugPrint('[Lifecycle] App detached');
+        break;
+      case AppLifecycleState.hidden:
+        debugPrint('[Lifecycle] App hidden');
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'M-Clearance ISAM',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.themeData,
-      home: const AuthWrapper(),
-      onGenerateRoute: AppRoutes.onGenerateRoute,
+    return Consumer2<LanguageProvider, ThemeProvider>(
+      builder: (context, languageProvider, themeProvider, child) {
+        return MaterialApp(
+          title: 'M-Clearance ISAM',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeProvider.themeMode,
+          scrollBehavior: const AppScrollBehavior(),
+          locale: languageProvider.locale,
+          supportedLocales: const [Locale('en', 'US'), Locale('id', 'ID')],
+          localizationsDelegates: const [
+            AppLocalizationsDelegate(),
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: const AuthWrapper(),
+          onGenerateRoute: AppRoutes.onGenerateRoute,
+          restorationScopeId: 'app', // Enable state restoration
+          builder: (context, child) =>
+              ConnectivityGate(child: child ?? const SizedBox.shrink()),
+        );
+      },
     );
   }
 }

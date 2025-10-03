@@ -1,11 +1,17 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:m_clearance_imigrasi/app/config/routes.dart';
+import 'package:m_clearance_imigrasi/app/config/theme.dart';
 import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
+import '../../../localization/app_localizations.dart';
+import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
+import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class UploadDocumentsScreen extends StatefulWidget {
   final String initialLanguage;
@@ -17,10 +23,11 @@ class UploadDocumentsScreen extends StatefulWidget {
 
 class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   final AuthService _authService = AuthService();
+  final ImagePicker _picker = ImagePicker();
 
   // Selected files
-  File? _nibFile;
-  File? _ktpFile;
+  Uint8List? _nibFile;
+  Uint8List? _ktpFile;
   String? _nibFileName;
   String? _ktpFileName;
 
@@ -31,59 +38,30 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   StreamSubscription<User?>? _authSub;
   late String _selectedLanguage;
 
-  final Map<String, Map<String, String>> _translations = {
-    'EN': {
-      'title': 'Submission',
-      'last_step': 'Last Step',
-      'complete_req': 'Complete the Requirements',
-      'nib_title': 'Business Identification Number',
-      'nib_subtitle': 'Only accept .pdf',
-      'ktp_title': 'Identity Card',
-      'ktp_subtitle': 'Only accept .jpg .pdf',
-      'submit': 'Submit',
-      'upload_success': 'uploaded successfully.',
-      'upload_all_docs': 'Please upload both documents.',
-      'change': 'Change',
-      'upload': 'Upload',
-      'select_file_failed': 'Failed to select file.',
-      'no_docs_uploaded': 'No documents were uploaded.',
-      'select_at_least_one': 'Please select at least one document to upload.',
-      'failed_upload': 'Failed to upload documents. Please try again.',
-    },
-    'ID': {
-      'title': 'Pengajuan',
-      'last_step': 'Langkah Terakhir',
-      'complete_req': 'Lengkapi Persyaratan',
-      'nib_title': 'Nomor Induk Berusaha',
-      'nib_subtitle': 'Hanya menerima .pdf',
-      'ktp_title': 'Kartu Tanda Penduduk',
-      'ktp_subtitle': 'Hanya menerima .jpg .pdf',
-      'submit': 'Kirim',
-      'upload_success': 'berhasil diunggah.',
-      'upload_all_docs': 'Mohon unggah kedua dokumen.',
-      'change': 'Ganti',
-      'upload': 'Unggah',
-      'select_file_failed': 'Gagal memilih file.',
-      'no_docs_uploaded': 'Tidak ada dokumen yang diunggah.',
-      'select_at_least_one': 'Pilih minimal satu dokumen untuk diunggah.',
-      'failed_upload': 'Gagal mengunggah dokumen. Coba lagi.',
-    }
-  };
-
-  String _tr(String key) => _translations[_selectedLanguage]?[key] ?? key;
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('uploadDocuments.$key');
 
   @override
   void initState() {
     super.initState();
+    LoggingService().info(
+      'UploadDocumentsScreen initialized with language: ${widget.initialLanguage}',
+    );
     _selectedLanguage = widget.initialLanguage;
+
     // Navigate to login if user signs out while on this screen
     _authSub = _authService.authStateChanges.listen((user) {
       if (user == null && mounted) {
+        LoggingService().info(
+          'User signed out, navigating to login from upload documents screen',
+        );
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       }
     });
+
     // Enforce preconditions on entry
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      LoggingService().info('Checking preconditions for document upload');
       _checkPreconditions(navigateOnFail: true);
     });
   }
@@ -95,6 +73,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   }
 
   Future<void> _checkPreconditions({bool navigateOnFail = false}) async {
+    LoggingService().debug(
+      'Checking preconditions for document upload, navigateOnFail: $navigateOnFail',
+    );
     try {
       await _authService.ensureCanUploadDocuments();
       if (mounted) {
@@ -103,139 +84,417 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         });
       }
     } on StateError catch (e) {
+      LoggingService().error('Precondition check failed: ${e.message}', e);
       if (mounted) {
         setState(() {
           _canUpload = false;
         });
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
       if (navigateOnFail) {
         _routeForErrorMessage(e.message);
       }
-    } catch (_) {
+    } catch (e) {
+      LoggingService().error(
+        'Unexpected error during precondition check: $e',
+        e,
+      );
       // Keep UI responsive on unexpected errors
     }
   }
 
   void _routeForErrorMessage(String message) {
+    LoggingService().debug('Routing based on error message: $message');
     if (!mounted) return;
+
     if (message.contains('Email is not verified')) {
-      Navigator.pushReplacementNamed(context, AppRoutes.emailVerification,
-          arguments: {'initialLanguage': _selectedLanguage});
+      final email = FirebaseAuth.instance.currentUser?.email ?? '';
+      LoggingService().info(
+        'Email not verified, navigating to confirmation screen',
+      );
+      Navigator.pushReplacementNamed(
+        context,
+        AppRoutes.confirmation,
+        arguments: {
+          'initialLanguage': _selectedLanguage,
+          'userData': {'email': email},
+        },
+      );
     } else if (message.contains('No authenticated user') ||
         message.contains('User data not found')) {
+      LoggingService().warning(
+        'No authenticated user or user data not found, navigating to login',
+      );
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     } else if (message.contains('Current status')) {
-      Navigator.pushReplacementNamed(context, AppRoutes.registrationPending,
-          arguments: {'initialLanguage': _selectedLanguage});
+      // Parse the status from the message
+      final statusMatch = RegExp(r'Current status: (\w+)').firstMatch(message);
+      final status = statusMatch?.group(1);
+      LoggingService().debug('Parsed user status: $status');
+
+      if (status == 'pending_approval') {
+        LoggingService().info(
+          'User status pending_approval, navigating to registration pending',
+        );
+        Navigator.pushReplacementNamed(
+          context,
+          AppRoutes.registrationPending,
+          arguments: {'initialLanguage': _selectedLanguage},
+        );
+      } else if (status == 'approved') {
+        LoggingService().info('User status approved, navigating to user home');
+        Navigator.pushReplacementNamed(context, AppRoutes.userHome);
+      } else {
+        // For other statuses like pending_documents or unknown, navigate to login or handle gracefully
+        LoggingService().warning(
+          'Unknown user status: $status, navigating to login',
+        );
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+      }
+    } else {
+      // Handle unexpected errors gracefully
+      LoggingService().error('Unexpected error during routing: $message');
+      Navigator.pushReplacementNamed(context, AppRoutes.login);
     }
   }
 
   Future<void> _pickNibFile() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
-        type: FileType.custom,
-        allowedExtensions: const ['pdf'],
-        withData: true,
-      );
-      if (result == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-        );
-        return;
-      }
-
-      final picked = result.files.single;
-      File? file;
-      final name = picked.name.isNotEmpty ? picked.name : 'nib.pdf';
-
-      if (picked.path != null) {
-        file = File(picked.path!);
-      } else if (picked.bytes != null) {
-        final tempPath =
-            '${Directory.systemTemp.path}/nib-${DateTime.now().millisecondsSinceEpoch}.pdf';
-        final tmp = File(tempPath);
-        await tmp.writeAsBytes(picked.bytes!, flush: true);
-        file = tmp;
-      }
-
-      if (file != null) {
-        setState(() {
-          _nibFile = file!;
-          _nibFileName = name;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('NIB ${_tr('upload_success')}'), backgroundColor: Colors.green),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-        );
-      }
-    } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-      );
-    }
+    _showSourceActionSheet((sourceType) => _handleNibFile(sourceType));
   }
 
   Future<void> _pickKtpFile() async {
+    _showSourceActionSheet((sourceType) => _handleKtpFile(sourceType));
+  }
+
+  Future<void> _handleNibFile(String sourceType) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
-        type: FileType.custom,
-        allowedExtensions: const ['jpg', 'jpeg', 'pdf'],
-        withData: true,
-      );
-      if (result == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-        );
-        return;
-      }
+      final payload = sourceType == 'camera'
+          ? await _captureImage(fallbackName: 'nib.jpg')
+          : await _pickFromFiles(
+              allowedExtensions: const ['pdf'],
+              fallbackName: 'nib.pdf',
+            );
 
-      final picked = result.files.single;
-      File? file;
-      var name = picked.name.isNotEmpty ? picked.name : 'ktp.jpg';
+      if (payload == null) return;
 
-      if (picked.path != null) {
-        file = File(picked.path!);
-      } else if (picked.bytes != null) {
-        // Preserve extension if any, fallback to .jpg
-        final ext = name.contains('.') ? name.split('.').last : 'jpg';
-        final tempPath =
-            '${Directory.systemTemp.path}/ktp-${DateTime.now().millisecondsSinceEpoch}.$ext';
-        final tmp = File(tempPath);
-        await tmp.writeAsBytes(picked.bytes!, flush: true);
-        file = tmp;
-      }
+      setState(() {
+        _nibFile = payload.bytes;
+        _nibFileName = payload.name;
+      });
 
-      if (file != null) {
-        setState(() {
-          _ktpFile = file!;
-          _ktpFileName = name;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('KTP ${_tr('upload_success')}'), backgroundColor: Colors.green),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-        );
-      }
-    } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('select_file_failed')), backgroundColor: Colors.red),
-      );
+      _showSuccessSnack(_tr('nib'));
+    } catch (e) {
+      LoggingService().error('Failed to handle NIB file', e);
+      _showPickError();
     }
+  }
+
+  Future<void> _handleKtpFile(String sourceType) async {
+    try {
+      final payload = sourceType == 'camera'
+          ? await _captureImage(fallbackName: 'ktp.jpg')
+          : await _pickFromFiles(
+              allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
+              fallbackName: 'ktp.jpg',
+            );
+
+      if (payload == null) return;
+
+      setState(() {
+        _ktpFile = payload.bytes;
+        _ktpFileName = payload.name;
+      });
+
+      _showSuccessSnack(_tr('ktp'));
+    } catch (e) {
+      LoggingService().error('Failed to handle KTP file', e);
+      _showPickError();
+    }
+  }
+
+  Future<bool> _requestPermissions(ImageSource source) async {
+    if (source == ImageSource.camera) {
+      final cameraStatus = await Permission.camera.request();
+      if (cameraStatus.isGranted) {
+        return true;
+      } else if (cameraStatus.isPermanentlyDenied) {
+        if (mounted) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final isTablet = screenWidth > 600;
+          final maxWidth = isTablet ? 400.0 : double.infinity;
+
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return Container(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: AlertDialog(
+                  title: Text(
+                    _tr('permission_required'),
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.045,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.onSurface,
+                    ),
+                  ),
+                  content: Text(
+                    _tr('camera_permission_message'),
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.04,
+                      color: AppTheme.onSurface.withAlpha(179),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        _tr('cancel'),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: screenWidth * 0.04,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        openAppSettings();
+                      },
+                      child: Text(
+                        _tr('open_settings'),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: screenWidth * 0.04,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        }
+        return false;
+      } else {
+        return false;
+      }
+    } else {
+      // For gallery, request storage permissions
+      final storageStatus = await Permission.photos.request();
+      if (storageStatus.isGranted) {
+        return true;
+      } else if (storageStatus.isPermanentlyDenied) {
+        if (mounted) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          final isTablet = screenWidth > 600;
+          final maxWidth = isTablet ? 400.0 : double.infinity;
+
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return Container(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: AlertDialog(
+                  title: Text(
+                    _tr('permission_required'),
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.045,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.onSurface,
+                    ),
+                  ),
+                  content: Text(
+                    _tr('storage_permission_message'),
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.04,
+                      color: AppTheme.onSurface.withAlpha(179),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        _tr('cancel'),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: screenWidth * 0.04,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        openAppSettings();
+                      },
+                      child: Text(
+                        _tr('open_settings'),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: screenWidth * 0.04,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        }
+        return false;
+      } else {
+        return false;
+      }
+    }
+  }
+
+  Future<_DocumentPayload?> _captureImage({
+    required String fallbackName,
+  }) async {
+    final hasPermission = await _requestPermissions(ImageSource.camera);
+    if (!hasPermission) return null;
+
+    final XFile? pickedFile = await _picker.pickImage(
+      source: ImageSource.camera,
+    );
+    if (pickedFile == null) return null;
+
+    final bytes = await pickedFile.readAsBytes();
+    final extension = _extensionFromName(pickedFile.name).isNotEmpty
+        ? _extensionFromName(pickedFile.name)
+        : _extensionFromName(fallbackName);
+
+    final processedBytes = await minifyImageData(
+      bytes,
+      fileExtension: extension,
+    );
+
+    final normalizedName = _ensureExtension(
+      pickedFile.name.isNotEmpty ? pickedFile.name : fallbackName,
+      extension.isNotEmpty ? extension : 'jpg',
+    );
+
+    return _DocumentPayload(bytes: processedBytes, name: normalizedName);
+  }
+
+  Future<_DocumentPayload?> _pickFromFiles({
+    required List<String> allowedExtensions,
+    required String fallbackName,
+  }) async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: allowedExtensions,
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return null;
+    }
+
+    final picked = result.files.single;
+    final bytes = picked.bytes;
+    if (bytes == null) return null;
+
+    final extension = _extensionFromName(picked.name).isNotEmpty
+        ? _extensionFromName(picked.name)
+        : _extensionFromName(fallbackName);
+
+    final processedBytes = _isImageExtension(extension)
+        ? await minifyImageData(bytes, fileExtension: extension)
+        : bytes;
+
+    final normalizedName = _ensureExtension(
+      picked.name.isNotEmpty ? picked.name : fallbackName,
+      extension,
+    );
+
+    return _DocumentPayload(bytes: processedBytes, name: normalizedName);
+  }
+
+  void _showSuccessSnack(String documentLabel) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$documentLabel ${_tr('upload_success')}'),
+        backgroundColor: AppTheme.successColor,
+      ),
+    );
+  }
+
+  void _showPickError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_tr('select_file_failed')),
+        backgroundColor: AppTheme.errorColor,
+      ),
+    );
+  }
+
+  bool _isImageExtension(String extension) {
+    final normalized = extension.toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'webp', 'heic'].contains(normalized);
+  }
+
+  String _extensionFromName(String name) {
+    final index = name.lastIndexOf('.');
+    if (index == -1 || index == name.length - 1) {
+      return '';
+    }
+    return name.substring(index + 1).toLowerCase();
+  }
+
+  String _ensureExtension(String name, String extension) {
+    if (extension.isEmpty) return name;
+    if (name.toLowerCase().endsWith('.$extension')) {
+      return name;
+    }
+    final index = name.lastIndexOf('.');
+    final baseName = index == -1 ? name : name.substring(0, index);
+    return '$baseName.$extension';
+  }
+
+  void _showSourceActionSheet(Function(String) onSourceSelected) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext bc) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: Text(_tr('camera')),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onSourceSelected('camera');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_present),
+                title: Text(_tr('choose_from_files')),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onSourceSelected('file');
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _finishRegistration() async {
     if (_nibFile == null || _ktpFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('upload_all_docs')), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(_tr('upload_all_docs')),
+          backgroundColor: AppTheme.errorColor,
+        ),
       );
       return;
     }
@@ -250,7 +509,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, AppRoutes.login);
+      }
       setState(() {
         _isUploading = false;
       });
@@ -264,6 +525,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         user.uid,
         _nibFile!,
         _nibFileName ?? 'nib.pdf',
+        docType: 'nib',
       );
       if (nibUrl != null && nibUrl.isNotEmpty) {
         uploadedPaths.add(nibUrl);
@@ -275,12 +537,23 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         _ktpFile!,
         // Ensure a default extension when missing to avoid odd content-type behaviors
         _ktpFileName ?? 'ktp.jpg',
+        docType: 'ktp',
       );
       if (ktpUrl != null && ktpUrl.isNotEmpty) {
         uploadedPaths.add(ktpUrl);
       }
 
       if (uploadedPaths.isNotEmpty) {
+        if (uploadedPaths.length < 2) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(_tr('partial_upload_success')),
+                backgroundColor: AppTheme.warningColor,
+              ),
+            );
+          }
+        }
         setState(() {
           _isMarking = true;
         });
@@ -289,89 +562,134 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           storagePathsOrRefs: uploadedPaths,
         );
 
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          Navigator.pushReplacementNamed(context, AppRoutes.registrationPending,
-              arguments: {'initialLanguage': _selectedLanguage});
+          if (!mounted) {
+            return;
+          }
+          Navigator.pushReplacementNamed(
+            context,
+            AppRoutes.registrationPending,
+            arguments: {'initialLanguage': _selectedLanguage},
+          );
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('no_docs_uploaded'))),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(_tr('no_docs_uploaded'))));
+        }
       }
     } on StateError catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
+      }
       _routeForErrorMessage(e.message);
     } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('failed_upload'))),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('failed_upload'))));
+      }
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isUploading = false;
-        _isMarking = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _isMarking = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final busy = _isUploading || _isMarking;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding =
+        screenWidth * 0.06; // 6% of screen width for responsive padding
+    final verticalPadding = AppTheme.spacing24;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_tr('title')),
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.surfaceColor,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: IconThemeData(color: AppTheme.onSurface),
       ),
-      backgroundColor: Colors.white,
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_tr('last_step'),
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(
-              _tr('complete_req'),
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+      backgroundColor: AppTheme.backgroundColor,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: verticalPadding,
             ),
-            const SizedBox(height: 32),
-            _buildUploadCard(
-              title: _tr('nib_title'),
-              subtitle: _tr('nib_subtitle'),
-              fileName: _nibFileName,
-              onTap: busy ? null : _pickNibFile,
-            ),
-            const SizedBox(height: 20),
-            _buildUploadCard(
-              title: _tr('ktp_title'),
-              subtitle: _tr('ktp_subtitle'),
-              fileName: _ktpFileName,
-              onTap: busy ? null : _pickKtpFile,
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: busy ? null : _finishRegistration,
-                child: busy
-                    ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(_tr('submit')),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _tr('last_step'),
+                    style: TextStyle(
+                      fontSize: AppTheme.fontSizeH4,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: AppTheme.onSurface,
+                    ),
+                  ),
+                  SizedBox(height: AppTheme.spacing8),
+                  Text(
+                    _tr('complete_req'),
+                    style: TextStyle(
+                      fontSize: AppTheme.fontSizeBody1,
+                      color: AppTheme.subtitleColor,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                  SizedBox(height: AppTheme.spacing32),
+                  _buildUploadCard(
+                    title: _tr('nib_title'),
+                    subtitle: _tr('nib_subtitle'),
+                    fileName: _nibFileName,
+                    onTap: busy ? null : _pickNibFile,
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: AppTheme.spacing24),
+                  _buildUploadCard(
+                    title: _tr('ktp_title'),
+                    subtitle: _tr('ktp_subtitle'),
+                    fileName: _ktpFileName,
+                    onTap: busy ? null : _pickKtpFile,
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: AppTheme.spacing32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: busy ? null : _finishRegistration,
+                      child: busy
+                          ? SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Theme.of(context).colorScheme.onPrimary,
+                              ),
+                            )
+                          : Text(_tr('submit')),
+                    ),
+                  ),
+                  SizedBox(height: AppTheme.spacing20),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -381,50 +699,91 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     required String subtitle,
     String? fileName,
     required VoidCallback? onTap,
+    required double screenWidth,
   }) {
     final isUploaded = fileName != null;
+    final cardHeight = screenWidth > 600
+        ? 120.0
+        : 100.0; // Responsive height for tablets
+    final horizontalPadding =
+        screenWidth * 0.04; // Responsive padding for card content
+
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(horizontalPadding),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        color: AppTheme.greyShade50,
+        borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+        border: Border.all(color: AppTheme.greyShade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            height: 100,
+            height: cardHeight,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(12),
+              color: AppTheme.greyShade200,
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
             ),
             child: isUploaded
-                ? const Icon(Icons.check_circle, color: Colors.green, size: 40)
-                : const Icon(Icons.image_outlined, color: Colors.grey, size: 40),
+                ? Icon(
+                    Icons.check_circle,
+                    color: AppTheme.successColor,
+                    size: screenWidth > 600 ? 50 : 40,
+                  )
+                : Icon(
+                    Icons.image_outlined,
+                    color: AppTheme.greyShade600,
+                    size: screenWidth > 600 ? 50 : 40,
+                  ),
           ),
-          const SizedBox(height: 16),
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
-          const SizedBox(height: 16),
+          SizedBox(height: AppTheme.spacing16),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeH6,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Poppins',
+              color: AppTheme.onSurface,
+            ),
+          ),
+          SizedBox(height: AppTheme.spacing4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: AppTheme.fontSizeBody2,
+              color: AppTheme.subtitleColor,
+              fontFamily: 'Poppins',
+            ),
+          ),
+          SizedBox(height: AppTheme.spacing16),
           if (isUploaded)
             Row(
               children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 18),
-                const SizedBox(width: 8),
+                Icon(
+                  Icons.check_circle,
+                  color: AppTheme.successColor,
+                  size: 18,
+                ),
+                SizedBox(width: AppTheme.spacing8),
                 Expanded(
                   child: Text(
-                    fileName!,
-                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                    fileName,
+                    style: TextStyle(
+                      color: AppTheme.successColor,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: AppTheme.spacing8),
                 SizedBox(
                   height: 36,
-                  child: OutlinedButton(onPressed: onTap, child: Text(_tr('change'))),
+                  child: OutlinedButton(
+                    onPressed: onTap,
+                    child: Text(_tr('change')),
+                  ),
                 ),
               ],
             )
@@ -434,8 +793,10 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
               child: OutlinedButton(
                 onPressed: onTap,
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: EdgeInsets.symmetric(vertical: AppTheme.spacing12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  ),
                 ),
                 child: Text(_tr('upload')),
               ),
@@ -444,4 +805,11 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       ),
     );
   }
+}
+
+class _DocumentPayload {
+  final Uint8List bytes;
+  final String name;
+
+  const _DocumentPayload({required this.bytes, required this.name});
 }

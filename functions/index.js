@@ -1,11 +1,422 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
+const { Resend } = require("resend");
+const { logger } = require("firebase-functions");
+const { randomUUID } = require("crypto");
 
 // Initialize Admin SDK exactly once
 admin.initializeApp();
 
+// Initialize Realtime Database
+const rtdb = admin.database();
+
+// Use default Firestore database everywhere
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
+
+// Helpers
+function requireAuth(context) {
+  if (!context.auth) {
+    const err = new functions.https.HttpsError(
+      "unauthenticated",
+      "Authentication required.",
+    );
+    throw err;
+  }
+}
+
+// Counter management helpers
+async function updateUserCounters(oldStatus, newStatus) {
+  const countersRef = db.collection("counters").doc("dashboard");
+  const updates = {};
+
+  if (oldStatus && oldStatus !== newStatus) {
+    if (oldStatus === "pending_approval")
+      updates.pendingAccounts = FieldValue.increment(-1);
+  }
+  if (newStatus) {
+    if (newStatus === "pending_approval")
+      updates.pendingAccounts = FieldValue.increment(1);
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await countersRef.set(updates, { merge: true });
+  }
+}
+
+async function updateApplicationCounters(
+  oldType,
+  oldStatus,
+  newType,
+  newStatus,
+) {
+  const countersRef = db.collection("counters").doc("dashboard");
+  const updates = {};
+
+  if (
+    oldType &&
+    oldStatus &&
+    (oldType !== newType || oldStatus !== newStatus)
+  ) {
+    if (oldStatus === "waiting") {
+      if (oldType === "arrival")
+        updates.pendingArrival = FieldValue.increment(-1);
+      else if (oldType === "departure")
+        updates.pendingDeparture = FieldValue.increment(-1);
+    }
+  }
+  if (newType && newStatus) {
+    if (newStatus === "waiting") {
+      if (newType === "arrival")
+        updates.pendingArrival = FieldValue.increment(1);
+      else if (newType === "departure")
+        updates.pendingDeparture = FieldValue.increment(1);
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await countersRef.set(updates, { merge: true });
+  }
+}
+
+async function recordNotification(uid, payload = {}) {
+  if (!uid) return null;
+  const timestamp =
+    payload.timestamp instanceof Timestamp
+      ? payload.timestamp
+      : Timestamp.now();
+  const notificationsRef = db
+    .collection("notifications")
+    .doc(uid)
+    .collection("items");
+  const notifId = payload.id || notificationsRef.doc().id;
+
+  const typeValue = typeof payload.type === "number" ? payload.type : 0;
+
+  const notificationData = {
+    title: payload.title || "Notification",
+    body: payload.body || "",
+    date: timestamp,
+    createdAt: timestamp,
+    type: typeValue,
+    userId: uid,
+    isRead: false,
+    ...(payload.extra && typeof payload.extra === "object"
+      ? payload.extra
+      : {}),
+  };
+
+  await notificationsRef.doc(notifId).set(notificationData, { merge: false });
+  return notifId;
+}
+
+async function notifyRoles(roles, payload = {}, options = {}) {
+  if (!Array.isArray(roles) || roles.length === 0) return;
+  const uniqueRoles = Array.from(new Set(roles.filter(Boolean)));
+  if (uniqueRoles.length === 0) return;
+
+  const snapshot = await db
+    .collection("users")
+    .where("role", "in", uniqueRoles)
+    .get();
+
+  const skipUid = options.skipUid;
+  const tasks = [];
+  snapshot.forEach((doc) => {
+    const uid = doc.id;
+    if (skipUid && uid === skipUid) return;
+    tasks.push(
+      recordNotification(uid, {
+        ...payload,
+        id: payload.id ? `${payload.id}_${uid}` : undefined,
+      }),
+    );
+  });
+
+  await Promise.all(tasks);
+}
+
+exports.onNotificationWrite = functions.firestore
+  .document("notifications/{uid}/items/{notifId}")
+  .onWrite(async (change, context) => {
+    const uid = context.params.uid;
+    if (!uid) return;
+
+    let delta = 0;
+    const beforeData = change.before.exists ? change.before.data() || {} : null;
+    const afterData = change.after.exists ? change.after.data() || {} : null;
+
+    if (!beforeData && afterData) {
+      const unread = afterData.isRead !== true;
+      if (unread) delta += 1;
+    } else if (beforeData && !afterData) {
+      const wasUnread = beforeData.isRead !== true;
+      if (wasUnread) delta -= 1;
+    } else if (beforeData && afterData) {
+      const wasUnread = beforeData.isRead !== true;
+      const nowUnread = afterData.isRead !== true;
+      if (wasUnread !== nowUnread) {
+        delta += nowUnread ? 1 : -1;
+      }
+    }
+
+    if (delta === 0) return;
+
+    const metaRef = db.collection("notifications").doc(uid);
+    await metaRef.set(
+      {
+        unreadCount: FieldValue.increment(delta),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  });
+
+// Resend client (lazy-init)
+// Direct Resend integration using Resend SDK
+
+async function resolveUserEmail(uid, fallbackEmail) {
+  if (fallbackEmail) return fallbackEmail;
+  try {
+    const u = await admin.auth().getUser(uid);
+    if (u && u.email) return u.email;
+  } catch (_) {}
+  try {
+    const snap = await db.collection("users").doc(uid).get();
+    if (snap.exists) {
+      const data = snap.data() || {};
+      if (data.email) return data.email;
+    }
+  } catch (_) {}
+  return "";
+}
+
+async function resolveUserName(uid, fallbackEmail) {
+  // Try auth displayName first
+  try {
+    const u = await admin.auth().getUser(uid);
+    if (u && u.displayName) return u.displayName;
+  } catch (_) {}
+  // Try Firestore username
+  try {
+    const snap = await db.collection("users").doc(uid).get();
+    if (snap.exists) {
+      const data = snap.data() || {};
+      if (data.username) return data.username;
+    }
+  } catch (_) {}
+  // Fallback to email local-part
+  const email = await resolveUserEmail(uid, fallbackEmail);
+  if (email && email.includes("@")) return email.split("@")[0];
+  return "User";
+}
+
+function normalizeRole(role) {
+  if (!role || typeof role !== "string") {
+    return null;
+  }
+  const normalized = role.toLowerCase();
+  return ["user", "officer", "admin"].includes(normalized) ? normalized : null;
+}
+
+async function callerRole(context) {
+  if (!context.auth) {
+    return "unauthenticated";
+  }
+
+  const uid = context.auth.uid;
+  const tokenRole = normalizeRole(
+    context.auth.token && context.auth.token.role,
+  );
+
+  try {
+    const userSnap = await db.collection("users").doc(uid).get();
+    if (userSnap.exists) {
+      const firestoreRole = normalizeRole((userSnap.data() || {}).role);
+      if (firestoreRole) {
+        if (firestoreRole !== tokenRole && firestoreRole !== "user") {
+          try {
+            await admin
+              .auth()
+              .setCustomUserClaims(uid, { role: firestoreRole });
+            console.log(
+              `[callerRole] Synced custom claims for ${uid} to role '${firestoreRole}'`,
+            );
+          } catch (syncError) {
+            console.error(
+              "[callerRole] Failed to sync custom claims role:",
+              syncError,
+            );
+          }
+        }
+        return firestoreRole;
+      }
+    }
+  } catch (error) {
+    console.error("[callerRole] Error fetching role:", error);
+  }
+
+  if (tokenRole) {
+    return tokenRole;
+  }
+
+  return "user";
+}
+
+async function ensureOfficerOrAdmin(context) {
+  const role = await callerRole(context);
+  if (role !== "officer" && role !== "admin") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Officer or admin role required.",
+    );
+  }
+}
+
+/**
+ * Email Configuration Service
+ * Fetches email settings from Firebase Realtime Database with caching and fallback to environment variables.
+ */
+class EmailConfigService {
+  constructor() {
+    this.config = null;
+    this.lastFetched = 0;
+    this.cacheDuration = 5 * 60 * 1000; // 5 minutes cache
+  }
+
+  async getConfig() {
+    const now = Date.now();
+    if (this.config && now - this.lastFetched < this.cacheDuration) {
+      return this.config;
+    }
+
+    try {
+      const snapshot = await rtdb.ref("email_config").once("value");
+      const data = snapshot.val();
+      if (data) {
+        this.config = data;
+        this.lastFetched = now;
+        console.log(
+          "[EmailConfigService] Fetched config from RTDB at email_config",
+        );
+        return this.config;
+      }
+    } catch (error) {
+      console.error(
+        "[EmailConfigService] Failed to fetch config from RTDB:",
+        error,
+      );
+    }
+
+    // Fallback to environment variables
+    console.log("[EmailConfigService] Using fallback config from environment");
+    return this.getFallbackConfig();
+  }
+
+  getFallbackConfig() {
+    return {
+      global: {
+        apiKey: process.env.RESEND_API_KEY || "",
+        from: "noreply@mclearanceisam.com",
+        fromName: "M-Clearance",
+        accountName: "M-Clearance",
+        supportEmail: "support@mclearanceisam.com",
+        maxRetries: Number(process.env.MAX_EMAIL_RETRIES) || 3,
+        cooldownSeconds: Number(process.env.MAILERSEND_COOLDOWN_SECONDS) || 60,
+        maxAttempts: Number(process.env.MAILERSEND_MAX_ATTEMPTS) || 5,
+      },
+      templates: {
+        verification: {
+          templateId: "",
+          subject: "Your verification code",
+          tags: ["email_verification"],
+        },
+      },
+    };
+  }
+
+  async getGlobalSettings() {
+    const config = await this.getConfig();
+    // Handle both RTDB flat structure and fallback nested structure
+    const globalConfig = config.global || config;
+    return {
+      apiKey: globalConfig.apiKey || process.env.RESEND_API_KEY || "",
+      from: globalConfig.fromEmail || globalConfig.from || "",
+      fromName: globalConfig.fromName || "M-Clearance System",
+      accountName:
+        globalConfig.accountName ||
+        globalConfig.fromName ||
+        "M-Clearance System",
+      supportEmail:
+        globalConfig.supportEmail ||
+        globalConfig.fromEmail ||
+        globalConfig.from ||
+        "",
+      maxRetries: globalConfig.maxRetries || 3,
+      cooldownSeconds: globalConfig.cooldownSeconds || 60,
+      maxAttempts: globalConfig.maxAttempts || 5,
+    };
+  }
+
+  async getTemplateSettings(templateName = "verification") {
+    const config = await this.getConfig();
+    // Handle both RTDB flat structure and fallback nested structure
+    const templatesConfig = config.templates || config;
+    const templateFieldMap = {
+      verification: {
+        subject:
+          templatesConfig.verification?.subject ||
+          "Your verification code - M-Clearance",
+        html:
+          templatesConfig.verification?.html ||
+          "<p>Your verification code is: {code}</p>",
+        text:
+          templatesConfig.verification?.text ||
+          "Your verification code is: {code}",
+        tags: ["email_verification"],
+      },
+      passwordReset: {
+        subject:
+          templatesConfig.passwordReset?.subject ||
+          "Password Reset Request - M-Clearance",
+        html:
+          templatesConfig.passwordReset?.html ||
+          "<p>Reset your password: {resetLink}</p>",
+        text:
+          templatesConfig.passwordReset?.text ||
+          "Reset your password: {resetLink}",
+        tags: ["password_reset"],
+      },
+      approval: {
+        subject:
+          templatesConfig.approval?.subject ||
+          "Application Approved - M-Clearance",
+        html:
+          templatesConfig.approval?.html ||
+          "<p>Your application has been approved.</p>",
+        text:
+          templatesConfig.approval?.text ||
+          "Your application has been approved.",
+        tags: ["application_approval"],
+      },
+      rejection: {
+        subject:
+          templatesConfig.rejection?.subject ||
+          "Application Status Update - M-Clearance",
+        html:
+          templatesConfig.rejection?.html ||
+          "<p>Your application requires additional information.</p>",
+        text:
+          templatesConfig.rejection?.text ||
+          "Your application requires additional information.",
+        tags: ["application_rejection"],
+      },
+    };
+    return templateFieldMap[templateName] || {};
+  }
+}
+
+const emailConfig = new EmailConfigService();
 
 /**
  * onAuth user create
@@ -16,7 +427,12 @@ const { FieldValue, Timestamp } = admin.firestore;
 exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
   const uid = user.uid;
   const email = user.email || "";
-  console.log("[onUserCreate] uid:", uid, "emailVerified:", !!user.emailVerified);
+  console.log(
+    "[onUserCreate] uid:",
+    uid,
+    "emailVerified:",
+    !!user.emailVerified,
+  );
 
   // Best-effort to assign default role via custom claims; swallow errors to avoid retries
   try {
@@ -47,18 +463,25 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
         };
         txn.set(userRef, initDoc);
         console.log("[onUserCreate] Created user doc:", uid);
+
+        // Update counters if status is pending_approval (though initially it's not)
+        if (initDoc.status === "pending_approval") {
+          await updateUserCounters(null, initDoc.status);
+        }
         return;
       }
 
       // If doc exists, only update fields once and keep idempotent behavior
       const data = snap.data() || {};
+      const oldStatus = data.status;
       const updates = {};
 
       // Ensure required fields exist without flipping user-defined values
       if (typeof data.email !== "string") updates.email = email;
       if (typeof data.uid !== "string") updates.uid = uid;
       if (!data.role) updates.role = "user";
-      if (typeof data.hasUploadedDocuments !== "boolean") updates.hasUploadedDocuments = false;
+      if (typeof data.hasUploadedDocuments !== "boolean")
+        updates.hasUploadedDocuments = false;
       if (!Array.isArray(data.documents)) updates.documents = [];
 
       // If email already verified in Auth and not yet reflected in Firestore, set once
@@ -77,6 +500,11 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
         updates.updatedAt = now;
         txn.update(userRef, updates);
         console.log("[onUserCreate] Updated existing user doc:", uid, updates);
+
+        // Update counters if status changed
+        if (updates.status && updates.status !== oldStatus) {
+          await updateUserCounters(oldStatus, updates.status);
+        }
       } else {
         console.log("[onUserCreate] No-op for existing user doc:", uid);
       }
@@ -106,12 +534,19 @@ exports.onUserDocUpdate = functions.firestore
     const afterStatus = after.status || "pending_email_verification";
     const email = after.email || before.email || "";
 
-    const becameApproved = beforeStatus !== "approved" && afterStatus === "approved";
-    const becameRejected = beforeStatus !== "rejected" && afterStatus === "rejected";
-    const hasDocsNowTrue = before.hasUploadedDocuments !== true && after.hasUploadedDocuments === true;
-    const movedToPendingApproval = beforeStatus === "pending_documents" && afterStatus === "pending_approval";
+    const becameApproved =
+      beforeStatus !== "approved" && afterStatus === "approved";
+    const becameRejected =
+      beforeStatus !== "rejected" && afterStatus === "rejected";
+    const hasDocsNowTrue =
+      before.hasUploadedDocuments !== true &&
+      after.hasUploadedDocuments === true;
+    const movedToPendingApproval =
+      beforeStatus === "pending_documents" &&
+      afterStatus === "pending_approval";
     const shouldEnforcePendingApproval =
-      beforeStatus === "pending_documents" && (hasDocsNowTrue || afterStatus === "pending_approval");
+      beforeStatus === "pending_documents" &&
+      (hasDocsNowTrue || afterStatus === "pending_approval");
 
     // Helper to read a stable updatedAt millisecond value for dedupe IDs
     const getUpdatedAtMillis = () => {
@@ -135,14 +570,33 @@ exports.onUserDocUpdate = functions.firestore
               status: "pending_approval",
               updatedAt: FieldValue.serverTimestamp(),
             });
-            console.log("[onUserDocUpdate] Enforced pending_approval for uid:", uid);
+            console.log(
+              "[onUserDocUpdate] Enforced pending_approval for uid:",
+              uid,
+            );
+            // Update counters for the enforced status change
+            await updateUserCounters(curStatus, "pending_approval");
           } else {
-            console.log("[onUserDocUpdate] Skipped enforcement; current status:", curStatus);
+            console.log(
+              "[onUserDocUpdate] Skipped enforcement; current status:",
+              curStatus,
+            );
           }
         });
       }
 
-      // 2) Enqueue review item idempotently
+      // 2) Update counters for status changes
+      if (beforeStatus !== afterStatus) {
+        await updateUserCounters(beforeStatus, afterStatus);
+        console.log(
+          "[onUserDocUpdate] Updated counters for status change:",
+          beforeStatus,
+          "->",
+          afterStatus,
+        );
+      }
+
+      // 3) Enqueue review item idempotently
       if (hasDocsNowTrue || movedToPendingApproval) {
         const submittedAtMs = getUpdatedAtMillis();
         const reviewId = `${uid}_${submittedAtMs}`;
@@ -156,32 +610,83 @@ exports.onUserDocUpdate = functions.firestore
           });
           console.log("[onUserDocUpdate] Enqueued review item:", reviewId);
         } else {
-          console.log("[onUserDocUpdate] Review item already exists:", reviewId);
+          console.log(
+            "[onUserDocUpdate] Review item already exists:",
+            reviewId,
+          );
         }
+
+        const accountName =
+          after.corporateName ||
+          after.fullName ||
+          after.username ||
+          email ||
+          uid;
+        await notifyRoles(
+          ["officer", "admin"],
+          {
+            id: reviewId,
+            title: "New account pending review",
+            body: `Account ${accountName} is ready for verification.`,
+            type: 0,
+            extra: {
+              status: "pending_approval",
+              targetUid: uid,
+            },
+          },
+          { skipUid: uid },
+        );
       }
 
-      // 3) Notifications on terminal decision transitions (approved/rejected)
+      // 4) Notifications on terminal decision transitions (approved/rejected)
       if (becameApproved || becameRejected) {
         const statusType = becameApproved ? "approved" : "rejected";
-        const message =
-          statusType === "approved"
-            ? "Your account has been approved."
-            : "Your account has been rejected.";
         const decidedAtMs = getUpdatedAtMillis();
+        const timestamp = Timestamp.fromMillis(decidedAtMs);
+        const title =
+          statusType === "approved" ? "Account Approved" : "Account Rejected";
+        const body =
+          statusType === "approved"
+            ? "Your account has been approved. You can now access all features."
+            : `Your account has been rejected${after.decisionNote ? `: ${after.decisionNote}` : "."}`;
         const notifId = `${statusType}_${decidedAtMs}`;
-        const notifRef = db.collection("notifications").doc(uid).collection("items").doc(notifId);
 
-        const notifSnap = await notifRef.get();
-        if (!notifSnap.exists) {
-          await notifRef.set({
-            type: statusType,
-            message,
-            createdAt: Timestamp.fromMillis(decidedAtMs),
-          });
-          console.log("[onUserDocUpdate] Created notification:", notifId);
-        } else {
-          console.log("[onUserDocUpdate] Notification already exists:", notifId);
-        }
+        await recordNotification(uid, {
+          id: notifId,
+          title,
+          body,
+          timestamp,
+          type: statusType === "approved" ? 1 : 0,
+          extra: {
+            status: statusType,
+            decidedBy: after.decidedBy || before.decidedBy || null,
+          },
+        });
+        console.log("[onUserDocUpdate] Created notification:", notifId);
+
+        const accountName =
+          after.corporateName ||
+          after.fullName ||
+          after.username ||
+          after.email ||
+          uid;
+        await notifyRoles(
+          ["officer", "admin"],
+          {
+            title:
+              statusType === "approved"
+                ? "Account verified"
+                : "Account rejected",
+            body: `Account ${accountName} has been ${statusType}.`,
+            timestamp,
+            type: 0,
+            extra: {
+              status: statusType,
+              targetUid: uid,
+            },
+          },
+          { skipUid: uid },
+        );
       }
     } catch (error) {
       console.error("[onUserDocUpdate] Error:", error);
@@ -195,75 +700,2043 @@ exports.onUserDocUpdate = functions.firestore
  * - Idempotent based on storagePath (gs://bucket/name) or file name
  * - Does NOT modify status; only appends to documents if not already present
  */
-exports.onDocumentFinalize = functions.storage.object().onFinalize(async (object) => {
-  try {
-    const name = object.name; // e.g., "users/<uid>/documents/<filename>"
-    const bucket = object.bucket;
+exports.onDocumentFinalize = functions.storage
+  .object()
+  .onFinalize(async (object) => {
+    try {
+      const name = object.name; // e.g., "users/<uid>/documents/<filename>"
+      const bucket = object.bucket;
 
-    if (!name || !bucket) {
-      console.log("[onDocumentFinalize] Missing object name or bucket, skipping.");
-      return;
-    }
-
-    const parts = name.split("/");
-    let uid = null;
-    let filename = parts[parts.length - 1] || "document";
-
-    // Support either "users/{uid}/documents/..." or "documents/{uid}/..."
-    if (parts.length >= 4 && parts[0] === "users" && parts[2] === "documents") {
-      uid = parts[1];
-    } else if (parts.length >= 2 && parts[0] === "documents") {
-      uid = parts[1];
-    }
-
-    if (!uid) {
-      console.log("[onDocumentFinalize] Object path is not a recognized user document path:", name);
-      return;
-    }
-
-    const storagePath = `gs://${bucket}/${name}`;
-    const userRef = db.collection("users").doc(uid);
-
-    await db.runTransaction(async (txn) => {
-      const snap = await txn.get(userRef);
-      if (!snap.exists) {
-        console.warn("[onDocumentFinalize] User doc not found for uid:", uid);
+      if (!name || !bucket) {
+        console.log(
+          "[onDocumentFinalize] Missing object name or bucket, skipping.",
+        );
         return;
       }
 
-      const data = snap.data() || {};
-      const docs = Array.isArray(data.documents) ? data.documents : [];
+      const parts = name.split("/");
+      let uid = null;
+      let filename = parts[parts.length - 1] || "document";
 
-      const alreadyPresent = docs.some((d) => {
-        if (!d || typeof d !== "object") return false;
-        return d.storagePath === storagePath || d.documentName === filename;
-      });
+      // Support either "users/{uid}/documents/..." or "documents/{uid}/..."
+      if (
+        parts.length >= 4 &&
+        parts[0] === "users" &&
+        parts[2] === "documents"
+      ) {
+        uid = parts[1];
+      } else if (parts.length >= 2 && parts[0] === "documents") {
+        uid = parts[1];
+      }
 
-      if (alreadyPresent) {
-        console.log("[onDocumentFinalize] Document already recorded for uid:", uid, storagePath);
+      if (!uid) {
+        console.log(
+          "[onDocumentFinalize] Object path is not a recognized user document path:",
+          name,
+        );
         return;
       }
 
-      // Use object.timeCreated to keep uploadedAt deterministic for idempotency
-      const uploadedAt =
-        object.timeCreated
+      const storagePath = `gs://${bucket}/${name}`;
+      const userRef = db.collection("users").doc(uid);
+
+      await db.runTransaction(async (txn) => {
+        const snap = await txn.get(userRef);
+        if (!snap.exists) {
+          console.warn("[onDocumentFinalize] User doc not found for uid:", uid);
+          return;
+        }
+
+        const data = snap.data() || {};
+        const docs = Array.isArray(data.documents) ? data.documents : [];
+
+        const alreadyPresent = docs.some((d) => {
+          if (!d || typeof d !== "object") return false;
+          return d.storagePath === storagePath || d.documentName === filename;
+        });
+
+        if (alreadyPresent) {
+          console.log(
+            "[onDocumentFinalize] Document already recorded for uid:",
+            uid,
+            storagePath,
+          );
+          return;
+        }
+
+        // Use object.timeCreated to keep uploadedAt deterministic for idempotency
+        const uploadedAt = object.timeCreated
           ? Timestamp.fromDate(new Date(object.timeCreated))
           : FieldValue.serverTimestamp();
 
-      const entry = {
-        documentName: filename,
-        storagePath: storagePath,
-        uploadedAt: uploadedAt,
-      };
+        const entry = {
+          documentName: filename,
+          storagePath: storagePath,
+          uploadedAt: uploadedAt,
+        };
 
-      // Append without touching status; do not mutate updatedAt here to avoid unintended triggers
-      txn.update(userRef, {
-        documents: FieldValue.arrayUnion(entry),
+        // Append without touching status; do not mutate updatedAt here to avoid unintended triggers
+        txn.update(userRef, {
+          documents: FieldValue.arrayUnion(entry),
+        });
+
+        console.log(
+          "[onDocumentFinalize] Appended document entry for uid:",
+          uid,
+          entry,
+        );
+      });
+    } catch (error) {
+      console.error("[onDocumentFinalize] Error:", error);
+    }
+  });
+
+/**
+ * setUserRole (callable)
+ * Admin-only function to assign a custom role (user|officer|admin) to a target user.
+ * - Updates Firebase Auth custom claims
+ * - Mirrors the role to Firestore users/{uid}.role and updates updatedAt
+ */
+exports.setUserRole = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  const role = await callerRole(context);
+  if (role !== "admin") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Admin role required.",
+    );
+  }
+
+  const targetUid = (data && data.uid) || "";
+  const newRole = (data && data.role) || "";
+  if (!targetUid || !["user", "officer", "admin"].includes(newRole)) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Provide uid and role in [user|officer|admin].",
+    );
+  }
+
+  await admin.auth().setCustomUserClaims(targetUid, { role: newRole });
+
+  const userRef = db.collection("users").doc(targetUid);
+  const now = FieldValue.serverTimestamp();
+  await userRef.set({ role: newRole, updatedAt: now }, { merge: true });
+
+  return { ok: true, uid: targetUid, role: newRole };
+});
+
+/**
+ * generateClearanceDocument (helper)
+ * Generates a PDF document containing the application data with M-Clearance ISam logo and uploads it to Firebase Storage.
+ */
+async function generateClearanceDocument(uid, application) {
+  console.log(
+    "[generateClearanceDocument] Starting PDF generation for user:",
+    uid,
+    "application:",
+    application.id,
+  );
+
+  try {
+    const PDFMake = require("pdfmake");
+    console.log("[generateClearanceDocument] PDFMake loaded successfully");
+
+    const fonts = {
+      Roboto: {
+        normal: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Regular.ttf",
+        bold: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Medium.ttf",
+      },
+    };
+    const pdfMake = new PDFMake(fonts);
+    console.log("[generateClearanceDocument] PDFMake instance created");
+
+    const bucket = admin.storage().bucket();
+    const generatedMillis = Date.now();
+    const safeShipName = (application.shipName || "Unknown").replace(
+      /[^a-zA-Z0-9]/g,
+      "_",
+    );
+    const rawApplicationId = application.id || safeShipName || "application";
+    const filename = `clearance_documents/${uid}/${rawApplicationId}_${generatedMillis}.pdf`;
+    const downloadToken = randomUUID();
+    const encodedPath = encodeURIComponent(filename);
+    const bucketName = bucket.name;
+    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+
+    const asDate = (value) => {
+      if (!value) return null;
+      if (typeof value === "number") return new Date(value);
+      if (typeof value === "string") {
+        const parsed = Date.parse(value);
+        return Number.isNaN(parsed) ? null : new Date(parsed);
+      }
+      if (value.toDate) {
+        try {
+          return value.toDate();
+        } catch (error) {
+          console.warn(
+            "[generateClearanceDocument] Unable to convert Firestore Timestamp via toDate():",
+            error,
+          );
+        }
+      }
+      if (value.toMillis) {
+        try {
+          return new Date(value.toMillis());
+        } catch (error) {
+          console.warn(
+            "[generateClearanceDocument] Unable to convert Firestore Timestamp via toMillis():",
+            error,
+          );
+        }
+      }
+      return null;
+    };
+
+    const formatDate = (value, fallback = "N/A") => {
+      const date = asDate(value);
+      if (!date || Number.isNaN(date.getTime())) return fallback;
+      return date.toLocaleString("en-US", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+
+    const submittedAtText = formatDate(application.createdAt);
+    const approvedAtText = formatDate(application.updatedAt);
+    const status = (application.status || "").toString().toUpperCase() || "N/A";
+    const applicationTypeRaw = (application.type || "").toString().toLowerCase();
+    const applicationType =
+      applicationTypeRaw === "arrival" || applicationTypeRaw === "kedatangan"
+        ? "Arrival"
+        : applicationTypeRaw === "departure" ||
+            applicationTypeRaw === "keberangkatan"
+        ? "Departure"
+        : applicationTypeRaw || "Unknown";
+
+    const officerName =
+      application.clearanceResultSignedBy ||
+      application.officerName ||
+      "Immigration Officer";
+    const officerCorporate =
+      application.clearanceResultSignedByCorporate ||
+      application.officerCorporateName ||
+      "Directorate General of Immigration";
+
+    const docDefinition = {
+      content: [
+        {
+          columns: [
+            {
+              stack: [
+                {
+                  text: "Directorate General of Immigration",
+                  style: "companyHeader",
+                },
+                {
+                  text: "M-Clearance ISam",
+                  style: "companySubheader",
+                },
+              ],
+              alignment: "left",
+            },
+            {
+              width: "auto",
+              margin: [0, 0, 0, 0],
+              alignment: "right",
+              table: {
+                widths: [90],
+                body: [
+                  [
+                    {
+                      qr: downloadUrl,
+                      fit: 90,
+                      alignment: "right",
+                    },
+                  ],
+                ],
+              },
+              layout: {
+                paddingLeft: () => 0,
+                paddingRight: () => 0,
+                paddingTop: () => 0,
+                paddingBottom: () => 0,
+              },
+            },
+          ],
+          margin: [0, 0, 0, 16],
+        },
+        {
+          canvas: [
+            {
+              type: "line",
+              x1: 0,
+              y1: 0,
+              x2: 515,
+              y2: 0,
+              lineWidth: 2,
+              lineColor: "#003049",
+            },
+          ],
+          margin: [0, 0, 0, 20],
+        },
+        {
+          text: "Immigration Clearance Certificate",
+          style: "title",
+        },
+        {
+          text: "Official confirmation of vessel clearance approval",
+          style: "subtitle",
+          margin: [0, 0, 0, 18],
+        },
+        {
+          columns: [
+            {
+              width: "*",
+              table: {
+                widths: [160, "*"],
+                body: [
+                  [
+                    { text: "Application ID", style: "label" },
+                    { text: rawApplicationId, style: "value" },
+                  ],
+                  [
+                    { text: "Vessel Name", style: "label" },
+                    { text: application.shipName || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Flag", style: "label" },
+                    { text: application.flag || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Agent", style: "label" },
+                    { text: application.agentName || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Application Type", style: "label" },
+                    { text: applicationType, style: "value" },
+                  ],
+                  [
+                    { text: "Declared Voyage", style: "label" },
+                    { text: application.date || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Location / Port", style: "label" },
+                    { text: application.location || "N/A", style: "value" },
+                  ],
+                  [
+                    { text: "Crew (WNI)", style: "label" },
+                    {
+                      text:
+                        application.wniCrew != null
+                          ? String(application.wniCrew)
+                          : "0",
+                      style: "value",
+                    },
+                  ],
+                  [
+                    { text: "Crew (WNA)", style: "label" },
+                    {
+                      text:
+                        application.wnaCrew != null
+                          ? String(application.wnaCrew)
+                          : "0",
+                      style: "value",
+                    },
+                  ],
+                  [
+                    { text: "Status", style: "label" },
+                    { text: status, style: "value" },
+                  ],
+                  [
+                    { text: "Submitted", style: "label" },
+                    { text: submittedAtText, style: "value" },
+                  ],
+                  [
+                    { text: "Approved", style: "label" },
+                    { text: approvedAtText, style: "value" },
+                  ],
+                ],
+              },
+              layout: "lightHorizontalLines",
+            },
+          ],
+          margin: [0, 0, 0, 20],
+        },
+        {
+          text:
+            "The Directorate General of Immigration certifies that the vessel and documents listed above have been reviewed and meet the clearance requirements set forth by Indonesian immigration authorities.",
+          style: "paragraph",
+          margin: [0, 0, 0, 18],
+        },
+        {
+          text:
+            "The embedded QR code links to the digitally signed certificate stored in the M-Clearance system. Presenting this certificate verifies the authenticity of the clearance decision for the vessel in question.",
+          style: "note",
+          margin: [0, 0, 0, 24],
+        },
+        {
+          columns: [
+            {
+              width: "*",
+              stack: [
+                { text: "Applicant / Shipping Agent", style: "signatureLabel" },
+                { text: "Digitally acknowledged via M-Clearance", style: "signatureHint" },
+                { text: "", margin: [0, 16, 0, 0] },
+                { text: "______________________________", style: "signatureLine" },
+                {
+                  text: application.agentName || "Authorized Representative",
+                  style: "signatureName",
+                  margin: [0, 6, 0, 0],
+                },
+              ],
+            },
+            {
+              width: "*",
+              stack: [
+                { text: "Immigration Officer", style: "signatureLabel" },
+                { text: "Digitally signed by Directorate General of Immigration", style: "signatureHint" },
+                { text: "", margin: [0, 16, 0, 0] },
+                { text: "______________________________", style: "signatureLine" },
+                { text: officerName, style: "signatureName", margin: [0, 6, 0, 0] },
+                { text: officerCorporate, style: "signatureCorp" },
+              ],
+            },
+          ],
+          columnGap: 30,
+          margin: [0, 0, 0, 30],
+        },
+        ...(application.notes
+          ? [
+              {
+                text: "Officer Notes",
+                style: "notesHeader",
+                margin: [0, 0, 0, 6],
+              },
+              {
+                text: application.notes,
+                style: "notesText",
+                margin: [0, 0, 0, 24],
+              },
+            ]
+          : []),
+        {
+          text: `Document Reference: ${rawApplicationId}-${generatedMillis}`,
+          style: "footer",
+          alignment: "center",
+        },
+      ],
+      styles: {
+        companyHeader: {
+          fontSize: 14,
+          bold: true,
+          color: "#003049",
+        },
+        companySubheader: {
+          fontSize: 10,
+          color: "#495057",
+        },
+        title: {
+          fontSize: 22,
+          bold: true,
+          color: "#003049",
+          margin: [0, 0, 0, 8],
+        },
+        subtitle: {
+          fontSize: 12,
+          color: "#495057",
+        },
+        label: {
+          fontSize: 10,
+          bold: true,
+          color: "#495057",
+        },
+        value: {
+          fontSize: 10,
+          color: "#212529",
+        },
+        paragraph: {
+          fontSize: 11,
+          lineHeight: 1.4,
+          color: "#212529",
+        },
+        note: {
+          fontSize: 9,
+          italics: true,
+          color: "#6c757d",
+        },
+        signatureLabel: {
+          fontSize: 11,
+          bold: true,
+          color: "#003049",
+        },
+        signatureHint: {
+          fontSize: 9,
+          italics: true,
+          color: "#6c757d",
+        },
+        signatureLine: {
+          fontSize: 11,
+          color: "#adb5bd",
+        },
+        signatureName: {
+          fontSize: 11,
+          bold: true,
+          color: "#212529",
+        },
+        signatureCorp: {
+          fontSize: 9,
+          color: "#6c757d",
+        },
+        notesHeader: {
+          fontSize: 11,
+          bold: true,
+          color: "#d00000",
+        },
+        notesText: {
+          fontSize: 10,
+          color: "#495057",
+          lineHeight: 1.3,
+        },
+        footer: {
+          fontSize: 8,
+          color: "#6c757d",
+          italics: true,
+        },
+      },
+      defaultStyle: {
+        font: "Roboto",
+      },
+    };
+
+    console.log("[generateClearanceDocument] Creating PDF document...");
+
+    // Create PDF document
+    const pdfDoc = pdfMake.createPdfKitDocument(docDefinition);
+    console.log("[generateClearanceDocument] PDF document created");
+
+    // Collect PDF data
+    const chunks = [];
+    pdfDoc.on("data", (chunk) => chunks.push(chunk));
+    console.log("[generateClearanceDocument] PDF data collection started");
+
+    // Return a promise that resolves when PDF is generated and uploaded
+    return new Promise((resolve, reject) => {
+      pdfDoc.on("end", async () => {
+        try {
+          console.log(
+            "[generateClearanceDocument] PDF generation completed, concatenating chunks...",
+          );
+          const result = Buffer.concat(chunks);
+          console.log(
+            "[generateClearanceDocument] PDF buffer created, size:",
+            result.length,
+          );
+
+          // Upload to Firebase Storage
+          console.log(
+            "[generateClearanceDocument] Starting upload to Firebase Storage...",
+          );
+          const file = bucket.file(filename);
+
+          await file.save(result, {
+            metadata: {
+              contentType: "application/pdf",
+              metadata: {
+                firebaseStorageDownloadTokens: downloadToken,
+                applicationId: rawApplicationId,
+                generatedBy: officerName,
+              },
+            },
+          });
+          console.log("[generateClearanceDocument] File uploaded successfully");
+
+          resolve(downloadUrl);
+        } catch (uploadError) {
+          console.error(
+            "[generateClearanceDocument] Upload error:",
+            uploadError,
+          );
+          reject(new Error(`Upload failed: ${uploadError.message}`));
+        }
       });
 
-      console.log("[onDocumentFinalize] Appended document entry for uid:", uid, entry);
+      pdfDoc.on("error", (error) => {
+        console.error(
+          "[generateClearanceDocument] PDF generation error:",
+          error,
+        );
+        reject(new Error(`PDF generation failed: ${error.message}`));
+      });
+
+      pdfDoc.end();
     });
+  } catch (e) {
+    console.error("[generateClearanceDocument] Unexpected error:", e);
+    throw new Error(`PDF generation failed: ${e.message}`);
+  }
+}
+
+/**
+ * Officer/Admin decision on a user account pending approval.
+ * Input: { targetUid: string, decision: 'approved'|'rejected', note?: string }
+ * Effect: updates users/{uid}.status and updatedAt. Optionally stores decidedBy/note metadata.
+ * onUserDocUpdate will generate notifications.
+ */
+exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
+  try {
+    requireAuth(context);
+    const callerUid = context.auth.uid;
+    const userRef = db.collection("users").doc(callerUid);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Caller user document not found.",
+      );
+    }
+
+    const userData = userSnap.data() || {};
+    const role = userData.role;
+
+    if (role !== "officer" && role !== "admin") {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        `Officer or admin role required. Your role is '${role}'.`,
+      );
+    }
+
+    const targetUid = (data && data.targetUid) || "";
+    const decision = (data && data.decision) || "";
+    const note = (data && (data.note || data.reason)) || "";
+
+    if (!targetUid || !["approved", "rejected"].includes(decision)) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Provide targetUid and decision in [approved|rejected].",
+      );
+    }
+
+    const callerEmail = (context.auth.token && context.auth.token.email) || "";
+    const targetUserRef = db.collection("users").doc(targetUid);
+    const applicationRef = db.collection("applications").doc(targetUid);
+
+    let applicationData = null;
+
+    await db.runTransaction(async (txn) => {
+      const snap = await txn.get(targetUserRef);
+      if (!snap.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "User document not found.",
+        );
+      }
+      const data = snap.data() || {};
+      const status = data.status || "pending_email_verification";
+      if (status !== "pending_approval") {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          `User status must be pending_approval. Got: ${status}`,
+        );
+      }
+
+      if (decision === "approved") {
+        const applicationSnap = await txn.get(applicationRef);
+        if (applicationSnap.exists) {
+          applicationData = {
+            id: applicationSnap.id,
+            ...(applicationSnap.data() || {}),
+          };
+        } else {
+          logger.warn(
+            `[officerDecideAccount] No application document found for uid ${targetUid}. Skipping clearance document generation.`,
+          );
+        }
+      }
+
+      const updates = {
+        status: decision,
+        updatedAt: FieldValue.serverTimestamp(),
+        decidedBy: callerEmail || callerUid,
+      };
+      if (note && typeof note === "string" && note.length <= 1000) {
+        updates.decisionNote = note;
+      }
+      txn.update(targetUserRef, updates);
+    });
+
+    if (decision === "approved" && applicationData) {
+      try {
+        const documentUrl = await generateClearanceDocument(
+          targetUid,
+          applicationData,
+        );
+        await applicationRef.update({
+          clearanceDocumentUrl: documentUrl,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        logger.error(
+          "[officerDecideAccount] generateClearanceDocument error:",
+          e,
+        );
+        await applicationRef.set(
+          {
+            clearanceDocumentError: e.message || "Failed to generate document",
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
+    }
+
+    return { ok: true, uid: targetUid, status: decision };
   } catch (error) {
-    console.error("[onDocumentFinalize] Error:", error);
+    logger.error("[officerDecideAccount] Unexpected error", error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      "internal",
+      error?.message || "Failed to process officer decision.",
+    );
   }
 });
+
+exports.logOfficerActivity = functions.https.onCall(async (data, context) => {
+  try {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
+
+    const uid = context.auth.uid;
+    const rawTitle = data && typeof data.title === "string" ? data.title : "";
+    const rawDescription =
+      data && typeof data.description === "string" ? data.description : "";
+
+    const title = rawTitle.trim();
+    if (!title) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "title is required",
+      );
+    }
+
+    const description = rawDescription.trim() || "No additional details";
+    const type =
+      data && typeof data.type === "string" && data.type.trim()
+        ? data.type.trim()
+        : "activity";
+    const status =
+      data && typeof data.status === "string" && data.status.trim()
+        ? data.status.trim()
+        : null;
+    const iconData =
+      data && typeof data.iconData === "string" && data.iconData.trim()
+        ? data.iconData.trim()
+        : null;
+
+    const activityDoc = {
+      userId: uid,
+      title,
+      description,
+      type,
+      date: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    };
+
+    if (status) activityDoc.status = status;
+    if (iconData) activityDoc.iconData = iconData;
+
+    const metadata = data && typeof data.metadata === "object" ? data.metadata : null;
+    if (metadata && metadata !== null) {
+      const sanitized = {};
+      Object.keys(metadata).forEach((key) => {
+        const value = metadata[key];
+        if (
+          value === null ||
+          typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean"
+        ) {
+          sanitized[key] = value;
+        }
+      });
+      if (Object.keys(sanitized).length > 0) {
+        activityDoc.metadata = sanitized;
+      }
+    }
+
+    const activityRef = db.collection("officer_activities").doc();
+    await activityRef.set(activityDoc, { merge: false });
+
+    try {
+      await db
+        .collection("users")
+        .doc(uid)
+        .collection("activity_logs")
+        .doc(activityRef.id)
+        .set(activityDoc, { merge: false });
+    } catch (fallbackError) {
+      logger.warn(
+        "[logOfficerActivity] Failed to write fallback activity log",
+        fallbackError,
+      );
+    }
+
+    return { success: true, id: activityRef.id };
+  } catch (error) {
+    logger.error("[logOfficerActivity] Unexpected error", error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      "internal",
+      error?.message || "Failed to log officer activity.",
+    );
+  }
+});
+
+exports.getOfficerActivities = functions.https.onCall(async (data, context) => {
+  try {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
+
+    const uid = context.auth.uid;
+    const rawLimit = data && typeof data.limit !== "undefined" ? Number(data.limit) : 10;
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(Math.max(Math.floor(rawLimit), 1), 50)
+      : 10;
+
+    const buildQuery = (ref) =>
+      ref.where("userId", "==", uid).orderBy("date", "desc").limit(limit);
+
+    const serializeDoc = (doc) => {
+      const payload = doc.data() || {};
+      const result = {
+        id: doc.id,
+        ...payload,
+      };
+
+      if (payload.date instanceof Timestamp) {
+        result.date = payload.date.toMillis();
+      }
+      if (payload.createdAt instanceof Timestamp) {
+        result.createdAt = payload.createdAt.toMillis();
+      }
+
+      return result;
+    };
+
+    let snapshot = await buildQuery(db.collection("officer_activities")).get();
+
+    if (snapshot.empty) {
+      snapshot = await buildQuery(
+        db.collection("users").doc(uid).collection("activity_logs"),
+      ).get();
+    }
+
+    return snapshot.docs.map(serializeDoc);
+  } catch (error) {
+    logger.error("[getOfficerActivities] Unexpected error", error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      "internal",
+      error?.message || "Failed to load officer activities.",
+    );
+  }
+});
+
+/**
+ * - pendingArrival/pendingDeparture: applications awaiting review by type
+ */
+exports.getOfficerDashboardStats = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
+
+    const functionStart = Date.now();
+    console.log("[getOfficerDashboardStats] Function started");
+
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+
+    // Try to get from counters first for better performance
+    const countersRef = db.collection("counters").doc("dashboard");
+    const countersSnap = await countersRef.get();
+    let counters = {};
+    if (countersSnap.exists) {
+      counters = countersSnap.data() || {};
+    }
+
+    // Helper to count a query without loading all docs (fallback)
+    async function countQuery(q, label) {
+      const queryStart = Date.now();
+      try {
+        const snap = await q
+          .select(admin.firestore.FieldPath.documentId())
+          .get();
+        const queryTime = Date.now() - queryStart;
+        console.log(
+          `[getOfficerDashboardStats] ${label} count took ${queryTime}ms, returned ${snap.size} docs`,
+        );
+        return snap.size;
+      } catch (error) {
+        logger.error(`[getOfficerDashboardStats] ${label} query failed`, error);
+        return 0;
+      }
+    }
+
+    const usersCol = db.collection("users");
+    const applicationsCol = db.collection("applications");
+
+    const countStart = Date.now();
+
+    // Use counters where available, fallback to counting
+    const [
+      pendingAccounts,
+      approvedToday,
+      rejectedToday,
+      pendingArrival,
+      pendingDeparture,
+    ] = await Promise.all([
+      counters.pendingAccounts !== undefined
+        ? Promise.resolve(counters.pendingAccounts)
+        : countQuery(
+            usersCol.where("status", "==", "pending_approval"),
+            "pendingAccounts",
+          ),
+      countQuery(
+        usersCol
+          .where("status", "==", "approved")
+          .where("updatedAt", ">=", Timestamp.fromDate(startOfDay)),
+        "approvedToday",
+      ),
+      countQuery(
+        usersCol
+          .where("status", "==", "rejected")
+          .where("updatedAt", ">=", Timestamp.fromDate(startOfDay)),
+        "rejectedToday",
+      ),
+      counters.pendingArrival !== undefined
+        ? Promise.resolve(counters.pendingArrival)
+        : countQuery(
+            applicationsCol
+              .where("type", "==", "arrival")
+              .where("status", "==", "waiting"),
+            "pendingArrival",
+          ),
+      counters.pendingDeparture !== undefined
+        ? Promise.resolve(counters.pendingDeparture)
+        : countQuery(
+            applicationsCol
+              .where("type", "==", "departure")
+              .where("status", "==", "waiting"),
+            "pendingDeparture",
+          ),
+    ]);
+
+    const countTime = Date.now() - countStart;
+    console.log(`[getOfficerDashboardStats] All counts took ${countTime}ms`);
+
+    const totalTime = Date.now() - functionStart;
+    console.log(
+      `[getOfficerDashboardStats] Total function time: ${totalTime}ms`,
+    );
+
+    return {
+      pendingAccounts,
+      approvedToday,
+      rejectedToday,
+      pendingArrival,
+      pendingDeparture,
+    };
+  },
+);
+/**
+ * Get officer monthly statistics
+ */
+exports.getOfficerMonthlyStats = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
+
+    const now = new Date();
+    const startInput =
+      typeof data?.startDate === "string" ? new Date(data.startDate) : null;
+    const endInput =
+      typeof data?.endDate === "string" ? new Date(data.endDate) : null;
+
+    const start =
+      startInput && !Number.isNaN(startInput.getTime())
+        ? startInput
+        : new Date(now.getFullYear(), now.getMonth(), 1);
+    const end =
+      endInput && !Number.isNaN(endInput.getTime()) ? endInput : now;
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    const startTs = Timestamp.fromDate(start);
+    const endTs = Timestamp.fromDate(end);
+
+    const applicationsCol = db.collection("applications");
+    const usersCol = db.collection("users");
+
+    async function countQuery(query, label) {
+      try {
+        const snapshot = await query
+          .select(admin.firestore.FieldPath.documentId())
+          .get();
+        logger.info(
+          `[getOfficerMonthlyStats] ${label} returned ${snapshot.size} docs`,
+        );
+        return snapshot.size;
+      } catch (error) {
+        logger.error(`[getOfficerMonthlyStats] ${label} query failed`, error);
+        return 0;
+      }
+    }
+
+    const [
+      arrivalTotal,
+      arrivalPending,
+      arrivalApproved,
+      arrivalDeclined,
+      arrivalRevision,
+      arrivalProduced,
+      departureTotal,
+      departurePending,
+      departureApproved,
+      departureDeclined,
+      departureRevision,
+      departureProduced,
+      accountsTotal,
+      accountsPending,
+      accountsApproved,
+      accountsRejected,
+    ] = await Promise.all([
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "arrival_total",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("status", "==", "waiting")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "arrival_pending",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("status", "==", "approved")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "arrival_approved",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("status", "==", "declined")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "arrival_declined",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("status", "==", "revision")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "arrival_revision",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "arrival")
+          .where("clearanceResultGeneratedAt", ">=", startTs)
+          .where("clearanceResultGeneratedAt", "<=", endTs),
+        "arrival_produced",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "departure_total",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("status", "==", "waiting")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "departure_pending",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("status", "==", "approved")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "departure_approved",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("status", "==", "declined")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "departure_declined",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("status", "==", "revision")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "departure_revision",
+      ),
+      countQuery(
+        applicationsCol
+          .where("type", "==", "departure")
+          .where("clearanceResultGeneratedAt", ">=", startTs)
+          .where("clearanceResultGeneratedAt", "<=", endTs),
+        "departure_produced",
+      ),
+      countQuery(
+        usersCol
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "accounts_total",
+      ),
+      countQuery(
+        usersCol
+          .where("status", "==", "pending_approval")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs),
+        "accounts_pending",
+      ),
+      countQuery(
+        usersCol
+          .where("status", "==", "approved")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "accounts_approved",
+      ),
+      countQuery(
+        usersCol
+          .where("status", "==", "rejected")
+          .where("updatedAt", ">=", startTs)
+          .where("updatedAt", "<=", endTs),
+        "accounts_rejected",
+      ),
+    ]);
+
+    const arrivalProcessed = arrivalApproved + arrivalDeclined;
+    const departureProcessed = departureApproved + departureDeclined;
+    const accountsProcessed = accountsApproved + accountsRejected;
+
+    return {
+      range: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+      },
+      arrival: {
+        total: arrivalTotal,
+        pending: arrivalPending,
+        approved: arrivalApproved,
+        declined: arrivalDeclined,
+        revision: arrivalRevision,
+        produced: arrivalProduced,
+        processed: arrivalProcessed,
+      },
+      departure: {
+        total: departureTotal,
+        pending: departurePending,
+        approved: departureApproved,
+        declined: departureDeclined,
+        revision: departureRevision,
+        produced: departureProduced,
+        processed: departureProcessed,
+      },
+      accounts: {
+        total: accountsTotal,
+        pending: accountsPending,
+        approved: accountsApproved,
+        rejected: accountsRejected,
+        processed: accountsProcessed,
+      },
+      totals: {
+        pending: arrivalPending + departurePending + accountsPending,
+        approved: arrivalApproved + departureApproved + accountsApproved,
+        rejected: arrivalDeclined + departureDeclined + accountsRejected,
+        revision: arrivalRevision + departureRevision,
+        produced: arrivalProduced + departureProduced,
+        applications: arrivalTotal + departureTotal,
+      },
+    };
+  },
+);
+
+/**
+ * issueEmailVerificationCode (callable)
+ * Generates a short-lived 4-digit code for email verification and stores it on users/{uid}.
+ * Optionally integrate with email provider; for now we only store and return masked info.
+ */
+exports.issueEmailVerificationCode = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    const uid = context.auth.uid;
+    const userRef = db.collection("users").doc(uid);
+
+    // Fetch dynamic configuration
+    const globalSettings = await emailConfig.getGlobalSettings();
+    const templateSettings =
+      await emailConfig.getTemplateSettings("verification");
+
+    // Optimized transaction: minimize reads, use server timestamps
+    let code, now, expiresAt, emailDocId;
+    try {
+      const result = await db.runTransaction(async (txn) => {
+        const snap = await txn.get(userRef);
+        const data = snap.exists ? snap.data() || {} : {};
+        const ver = data.verification || {};
+        const issuedAt = ver.issuedAt;
+        const nowTs = FieldValue.serverTimestamp(); // Use server timestamp for consistency
+        if (issuedAt && typeof issuedAt.toMillis === "function") {
+          const elapsedSec = Math.floor(
+            (Timestamp.now().toMillis() - issuedAt.toMillis()) / 1000,
+          );
+          const remain = (globalSettings.cooldownSeconds || 60) - elapsedSec;
+          if (remain > 0) {
+            return { cooldown: true, retryAfterSec: remain };
+          }
+        }
+        const raw = Math.floor(Math.random() * 10000);
+        const newCode = raw.toString().padStart(4, "0");
+        const expires = Timestamp.fromMillis(
+          Timestamp.now().toMillis() + 10 * 60 * 1000,
+        );
+        const mailId = `${uid}_${Date.now()}`; // Use Date.now() for uniqueness
+        txn.set(
+          userRef,
+          {
+            verification: {
+              code: newCode,
+              issuedAt: nowTs,
+              expiresAt: expires,
+              attempts: 0,
+              emailDocId: mailId,
+            },
+            updatedAt: nowTs,
+          },
+          { merge: true },
+        );
+        return {
+          code: newCode,
+          now: Timestamp.now(),
+          expiresAt: expires,
+          emailDocId: mailId,
+        };
+      });
+      if (result && result.cooldown) {
+        return {
+          ok: false,
+          reason: "cooldown",
+          retryAfterSec: result.retryAfterSec,
+        };
+      }
+      ({ code, now, expiresAt, emailDocId } = result);
+    } catch (e) {
+      console.error("[issueEmailVerificationCode] transaction failed:", e);
+      throw e;
+    }
+
+    console.log("[issueEmailVerificationCode] uid:", uid, "code_issued");
+
+    // Send email directly using Resend API
+    const tokenEmail =
+      (context.auth && context.auth.token && context.auth.token.email) || "";
+    const recipientEmail = await resolveUserEmail(uid, tokenEmail);
+    const recipientName = await resolveUserName(uid, tokenEmail);
+    if (!recipientEmail) {
+      console.warn(
+        "[issueEmailVerificationCode] Could not resolve recipient email for uid:",
+        uid,
+      );
+      return { ok: true, sent: false, reason: "noRecipientEmail" };
+    }
+
+    try {
+      // Initialize Resend client
+      const resend = new Resend(process.env.RESEND_API_KEY);
+
+      const subject = templateSettings.subject || "Your verification code";
+      const html = (
+        templateSettings.html ||
+        "<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.<br/>It expires in 10 minutes.</p><p>Regards,<br/>{accountName}</p>"
+      )
+        .replace(/{name}/g, recipientName)
+        .replace(/{code}/g, code)
+        .replace(/{accountName}/g, globalSettings.accountName);
+      const text = (
+        templateSettings.text ||
+        "Hello {name},\nYour verification code is {code}. It expires in 10 minutes.\nRegards, {accountName}"
+      )
+        .replace(/{name}/g, recipientName)
+        .replace(/{code}/g, code)
+        .replace(/{accountName}/g, globalSettings.accountName);
+
+      // Prepare email data for Resend
+      const emailData = {
+        from: `${globalSettings.fromName} <${globalSettings.from}>`,
+        to: recipientEmail,
+        subject: subject,
+        html: html,
+        text: text,
+        reply_to: globalSettings.supportEmail || globalSettings.from,
+      };
+
+      // Send the email
+      const { data, error } = await resend.emails.send(emailData);
+
+      if (error) {
+        console.error(
+          "[issueEmailVerificationCode] Failed to send email:",
+          error,
+        );
+        return {
+          ok: true,
+          sent: false,
+          reason: "sendFailed",
+          error: error.message,
+        };
+      }
+
+      console.log(
+        "[issueEmailVerificationCode] Email sent successfully:",
+        data,
+      );
+      return { ok: true, sent: true, messageId: data?.id };
+    } catch (e) {
+      // If thrown by cooldown guard
+      if (
+        e &&
+        typeof e.message === "string" &&
+        e.message.startsWith("cooldown:")
+      ) {
+        const remain = Number(e.message.split(":")[1] || "60");
+        return { ok: false, reason: "cooldown", retryAfterSec: remain };
+      }
+      console.error("[issueEmailVerificationCode] Failed to send email:", e);
+      return { ok: true, sent: false, reason: "sendFailed", error: e.message };
+    }
+  },
+);
+
+/**
+ * verifyEmailCode (callable)
+ * Validates a submitted 4-digit code, marks Firebase Auth emailVerified=true,
+ * and updates Firestore (isEmailVerified and status transition).
+ */
+/**
+ * initializeCounters (callable)
+ * Initialize dashboard counters by counting existing documents.
+ * Run this once after deployment to set up counters.
+ */
+exports.initializeCounters = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  await ensureOfficerOrAdmin(context);
+
+  console.log("[initializeCounters] Starting counter initialization");
+
+  const countersRef = db.collection("counters").doc("dashboard");
+
+  // Count users
+  const pendingAccountsSnap = await db
+    .collection("users")
+    .where("status", "==", "pending_approval")
+    .select(admin.firestore.FieldPath.documentId())
+    .get();
+  const pendingAccounts = pendingAccountsSnap.size;
+
+  // Count applications
+  const pendingArrivalSnap = await db
+    .collection("applications")
+    .where("type", "==", "arrival")
+    .where("status", "==", "waiting")
+    .select(admin.firestore.FieldPath.documentId())
+    .get();
+  const pendingArrival = pendingArrivalSnap.size;
+
+  const pendingDepartureSnap = await db
+    .collection("applications")
+    .where("type", "==", "departure")
+    .where("status", "==", "waiting")
+    .select(admin.firestore.FieldPath.documentId())
+    .get();
+  const pendingDeparture = pendingDepartureSnap.size;
+
+  await countersRef.set({
+    pendingAccounts,
+    pendingArrival,
+    pendingDeparture,
+    lastUpdated: FieldValue.serverTimestamp(),
+  });
+
+  console.log("[initializeCounters] Counters initialized:", {
+    pendingAccounts,
+    pendingArrival,
+    pendingDeparture,
+  });
+
+  return {
+    success: true,
+    counters: { pendingAccounts, pendingArrival, pendingDeparture },
+  };
+});
+
+exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  const uid = context.auth.uid;
+  const submitted = data && data.code ? String(data.code) : "";
+  if (!/^\d{4}$/.test(submitted)) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Invalid code format.",
+    );
+  }
+
+  const userRef = db.collection("users").doc(uid);
+
+  // Fetch dynamic configuration
+  const globalSettings = await emailConfig.getGlobalSettings();
+
+  // Use transaction for atomic verification
+  await db.runTransaction(async (txn) => {
+    const snap = await txn.get(userRef);
+    if (!snap.exists) {
+      throw new functions.https.HttpsError(
+        "not-found",
+        "User document not found.",
+      );
+    }
+    const doc = snap.data() || {};
+    const ver = doc.verification || {};
+    const code = ver.code || "";
+    const expiresAt = ver.expiresAt;
+    const attempts = Number(ver.attempts || 0);
+
+    if (!code) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "No active verification code.",
+      );
+    }
+    if (attempts >= (globalSettings.maxAttempts || 5)) {
+      throw new functions.https.HttpsError(
+        "resource-exhausted",
+        "Too many attempts. Please request a new code later.",
+      );
+    }
+    if (expiresAt && typeof expiresAt.toMillis === "function") {
+      if (Timestamp.now().toMillis() > expiresAt.toMillis()) {
+        throw new functions.https.HttpsError(
+          "deadline-exceeded",
+          "Code expired.",
+        );
+      }
+    }
+    if (code !== submitted) {
+      txn.update(userRef, { "verification.attempts": attempts + 1 });
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Incorrect code.",
+      );
+    }
+
+    // Mark Auth user as emailVerified = true (outside transaction for Auth API)
+    // Reflect in Firestore and transition status once
+    const updates = {
+      isEmailVerified: true,
+      updatedAt: FieldValue.serverTimestamp(),
+      verification: FieldValue.delete(),
+    };
+    const currentStatus = doc.status || "pending_email_verification";
+    if (currentStatus === "pending_email_verification") {
+      updates.status = "pending_documents";
+    }
+    txn.update(userRef, updates);
+  });
+
+  // Update Auth after transaction succeeds
+  await admin.auth().updateUser(uid, { emailVerified: true });
+
+  return { ok: true };
+});
+
+/**
+ * testEmailSend (callable)
+ * Test function to verify direct Resend integration
+ * Sends a test email directly using Resend API
+ */
+exports.testEmailSend = functions.https.onCall(async (data, context) => {
+  try {
+    console.log("[testEmailSend] Testing direct Resend integration...");
+
+    // Get configuration
+    const globalSettings = await emailConfig.getGlobalSettings();
+    const templateSettings =
+      await emailConfig.getTemplateSettings("verification");
+
+    console.log(
+      "[testEmailSend] Global settings:",
+      JSON.stringify(globalSettings, null, 2),
+    );
+    console.log(
+      "[testEmailSend] Template settings:",
+      JSON.stringify(templateSettings, null, 2),
+    );
+
+    // Initialize Resend client
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    // Test email parameters - use provided data or defaults
+    const testRecipient = (data && data.email) || "mclearanceisam@gmail.com";
+    const testName = (data && data.name) || "Test User";
+
+    const subject =
+      templateSettings.subject || "Test Email - Direct Resend Integration";
+    const html = (
+      templateSettings.html ||
+      "<p>Hello {name},</p><p>This is a test email sent using Resend API.</p><p>Regards,<br/>{accountName}</p>"
+    )
+      .replace(/{name}/g, testName)
+      .replace(/{accountName}/g, globalSettings.accountName);
+    const text = (
+      templateSettings.text ||
+      "Hello {name},\n\nThis is a test email sent using Resend API.\n\nRegards,\n{accountName}"
+    )
+      .replace(/{name}/g, testName)
+      .replace(/{accountName}/g, globalSettings.accountName);
+
+    // Prepare email data for Resend
+    const emailData = {
+      from: `${globalSettings.fromName} <${globalSettings.from}>`,
+      to: testRecipient,
+      subject: subject,
+      html: html,
+      text: text,
+      reply_to: globalSettings.supportEmail || globalSettings.from,
+    };
+
+    console.log("[testEmailSend] Sending email to:", testRecipient);
+    console.log("[testEmailSend] From:", emailData.from);
+    console.log("[testEmailSend] Subject:", emailData.subject);
+
+    // Send the email
+    const { data: emailDataResponse, error } =
+      await resend.emails.send(emailData);
+
+    if (error) {
+      console.error("[testEmailSend] Failed to send email:", error);
+      return {
+        success: false,
+        error: error.message,
+        recipient: testRecipient,
+        message: "Test email sending failed",
+      };
+    }
+
+    console.log("[testEmailSend] Email sent successfully:", emailDataResponse);
+
+    return {
+      success: true,
+      messageId: emailDataResponse?.id,
+      recipient: testRecipient,
+      templateUsed: !!templateSettings.html,
+      templateSubject: templateSettings.subject,
+      message:
+        "Test email sent successfully via direct Resend integration with HTML templates",
+    };
+  } catch (error) {
+    console.error("[testEmailSend] Error:", error);
+    return {
+      success: false,
+      error: error.message,
+      message: "Test email sending failed",
+    };
+  }
+});
+
+/**
+ * generateHistoryPDF (callable)
+ * Generates a PDF document for application history details with M-Clearance ISam logo.
+ */
+exports.generateHistoryPDF = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  const uid = context.auth.uid;
+  const applicationId = data?.applicationId;
+
+  if (!applicationId) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Application ID is required.",
+    );
+  }
+
+  try {
+    console.log(
+      "[generateHistoryPDF] Starting PDF generation for application:",
+      applicationId,
+    );
+
+    // Get application data
+    const applicationRef = db.collection("applications").doc(applicationId);
+    const applicationSnap = await applicationRef.get();
+
+    if (!applicationSnap.exists) {
+      console.error(
+        "[generateHistoryPDF] Application not found:",
+        applicationId,
+      );
+      throw new functions.https.HttpsError(
+        "not-found",
+        "Application not found.",
+      );
+    }
+
+    const application = {
+      id: applicationSnap.id,
+      ...(applicationSnap.data() || {}),
+    };
+    console.log(
+      "[generateHistoryPDF] Retrieved application data for:",
+      applicationId,
+    );
+
+    // Ownership check is handled by Firestore rules
+
+    // Generate PDF
+    console.log("[generateHistoryPDF] Calling generateClearanceDocument...");
+    const pdfUrl = await generateClearanceDocument(uid, application);
+
+    console.log(
+      "[generateHistoryPDF] PDF generated successfully for application:",
+      applicationId,
+      "URL:",
+      pdfUrl,
+    );
+    return { success: true, pdfUrl };
+  } catch (error) {
+    console.error(
+      "[generateHistoryPDF] Error generating PDF for application:",
+      applicationId,
+      error,
+    );
+
+    // Provide more specific error messages
+    if (error.code === "not-found") {
+      throw error;
+    } else if (error.code === "permission-denied") {
+      throw error;
+    } else {
+      // Log the full error for debugging
+      console.error("[generateHistoryPDF] Full error details:", {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+      });
+      throw new functions.https.HttpsError(
+        "internal",
+        `Failed to generate PDF: ${error.message}`,
+      );
+    }
+  }
+});
+
+/**
+ * Applications triggers
+ * - Ensure defaults on create
+ * - Update counters on create
+ * - Notify user on status decision transitions (approved/declined)
+ */
+exports.onApplicationCreate = functions.firestore
+  .document("applications/{appId}")
+  .onCreate(async (snap, context) => {
+    const data = snap.data() || {};
+    const updates = {};
+    if (!data.createdAt) updates.createdAt = FieldValue.serverTimestamp();
+    if (!data.updatedAt) updates.updatedAt = FieldValue.serverTimestamp();
+    if (!data.status) updates.status = "waiting";
+    if (Object.keys(updates).length) {
+      await snap.ref.update(updates);
+    }
+
+    // Update counters for new application
+    const type = data.type || "arrival";
+    const status = updates.status || data.status || "waiting";
+    await updateApplicationCounters(null, null, type, status);
+    console.log(
+      "[onApplicationCreate] Updated counters for new application:",
+      type,
+      status,
+    );
+  });
+
+exports.onApplicationUpdate = functions.firestore
+  .document("applications/{appId}")
+  .onUpdate(async (change, context) => {
+    try {
+      const before = change.before.data() || {};
+      const after = change.after.data() || {};
+      const userUid = after.agentUid || before.agentUid;
+
+      const beforeType = before.type;
+      const afterType = after.type;
+      const beforeStatus = before.status;
+      const afterStatus = after.status;
+
+      // Update counters if type or status changed
+      if (beforeType !== afterType || beforeStatus !== afterStatus) {
+        await updateApplicationCounters(
+          beforeType,
+          beforeStatus,
+          afterType,
+          afterStatus,
+        );
+        console.log(
+          "[onApplicationUpdate] Updated counters for application change:",
+          beforeType,
+          beforeStatus,
+          "->",
+          afterType,
+          afterStatus,
+        );
+      }
+
+      if (!userUid) return;
+
+      const becameApproved =
+        before.status !== "approved" && after.status === "approved";
+      const becameDeclined =
+        before.status !== "declined" && after.status === "declined";
+      const becameRevision =
+        before.status !== "revision" && after.status === "revision";
+      if (!(becameApproved || becameDeclined || becameRevision)) return;
+
+      const status = becameApproved
+        ? "approved"
+        : becameDeclined
+          ? "declined"
+          : "revision";
+      const type = after.type || before.type || "arrival";
+      const shipName = after.shipName || before.shipName || type;
+      const officerName = after.officerName || before.officerName;
+      const note = after.notes || before.notes;
+
+      let corporateName =
+        after.corporateName ||
+        before.corporateName ||
+        after.agentName ||
+        before.agentName ||
+        null;
+
+      if (!corporateName && userUid) {
+        try {
+          const userSnapshot = await db.collection("users").doc(userUid).get();
+          if (userSnapshot.exists) {
+            const userData = userSnapshot.data() || {};
+            corporateName =
+              userData.corporateName ||
+              userData.fullName ||
+              userData.name ||
+              userData.username ||
+              userData.email ||
+              corporateName;
+          }
+        } catch (fetchError) {
+          console.warn(
+            "[onApplicationUpdate] Failed fetching corporateName:",
+            userUid,
+            fetchError,
+          );
+        }
+      }
+
+      const applicationDate =
+        after.date ||
+        before.date ||
+        after.arrivalDate ||
+        before.arrivalDate ||
+        after.departureDate ||
+        before.departureDate ||
+        null;
+
+      const titleMap = {
+        approved: "Application Approved",
+        declined: "Application Declined",
+        revision: "Application Requires Revision",
+      };
+
+      let body = "";
+      switch (status) {
+        case "approved":
+          body = `Your ${type} application for ${shipName} has been approved.`;
+          break;
+        case "declined":
+          body = `Your ${type} application for ${shipName} has been declined.`;
+          break;
+        case "revision":
+          body = `Your ${type} application for ${shipName} requires additional information.`;
+          break;
+        default:
+          body = `Your ${type} application for ${shipName} has been updated.`;
+          break;
+      }
+
+      if (note) {
+        body = `${body} Officer notes: ${note}`;
+      }
+
+      const timestamp = Timestamp.now();
+      const notifId = `${context.params.appId}_${status}_${timestamp.toMillis()}`;
+      await recordNotification(userUid, {
+        id: notifId,
+        title: titleMap[status] || "Application Update",
+        body,
+        timestamp,
+        type: status === "approved" ? 1 : status === "revision" ? 2 : 0,
+        extra: {
+          applicationId: context.params.appId,
+          applicationType: type,
+          status,
+          officerName: officerName || null,
+          officerNote: note || null,
+        },
+      });
+      console.log("[onApplicationUpdate] Notification created:", notifId);
+
+      await notifyRoles(
+        ["officer", "admin"],
+        {
+          title: "Application status changed",
+          body: `${corporateName || "Applicant"} - ${shipName}${
+            applicationDate ? ` (${applicationDate})` : ""
+          } has been ${
+            status === "revision"
+              ? "marked for revision"
+              : status
+          }.`,
+          type: 0,
+          timestamp,
+          extra: {
+            applicationId: context.params.appId,
+            status,
+            targetUid: userUid,
+            corporateName: corporateName || null,
+            shipName,
+            applicationDate: applicationDate || null,
+          },
+        },
+        { skipUid: userUid },
+      );
+    } catch (e) {
+      console.error("[onApplicationUpdate] Error:", e);
+    }
+  });
+
+async function generateMonthlyReportPDF(uid, stats) {
+  console.log(
+    "[generateMonthlyReportPDF] Starting PDF generation for user:",
+    uid,
+  );
+
+  try {
+    const PDFMake = require("pdfmake");
+    const fonts = {
+      Roboto: {
+        normal: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Regular.ttf",
+        bold: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Medium.ttf",
+      },
+    };
+    const pdfMake = new PDFMake(fonts);
+
+    const now = new Date();
+    const date = new Date(now.getFullYear(), now.getMonth(), 1);
+    const title = `Monthly Report - ${date.getMonth() + 1}/${date.getFullYear()}`;
+
+    const docDefinition = {
+      content: [
+        { text: title, style: "header", alignment: "center" },
+        {
+          text: `Generated on: ${now.toLocaleString()}`,
+          style: "subheader",
+          alignment: "center",
+        },
+        {
+          text: `Generated by: Officer ${uid}`,
+          style: "subheader",
+          alignment: "center",
+        },
+        { text: "", margin: [0, 0, 0, 20] },
+        {
+          table: {
+            widths: ["*", "auto"],
+            body: [
+              [
+                { text: "Category", style: "tableHeader" },
+                { text: "Count", style: "tableHeader" },
+              ],
+              ["Pending Arrivals", stats.pendingArrival?.toString() ?? "0"],
+              ["Pending Departures", stats.pendingDeparture?.toString() ?? "0"],
+              ["Pending Accounts", stats.pendingAccounts?.toString() ?? "0"],
+            ],
+          },
+          layout: "lightHorizontalLines",
+        },
+      ],
+      styles: {
+        header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
+        subheader: { fontSize: 12, margin: [0, 0, 0, 5] },
+        tableHeader: { bold: true, fontSize: 13, color: "black" },
+      },
+      defaultStyle: { font: "Roboto" },
+    };
+
+    const pdfDoc = pdfMake.createPdfKitDocument(docDefinition);
+    const chunks = [];
+    pdfDoc.on("data", (chunk) => chunks.push(chunk));
+
+    return new Promise((resolve, reject) => {
+      pdfDoc.on("end", () => {
+        const result = Buffer.concat(chunks);
+        resolve(result);
+      });
+      pdfDoc.on("error", reject);
+      pdfDoc.end();
+    });
+  } catch (e) {
+    console.error("[generateMonthlyReportPDF] Unexpected error:", e);
+    throw new Error(`PDF generation failed: ${e.message}`);
+  }
+}
+
+exports.generateMonthlyReport = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
+
+    const { stats } = data;
+    const uid = context.auth.uid;
+
+    try {
+      const now = new Date();
+      const date = new Date(now.getFullYear(), now.getMonth(), 1);
+      const title = `Monthly Report - ${date.getMonth() + 1}/${date.getFullYear()}`;
+
+      // Generate PDF
+      const pdfBytes = await generateMonthlyReportPDF(uid, stats);
+
+      // Upload to Firebase Storage
+      const bucket = admin.storage().bucket();
+      const filename = `reports/${uid}/monthly_${date.getFullYear()}_${date.getMonth() + 1}.pdf`;
+      const file = bucket.file(filename);
+
+      await file.save(pdfBytes, {
+        metadata: { contentType: "application/pdf" },
+      });
+
+      const [signedUrl] = await file.getSignedUrl({
+        action: "read",
+        expires: "03-09-2491",
+      });
+
+      // Save report metadata to Firestore
+      const reportData = {
+        title,
+        type: "monthly",
+        date: Timestamp.fromDate(date),
+        createdBy: uid,
+        createdAt: Timestamp.now(),
+        pdfUrl: signedUrl,
+        stats,
+      };
+
+      const reportRef = await db.collection("reports").add(reportData);
+
+      return { success: true, reportId: reportRef.id, pdfUrl: signedUrl };
+    } catch (error) {
+      logger.error("Error generating monthly report", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to generate monthly report.",
+      );
+    }
+  },
+);
+
+/**
+ * Updates the status of a user account.
+ * @param {object} data - The data object containing the UID, status, and rejection reason.
+ * @param {object} context - The context object containing authentication information.
+ * @returns {object} - An object indicating the success of the operation.
+ */
+exports.updateUserAccountStatus = functions.https.onCall(
+  async (data, context) => {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
+
+    const { uid, status, rejectionReason } = data;
+
+    if (!uid || !status) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "UID and status are required.",
+      );
+    }
+
+    const userRef = db.collection("users").doc(uid);
+
+    try {
+      await db.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+
+        if (!userDoc.exists) {
+          throw new functions.https.HttpsError("not-found", "User not found.");
+        }
+
+        const updates = {
+          status,
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+
+        if (status === "rejected") {
+          updates.rejectionReason = rejectionReason;
+        } else {
+          updates.rejectionReason = FieldValue.delete();
+        }
+
+        transaction.update(userRef, updates);
+      });
+
+      return { success: true };
+    } catch (error) {
+      logger.error("Error updating user account status", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to update user account status.",
+      );
+    }
+  },
+);

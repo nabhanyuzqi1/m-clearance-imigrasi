@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "m-clearance-imigrasi"
-  }
+    "default": "m-clearance-imigrasi",
+    "staging": "m-clearance-imigrasi"
+  },
+  "targets": {},
+  "etags": {}
 }

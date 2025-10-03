@@ -1,2 +1,4 @@
 node_modules/*
 *.local
+serviceAccountKey.json
+m-clearance-imigrasi-firebase-adminsdk-fbsvc-a2bc0800d9.json

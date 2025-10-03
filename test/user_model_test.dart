@@ -29,6 +29,7 @@ void main() {
         email: 'user@example.com',
         corporateName: 'Corp Inc',
         username: 'alice',
+        fullName: 'Alice',
         nationality: 'ID',
         role: 'user',
         status: 'pending_approval',

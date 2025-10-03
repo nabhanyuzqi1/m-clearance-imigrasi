@@ -1,0 +1,24 @@
+{
+  "email_config": {
+    "smtpHost": "smtp.gmail.com",
+    "smtpPort": 587,
+    "smtpUsername": "",
+    "smtpPassword": "",
+    "smtpUseTls": true,
+    "fromEmail": "noreply@mclearance.com",
+    "fromName": "M-Clearance System",
+    "verificationSubject": "Verify Your Email - M-Clearance",
+    "verificationBody": "Please click the link to verify your email address.",
+    "verificationTemplateId": "",
+    "passwordResetSubject": "Reset Your Password - M-Clearance",
+    "passwordResetBody": "Please click the link to reset your password.",
+    "passwordResetTemplateId": "",
+    "approvalSubject": "Application Approved - M-Clearance",
+    "approvalBody": "Congratulations! Your clearance application has been approved.",
+    "approvalTemplateId": "",
+    "rejectionSubject": "Application Update - M-Clearance",
+    "rejectionBody": "We regret to inform you that your application requires additional information.",
+    "rejectionTemplateId": "",
+    "updatedAt": 1730376000000
+  }
+}
