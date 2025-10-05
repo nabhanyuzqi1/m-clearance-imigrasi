@@ -206,8 +206,8 @@ void main() {
 
     group('markDocumentsUploaded()', () {
       test('sets flags, transitions once to pending_approval, and avoids duplicates on repeat', () async {
-        final p1 = 'gs://bucket/uid-123/a.pdf';
-        final p2 = 'gs://bucket/uid-123/b.pdf';
+        final p1 = 'users/uid-123/a.pdf';
+        final p2 = 'users/uid-123/b.pdf';
 
         final initial = <String, dynamic>{
           'email': 'user@example.com',
@@ -228,12 +228,16 @@ void main() {
           'documents': <Map<String, dynamic>>[
             {
               'documentName': 'a.pdf',
+              'documentType': 'nib',
               'storagePath': p1,
+              'downloadUrl': 'https://example.com/a.pdf',
               'uploadedAt': Timestamp.now(),
             },
             {
               'documentName': 'b.pdf',
+              'documentType': 'ktp',
               'storagePath': p2,
+              'downloadUrl': 'https://example.com/b.pdf',
               'uploadedAt': Timestamp.now(),
             },
           ],
@@ -256,7 +260,18 @@ void main() {
         });
 
         final r1 = await service.markDocumentsUploaded(
-          storagePathsOrRefs: [p1, p2],
+          documents: [
+            UploadedDocumentDescriptor(
+              storagePath: p1,
+              documentName: 'a.pdf',
+              documentType: 'nib',
+            ),
+            UploadedDocumentDescriptor(
+              storagePath: p2,
+              documentName: 'b.pdf',
+              documentType: 'ktp',
+            ),
+          ],
         );
         expect(r1, isNotNull);
         expect(r1!.status, 'pending_approval');
@@ -264,7 +279,18 @@ void main() {
         expect(r1.documents.length, 2);
 
         final r2 = await service.markDocumentsUploaded(
-          storagePathsOrRefs: [p1, p2],
+          documents: [
+            UploadedDocumentDescriptor(
+              storagePath: p1,
+              documentName: 'a.pdf',
+              documentType: 'nib',
+            ),
+            UploadedDocumentDescriptor(
+              storagePath: p2,
+              documentName: 'b.pdf',
+              documentType: 'ktp',
+            ),
+          ],
         );
         expect(r2, isNotNull);
         expect(r2!.status, 'pending_approval');

@@ -408,7 +408,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('select_file_failed')),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
         return;
@@ -484,8 +484,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     ).replaceFirst('{count}', addedCount.toString()),
             ),
             backgroundColor: addedCount > 0
-                ? AppTheme.successColor
-                : AppTheme.errorColor,
+                ? Theme.of(context).colorScheme.tertiary
+                : Theme.of(context).colorScheme.error,
           ),
         );
       } else {
@@ -494,7 +494,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${_tr('upload_success')}: $nameToShow'),
-              backgroundColor: AppTheme.successColor,
+              backgroundColor: Theme.of(context).colorScheme.tertiary,
             ),
           );
         }
@@ -503,7 +503,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_tr('select_file_failed')),
-          backgroundColor: AppTheme.errorColor,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     }
@@ -552,7 +552,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_tr('upload_all_docs')),
-          backgroundColor: AppTheme.errorColor,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       _goToStep(2);
@@ -593,7 +593,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   side: BorderSide(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                    color: Theme.of(context).colorScheme.primary.withAlpha(51),
                   ),
                   padding: EdgeInsets.symmetric(
                     horizontal: screenWidth * 0.08,
@@ -603,7 +603,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 child: Text(
                   _tr('cancel'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -740,23 +740,22 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
       final existingPortFiles =
           widget.existingApplication?.portClearanceFiles ?? const [];
-      final finalPortFiles = (portClearanceUrl != null &&
-              portClearanceUrl.isNotEmpty)
+      final finalPortFiles =
+          (portClearanceUrl != null && portClearanceUrl.isNotEmpty)
           ? [portClearanceUrl]
-          : (_portClearanceFileUrl != null &&
-                  _portClearanceFileUrl!.isNotEmpty)
-              ? [_portClearanceFileUrl!]
-              : List<String>.from(existingPortFiles);
+          : (_portClearanceFileUrl != null && _portClearanceFileUrl!.isNotEmpty)
+          ? [_portClearanceFileUrl!]
+          : List<String>.from(existingPortFiles);
 
       final existingNotificationFiles =
           widget.existingApplication?.notificationLetterFiles ?? const [];
-      final finalNotificationFiles = (notificationLetterUrl != null &&
-              notificationLetterUrl.isNotEmpty)
+      final finalNotificationFiles =
+          (notificationLetterUrl != null && notificationLetterUrl.isNotEmpty)
           ? [notificationLetterUrl]
           : (_notificationLetterFileUrl != null &&
-                  _notificationLetterFileUrl!.isNotEmpty)
-              ? [_notificationLetterFileUrl!]
-              : List<String>.from(existingNotificationFiles);
+                _notificationLetterFileUrl!.isNotEmpty)
+          ? [_notificationLetterFileUrl!]
+          : List<String>.from(existingNotificationFiles);
 
       final application = ClearanceApplication(
         id: widget.existingApplication?.id ?? '',
@@ -813,7 +812,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('success_message')),
-            backgroundColor: AppTheme.successColor,
+            backgroundColor: Theme.of(context).colorScheme.tertiary,
           ),
         );
 
@@ -852,7 +851,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -871,15 +870,15 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final verticalPadding = screenHeight * 0.02; // 2% of screen height
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: CustomAppBar(
         titleText: AppLocalizations.of(context).get(
           widget.type == ApplicationType.kedatangan
               ? 'clearanceForm.arrival_title'
               : 'clearanceForm.departure_title',
         ),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
       ),
       body: SafeArea(
@@ -947,28 +946,34 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isActive
-            ? AppTheme.primaryColor
-            : (isDone ? Colors.white : AppTheme.greyShade200),
+            ? Theme.of(context).colorScheme.primary
+            : (isDone
+                  ? Theme.of(context).colorScheme.surface
+                  : Theme.of(context).colorScheme.surfaceContainerHighest),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isActive || isDone
-              ? AppTheme.primaryColor
-              : AppTheme.greyShade300,
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: Row(
         key: ValueKey('step_$step'),
         children: [
           if (isDone)
-            const Icon(
+            Icon(
               Icons.check_circle,
-              color: AppTheme.primaryColor,
+              color: Theme.of(context).colorScheme.primary,
               size: 18,
             ),
           if (isDone) const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(color: isActive ? Colors.white : Colors.black),
+            style: TextStyle(
+              color: isActive
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
           ),
         ],
       ),
@@ -976,10 +981,13 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   }
 
   Widget _buildStepDivider() {
-    return const Flexible(
+    return Flexible(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 8.0),
-        child: Divider(color: AppTheme.greyShade500, thickness: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: Divider(
+          color: Theme.of(context).colorScheme.outlineVariant,
+          thickness: 1,
+        ),
       ),
     );
   }
@@ -1016,7 +1024,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         Text(
           _formInstruction,
           style: TextStyle(
-            color: AppTheme.greyShade500,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: screenWidth * 0.035,
           ),
         ),
@@ -1050,7 +1058,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   filled: true,
-                  fillColor: AppTheme.greyShade50,
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
                 ),
                 items: _countryFlags.map((String country) {
                   return DropdownMenuItem<String>(
@@ -1094,7 +1104,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   filled: true,
-                  fillColor: AppTheme.greyShade50,
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
                 ),
                 items: _locations.map((String location) {
                   return DropdownMenuItem<String>(
@@ -1180,7 +1192,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         Text(
           _uploadInstruction,
           style: TextStyle(
-            color: AppTheme.greyShade500,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: screenWidth * 0.035,
           ),
         ),
@@ -1215,8 +1227,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               child: OutlinedButton(
                 onPressed: () => _goToStep(1),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppTheme.primaryColor),
-                  foregroundColor: AppTheme.primaryColor,
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  foregroundColor: Theme.of(context).colorScheme.primary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1279,7 +1293,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 SizedBox(height: verticalSpacing),
                 Card(
                   elevation: 0,
-                  color: AppTheme.greyShade50,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1320,7 +1334,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 SizedBox(height: verticalSpacing * 2),
                 Card(
                   elevation: 0,
-                  color: AppTheme.greyShade50,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1364,8 +1378,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   child: OutlinedButton(
                     onPressed: () => _goToStep(2),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppTheme.primaryColor),
-                      foregroundColor: AppTheme.primaryColor,
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      foregroundColor: Theme.of(context).colorScheme.primary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1424,8 +1440,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     return Padding(
       padding: EdgeInsets.all(horizontalPadding),
       child: shimmer.Shimmer.fromColors(
-        baseColor: AppTheme.greyShade200,
-        highlightColor: AppTheme.greyShade100,
+        baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+        highlightColor: Theme.of(context).colorScheme.surface,
         child: Column(
           children: [
             Expanded(
@@ -1435,7 +1451,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   Container(
                     height: screenWidth * 0.06,
                     width: screenWidth * 0.4,
-                    color: AppTheme.greyShade300,
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
                   SizedBox(height: verticalSpacing),
 
@@ -1443,7 +1459,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   Container(
                     height: screenWidth * 0.8,
                     decoration: BoxDecoration(
-                      color: AppTheme.greyShade300,
+                      color: Theme.of(context).colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
@@ -1453,7 +1469,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   Container(
                     height: screenWidth * 0.6,
                     decoration: BoxDecoration(
-                      color: AppTheme.greyShade300,
+                      color: Theme.of(context).colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
@@ -1467,7 +1483,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               child: Container(
                 height: screenWidth * 0.12,
                 decoration: BoxDecoration(
-                  color: AppTheme.greyShade300,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -1519,8 +1535,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               ),
               filled: isReadOnly,
               fillColor: isReadOnly
-                  ? AppTheme.greyShade200
-                  : AppTheme.greyShade50,
+                  ? Theme.of(context).colorScheme.surfaceContainerHighest
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
               suffixIcon: isDate
                   ? const Icon(Icons.calendar_today_outlined)
                   : null,
@@ -1565,8 +1581,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         _friendlyFileName(fileName) ??
         (hasRemoteFile ? _friendlyFileName(fileUrl) : null);
     final statusColor = isUploaded
-        ? AppTheme.successColor
-        : AppTheme.errorColor;
+        ? Theme.of(context).colorScheme.tertiary
+        : Theme.of(context).colorScheme.error;
     final statusText = isUploaded ? _tr('file_attached') : _tr('not_uploaded');
 
     return Card(
@@ -1590,7 +1606,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               displayName ?? subtitle,
               style: TextStyle(
                 fontSize: screenWidth * 0.035,
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -1616,9 +1632,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 const Spacer(),
                 IconButton(
                   tooltip: _tr('view_file'),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.visibility_outlined,
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   onPressed: !isUploaded
                       ? null
@@ -1641,7 +1657,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(_tr('file_not_available')),
-                                backgroundColor: AppTheme.errorColor,
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.error,
                               ),
                             );
                           }
@@ -1696,7 +1714,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
     final hasDocs = items.isNotEmpty;
     final statusText = hasDocs ? _tr('file_attached') : _tr('not_uploaded');
-    final statusColor = hasDocs ? AppTheme.successColor : AppTheme.errorColor;
+    final statusColor = hasDocs
+        ? Theme.of(context).colorScheme.tertiary
+        : Theme.of(context).colorScheme.error;
 
     return Card(
       key: key,
@@ -1736,7 +1756,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               Text(
                 _tr('crew_list_empty'),
                 style: TextStyle(
-                  color: AppTheme.greyShade500,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: screenWidth * 0.035,
                 ),
               )
@@ -1760,13 +1780,15 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       margin: EdgeInsets.only(top: screenWidth * 0.02),
       padding: EdgeInsets.all(screenWidth * 0.03),
       decoration: BoxDecoration(
-        color: AppTheme.greyShade50,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.greyShade200),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        ),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppTheme.primaryColor),
+          Icon(icon, color: Theme.of(context).colorScheme.primary),
           SizedBox(width: screenWidth * 0.03),
           Expanded(
             child: Column(
@@ -1785,7 +1807,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   statusText,
                   style: TextStyle(
                     fontSize: screenWidth * 0.03,
-                    color: AppTheme.successColor,
+                    color: Theme.of(context).colorScheme.tertiary,
                   ),
                 ),
               ],
@@ -1794,15 +1816,18 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           if (onView != null)
             IconButton(
               tooltip: _tr('view_file'),
-              icon: const Icon(
+              icon: Icon(
                 Icons.visibility_outlined,
-                color: AppTheme.primaryColor,
+                color: Theme.of(context).colorScheme.primary,
               ),
               onPressed: onView,
             ),
           IconButton(
             tooltip: _tr('remove_file'),
-            icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
+            icon: Icon(
+              Icons.delete_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
             onPressed: onRemove,
           ),
         ],
@@ -1888,7 +1913,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
             child: Text(
               label,
               style: TextStyle(
-                color: AppTheme.greyShade500,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: screenWidth * 0.035,
               ),
             ),
@@ -1926,7 +1951,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         children: [
           Icon(
             Icons.description_outlined,
-            color: AppTheme.greyShade400,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             size: screenWidth * 0.05,
           ),
           SizedBox(width: horizontalSpacing),
@@ -1945,8 +1970,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   resolvedName ?? _tr('not_uploaded'),
                   style: TextStyle(
                     color: resolvedName != null
-                        ? AppTheme.primaryColor
-                        : AppTheme.errorColor,
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.error,
                     fontSize: screenWidth * 0.03,
                   ),
                 ),
@@ -1970,7 +1995,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         children: [
           Icon(
             Icons.description_outlined,
-            color: AppTheme.greyShade400,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             size: screenWidth * 0.05,
           ),
           SizedBox(width: horizontalSpacing),
@@ -1989,7 +2014,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   Text(
                     _tr('not_uploaded'),
                     style: TextStyle(
-                      color: AppTheme.errorColor,
+                      color: Theme.of(context).colorScheme.error,
                       fontSize: screenWidth * 0.03,
                     ),
                   )
@@ -2000,7 +2025,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                       child: Text(
                         '• $name',
                         style: TextStyle(
-                          color: AppTheme.primaryColor,
+                          color: Theme.of(context).colorScheme.primary,
                           fontSize: screenWidth * 0.03,
                         ),
                         overflow: TextOverflow.ellipsis,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
@@ -31,8 +32,8 @@ class ClearanceResultScreen extends StatelessWidget {
     final submittedAtText = DateFormat(
       'dd MMM yyyy HH:mm',
     ).format(createdAtLocal);
-    final certificateGeneratedAtLocal =
-        application.clearanceResultGeneratedAt?.toLocal();
+    final certificateGeneratedAtLocal = application.clearanceResultGeneratedAt
+        ?.toLocal();
     final certificateGeneratedAtText = certificateGeneratedAtLocal != null
         ? DateFormat('dd MMM yyyy HH:mm').format(certificateGeneratedAtLocal)
         : null;
@@ -58,11 +59,11 @@ class ClearanceResultScreen extends StatelessWidget {
     String formatLocation(String? location) => cleanValue(location);
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: CustomAppBar(
         title: LogoTitle(text: appName),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         centerTitle: false,
       ),
@@ -80,8 +81,8 @@ class ClearanceResultScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          AppTheme.successColor.withAlpha(25),
-                          AppTheme.successColor.withAlpha(12),
+                          Theme.of(context).colorScheme.tertiary.withAlpha(25),
+                          Theme.of(context).colorScheme.tertiary.withAlpha(12),
                         ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -89,7 +90,9 @@ class ClearanceResultScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.successColor.withAlpha(25),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.tertiary.withAlpha(25),
                           blurRadius: 20,
                           spreadRadius: 5,
                         ),
@@ -97,7 +100,7 @@ class ClearanceResultScreen extends StatelessWidget {
                     ),
                     child: Icon(
                       Icons.check_circle,
-                      color: AppTheme.successColor,
+                      color: Theme.of(context).colorScheme.tertiary,
                       size: 64,
                     ),
                   ),
@@ -107,7 +110,7 @@ class ClearanceResultScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: AppTheme.fontSizeH5,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.successColor,
+                      color: Theme.of(context).colorScheme.tertiary,
                       fontFamily: 'Poppins',
                     ),
                   ),
@@ -116,7 +119,7 @@ class ClearanceResultScreen extends StatelessWidget {
                     '${tr('application_id_label')}:',
                     style: TextStyle(
                       fontSize: AppTheme.fontSizeBody1,
-                      color: AppTheme.subtitleColor,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontFamily: 'Poppins',
                     ),
                   ),
@@ -126,7 +129,7 @@ class ClearanceResultScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: AppTheme.fontSizeBody1,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.successColor,
+                      color: Theme.of(context).colorScheme.tertiary,
                       fontFamily: 'Poppins',
                     ),
                   ),
@@ -140,11 +143,11 @@ class ClearanceResultScreen extends StatelessWidget {
               margin: EdgeInsets.only(bottom: AppTheme.spacing24),
               padding: EdgeInsets.all(AppTheme.spacing16),
               decoration: BoxDecoration(
-                color: AppTheme.whiteColor,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.greyColor.withAlpha(25),
+                    color: Theme.of(context).colorScheme.shadow.withAlpha(25),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -158,7 +161,7 @@ class ClearanceResultScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: AppTheme.fontSizeBody1,
                       fontWeight: FontWeight.w700,
-                      color: AppTheme.onSurface,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontFamily: 'Poppins',
                     ),
                   ),
@@ -168,22 +171,26 @@ class ClearanceResultScreen extends StatelessWidget {
                     runSpacing: AppTheme.spacing12,
                     children: [
                       _buildMetaChip(
+                        context,
                         label: tr('type'),
                         value: isArrival ? tr('arrival') : tr('departure'),
                         icon: Icons.swap_horiz,
                       ),
                       _buildMetaChip(
+                        context,
                         label: tr('status'),
                         value: _getStatusText(application.status, tr),
-                        color: _getStatusColor(application.status),
+                        color: _getStatusColor(context, application.status),
                         icon: _getStatusIcon(application.status),
                       ),
                       _buildMetaChip(
+                        context,
                         label: tr('location'),
                         value: formatLocation(application.location),
                         icon: Icons.place_outlined,
                       ),
                       _buildMetaChip(
+                        context,
                         label: tr('submitted_at'),
                         value: submittedAtText,
                         icon: Icons.access_time,
@@ -198,14 +205,17 @@ class ClearanceResultScreen extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppTheme.whiteColor, AppTheme.greyShade50],
+                  colors: [
+                    Theme.of(context).colorScheme.surface,
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.greyColor.withAlpha(25),
+                    color: Theme.of(context).colorScheme.shadow.withAlpha(25),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -222,14 +232,16 @@ class ClearanceResultScreen extends StatelessWidget {
                         Container(
                           padding: EdgeInsets.all(AppTheme.spacing8),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withAlpha(25),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withAlpha(25),
                             borderRadius: BorderRadius.circular(
                               AppTheme.radiusSmall,
                             ),
                           ),
                           child: Icon(
                             Icons.description,
-                            color: AppTheme.primaryColor,
+                            color: Theme.of(context).colorScheme.primary,
                             size: 24,
                           ),
                         ),
@@ -240,7 +252,7 @@ class ClearanceResultScreen extends StatelessWidget {
                             fontSize: AppTheme.fontSizeH6,
                             fontWeight: FontWeight.bold,
                             fontFamily: 'Poppins',
-                            color: AppTheme.onSurface,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ],
@@ -248,44 +260,65 @@ class ClearanceResultScreen extends StatelessWidget {
                     SizedBox(height: AppTheme.spacing16),
 
                     // Ship Information
-                    _buildDetailRow(tr('agent'), application.agentName),
-                    _buildDetailRow(tr('ship_name'), application.shipName),
-                    _buildDetailRow(tr('flag'), application.flag),
                     _buildDetailRow(
+                      context,
+                      tr('agent'),
+                      application.agentName,
+                    ),
+                    _buildDetailRow(
+                      context,
+                      tr('ship_name'),
+                      application.shipName,
+                    ),
+                    _buildDetailRow(context, tr('flag'), application.flag),
+                    _buildDetailRow(
+                      context,
                       tr('type'),
                       isArrival ? tr('arrival') : tr('departure'),
                     ),
 
                     _buildDetailRow(
+                      context,
                       isArrival ? tr('last_port') : tr('next_port'),
                       cleanValue(application.port),
                     ),
 
                     if (application.date != null)
-                      _buildDetailRow(tr('date'), application.date!),
+                      _buildDetailRow(context, tr('date'), application.date!),
 
                     // Crew Information
                     if (application.wniCrew != null)
-                      _buildDetailRow(tr('wni_crew'), application.wniCrew!),
+                      _buildDetailRow(
+                        context,
+                        tr('wni_crew'),
+                        application.wniCrew!,
+                      ),
 
                     if (application.wnaCrew != null)
-                      _buildDetailRow(tr('wna_crew'), application.wnaCrew!),
+                      _buildDetailRow(
+                        context,
+                        tr('wna_crew'),
+                        application.wnaCrew!,
+                      ),
 
                     // Officer Information
                     if (application.officerName != null)
                       _buildDetailRow(
+                        context,
                         tr('officer_name'),
                         cleanValue(application.officerName),
                       ),
 
                     if (application.clearanceResultSignedBy != null)
                       _buildDetailRow(
+                        context,
                         tr('certificate_signed_by'),
                         cleanValue(application.clearanceResultSignedBy),
                       ),
 
                     if (application.clearanceResultSignedByCorporate != null)
                       _buildDetailRow(
+                        context,
                         tr('certificate_signed_by_corporate'),
                         cleanValue(
                           application.clearanceResultSignedByCorporate,
@@ -294,11 +327,13 @@ class ClearanceResultScreen extends StatelessWidget {
 
                     if (certificateGeneratedAtText != null)
                       _buildDetailRow(
+                        context,
                         tr('certificate_generated_at'),
                         certificateGeneratedAtText,
                       ),
 
                     _buildDetailRow(
+                      context,
                       tr('location'),
                       formatLocation(application.location),
                     ),
@@ -315,7 +350,9 @@ class ClearanceResultScreen extends StatelessWidget {
                               '${tr('status')}:',
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color: AppTheme.subtitleColor,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 fontFamily: 'Poppins',
                               ),
                             ),
@@ -327,6 +364,7 @@ class ClearanceResultScreen extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: _getStatusColor(
+                                context,
                                 application.status,
                               ).withAlpha(25),
                               borderRadius: BorderRadius.circular(
@@ -334,6 +372,7 @@ class ClearanceResultScreen extends StatelessWidget {
                               ),
                               border: Border.all(
                                 color: _getStatusColor(
+                                  context,
                                   application.status,
                                 ).withAlpha(51),
                                 width: 1,
@@ -344,7 +383,10 @@ class ClearanceResultScreen extends StatelessWidget {
                               children: [
                                 Icon(
                                   _getStatusIcon(application.status),
-                                  color: _getStatusColor(application.status),
+                                  color: _getStatusColor(
+                                    context,
+                                    application.status,
+                                  ),
                                   size: 16,
                                 ),
                                 SizedBox(width: AppTheme.spacing4),
@@ -352,7 +394,10 @@ class ClearanceResultScreen extends StatelessWidget {
                                   _getStatusText(application.status, tr),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w600,
-                                    color: _getStatusColor(application.status),
+                                    color: _getStatusColor(
+                                      context,
+                                      application.status,
+                                    ),
                                     fontFamily: 'Poppins',
                                     fontSize: AppTheme.fontSizeBody2,
                                   ),
@@ -367,12 +412,20 @@ class ClearanceResultScreen extends StatelessWidget {
                     // Notes
                     if (application.notes != null &&
                         application.notes!.isNotEmpty)
-                      _buildDetailRow(tr('notes'), application.notes!)
+                      _buildDetailRow(
+                        context,
+                        tr('notes'),
+                        application.notes!,
+                      )
                     else
-                      _buildDetailRow(tr('notes'), tr('no_notes')),
+                      _buildDetailRow(context, tr('notes'), tr('no_notes')),
 
                     // Submitted At
-                    _buildDetailRow(tr('submitted_at'), submittedAtText),
+                    _buildDetailRow(
+                      context,
+                      tr('submitted_at'),
+                      submittedAtText,
+                    ),
 
                     // File attachments section
                     SizedBox(height: AppTheme.spacing16),
@@ -382,7 +435,7 @@ class ClearanceResultScreen extends StatelessWidget {
                         fontSize: AppTheme.fontSizeBody1,
                         fontWeight: FontWeight.w600,
                         fontFamily: 'Poppins',
-                        color: AppTheme.onSurface,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     SizedBox(height: AppTheme.spacing12),
@@ -398,11 +451,11 @@ class ClearanceResultScreen extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(AppTheme.spacing16),
               decoration: BoxDecoration(
-                color: AppTheme.whiteColor,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.greyColor.withAlpha(25),
+                    color: Theme.of(context).colorScheme.shadow.withAlpha(25),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -417,15 +470,21 @@ class ClearanceResultScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                AppTheme.primaryColor.withAlpha(25),
-                                AppTheme.primaryColor.withAlpha(12),
+                                Theme.of(
+                                  context,
+                                ).colorScheme.primary.withAlpha(25),
+                                Theme.of(
+                                  context,
+                                ).colorScheme.primary.withAlpha(12),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(
                               AppTheme.radiusMedium,
                             ),
                             border: Border.all(
-                              color: AppTheme.primaryColor.withAlpha(51),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withAlpha(51),
                               width: 1,
                             ),
                           ),
@@ -448,14 +507,16 @@ class ClearanceResultScreen extends StatelessWidget {
                               children: [
                                 Icon(
                                   Icons.home,
-                                  color: AppTheme.primaryColor,
+                                  color: Theme.of(context).colorScheme.primary,
                                   size: 20,
                                 ),
                                 SizedBox(width: AppTheme.spacing8),
                                 Text(
                                   tr('back_to_home'),
                                   style: TextStyle(
-                                    color: AppTheme.primaryColor,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     fontWeight: FontWeight.w600,
                                     fontFamily: 'Poppins',
                                   ),
@@ -472,8 +533,10 @@ class ClearanceResultScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  AppTheme.successColor,
-                                  AppTheme.successColor.withAlpha(204),
+                                  Theme.of(context).colorScheme.tertiary,
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.tertiary.withAlpha(204),
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(
@@ -481,7 +544,9 @@ class ClearanceResultScreen extends StatelessWidget {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppTheme.successColor.withAlpha(51),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.tertiary.withAlpha(51),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -489,7 +554,10 @@ class ClearanceResultScreen extends StatelessWidget {
                             ),
                             child: ElevatedButton(
                               onPressed: () {
-                                Navigator.pushNamed(context, '/officer-report');
+                                Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.officerReport,
+                                );
                               },
                               style: ElevatedButton.styleFrom(
                                 padding: EdgeInsets.symmetric(
@@ -508,14 +576,18 @@ class ClearanceResultScreen extends StatelessWidget {
                                 children: [
                                   Icon(
                                     Icons.description,
-                                    color: AppTheme.whiteColor,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimary,
                                     size: 20,
                                   ),
                                   SizedBox(width: AppTheme.spacing8),
                                   Text(
                                     tr('view_reports'),
                                     style: TextStyle(
-                                      color: AppTheme.whiteColor,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimary,
                                       fontWeight: FontWeight.w600,
                                       fontFamily: 'Poppins',
                                     ),
@@ -531,8 +603,10 @@ class ClearanceResultScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  AppTheme.warningColor,
-                                  AppTheme.warningColor.withAlpha(204),
+                                  Theme.of(context).colorScheme.secondary,
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.secondary.withAlpha(204),
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(
@@ -540,7 +614,9 @@ class ClearanceResultScreen extends StatelessWidget {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppTheme.warningColor.withAlpha(51),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.secondary.withAlpha(51),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -577,14 +653,18 @@ class ClearanceResultScreen extends StatelessWidget {
                                 children: [
                                   Icon(
                                     Icons.edit,
-                                    color: AppTheme.whiteColor,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimary,
                                     size: 20,
                                   ),
                                   SizedBox(width: AppTheme.spacing8),
                                   Text(
                                     tr('edit_application'),
                                     style: TextStyle(
-                                      color: AppTheme.whiteColor,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimary,
                                       fontWeight: FontWeight.w600,
                                       fontFamily: 'Poppins',
                                     ),
@@ -607,13 +687,14 @@ class ClearanceResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMetaChip({
+  Widget _buildMetaChip(
+    BuildContext context, {
     required String label,
     required String value,
     Color? color,
     IconData? icon,
   }) {
-    final resolvedColor = color ?? AppTheme.primaryColor;
+    final resolvedColor = color ?? Theme.of(context).colorScheme.primary;
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: AppTheme.spacing16,
@@ -661,7 +742,7 @@ class ClearanceResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(BuildContext context, String label, String value) {
     return Padding(
       padding: EdgeInsets.only(bottom: AppTheme.spacing12),
       child: Row(
@@ -673,7 +754,7 @@ class ClearanceResultScreen extends StatelessWidget {
               '$label:',
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                color: AppTheme.subtitleColor,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontFamily: 'Poppins',
               ),
             ),
@@ -683,7 +764,7 @@ class ClearanceResultScreen extends StatelessWidget {
               value,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontFamily: 'Poppins',
               ),
             ),
@@ -706,16 +787,16 @@ class ClearanceResultScreen extends StatelessWidget {
     }
   }
 
-  Color _getStatusColor(ApplicationStatus status) {
+  Color _getStatusColor(BuildContext context, ApplicationStatus status) {
     switch (status) {
       case ApplicationStatus.waiting:
-        return AppTheme.primaryColor;
+        return Theme.of(context).colorScheme.primary;
       case ApplicationStatus.approved:
-        return AppTheme.successColor;
+        return Theme.of(context).colorScheme.tertiary;
       case ApplicationStatus.revision:
-        return AppTheme.warningColor;
+        return Theme.of(context).colorScheme.secondary;
       case ApplicationStatus.declined:
-        return AppTheme.errorColor;
+        return Theme.of(context).colorScheme.error;
     }
   }
 

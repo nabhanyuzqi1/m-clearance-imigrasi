@@ -1,7 +1,7 @@
 {
   "projects": {
-    "default": "m-clearance-imigrasi",
-    "staging": "m-clearance-imigrasi"
+    "default": "m-clearance-imigrasi-sampit",
+    "staging": "m-clearance-imigrasi-sampit"
   },
   "targets": {},
   "etags": {}

@@ -77,25 +77,22 @@ class CustomTextField extends StatelessWidget {
 
     final defaultLabelStyle = AppTheme.labelMedium(context).copyWith(
       fontWeight: FontWeight.bold,
-      color: AppTheme.onSurface,
+      color: Theme.of(context).colorScheme.onSurface,
     );
 
-    final defaultHintStyle = AppTheme.bodyMedium(context).copyWith(
-      color: AppTheme.subtitleColor,
-    );
+    final defaultHintStyle = AppTheme.bodyMedium(
+      context,
+    ).copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
 
-    final defaultTextStyle = AppTheme.bodyMedium(context).copyWith(
-      color: AppTheme.onSurface,
-    );
+    final defaultTextStyle = AppTheme.bodyMedium(
+      context,
+    ).copyWith(color: Theme.of(context).colorScheme.onSurface);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (label != null) ...[
-          Text(
-            label!,
-            style: labelStyle ?? defaultLabelStyle,
-          ),
+          Text(label!, style: labelStyle ?? defaultLabelStyle),
           SizedBox(height: AppTheme.spacing8),
         ],
         TextFormField(
@@ -115,44 +112,64 @@ class CustomTextField extends StatelessWidget {
             hintText: hint,
             hintStyle: hintStyle ?? defaultHintStyle,
             prefixIcon: prefixIcon != null
-                ? Icon(prefixIcon, color: AppTheme.subtitleColor)
+                ? Icon(
+                    prefixIcon,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  )
                 : null,
             suffixIcon: suffixIcon,
             contentPadding: contentPadding ?? defaultContentPadding,
             filled: true,
-            fillColor: fillColor ?? (readOnly ? AppTheme.greyShade200 : AppTheme.greyShade50),
+            fillColor:
+                fillColor ??
+                (readOnly
+                    ? Theme.of(context).colorScheme.surfaceContainerHighest
+                    : Theme.of(context).colorScheme.surfaceContainerHighest),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
+              borderRadius: BorderRadius.circular(
+                borderRadius ?? AppTheme.radiusMedium,
+              ),
               borderSide: BorderSide(
-                color: borderColor ?? AppTheme.greyShade300,
+                color:
+                    borderColor ?? Theme.of(context).colorScheme.outlineVariant,
                 width: 1,
               ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
+              borderRadius: BorderRadius.circular(
+                borderRadius ?? AppTheme.radiusMedium,
+              ),
               borderSide: BorderSide(
-                color: borderColor ?? AppTheme.greyShade300,
+                color:
+                    borderColor ?? Theme.of(context).colorScheme.outlineVariant,
                 width: 1,
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
+              borderRadius: BorderRadius.circular(
+                borderRadius ?? AppTheme.radiusMedium,
+              ),
               borderSide: BorderSide(
-                color: focusedBorderColor ?? AppTheme.primaryColor,
+                color:
+                    focusedBorderColor ?? Theme.of(context).colorScheme.primary,
                 width: 2,
               ),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
+              borderRadius: BorderRadius.circular(
+                borderRadius ?? AppTheme.radiusMedium,
+              ),
               borderSide: BorderSide(
-                color: AppTheme.errorColor,
+                color: Theme.of(context).colorScheme.error,
                 width: 1,
               ),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(borderRadius ?? AppTheme.radiusMedium),
+              borderRadius: BorderRadius.circular(
+                borderRadius ?? AppTheme.radiusMedium,
+              ),
               borderSide: BorderSide(
-                color: AppTheme.errorColor,
+                color: Theme.of(context).colorScheme.error,
                 width: 2,
               ),
             ),

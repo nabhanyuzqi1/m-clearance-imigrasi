@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
@@ -6,19 +7,32 @@ import '../../../services/logging_service.dart';
 class SubmissionSentScreen extends StatelessWidget {
   final String initialLanguage;
 
-  const SubmissionSentScreen({
-    super.key,
-    required this.initialLanguage,
-  });
+  const SubmissionSentScreen({super.key, required this.initialLanguage});
 
   @override
   Widget build(BuildContext context) {
-    LoggingService().debug('Building SubmissionSentScreen with language: $initialLanguage');
+    LoggingService().debug(
+      'Building SubmissionSentScreen with language: $initialLanguage',
+    );
+    LoggingService().info(
+      'SubmissionSentScreen is being displayed - checking navigation stack',
+    );
+    LoggingService().debug(
+      'SubmissionSentScreen build: context.hashCode=${context.hashCode}, widget.hashCode=$hashCode',
+    );
 
-    String tr(String key) => AppLocalizations.of(context).get('submissionSent.$key');
+    String tr(String key) =>
+        AppLocalizations.of(context).get('submissionSent.$key');
 
     return Scaffold(
+      key: const ValueKey('submission_sent_scaffold'),
       backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        title: Text(tr('title')),
+        backgroundColor: AppTheme.whiteColor,
+        foregroundColor: AppTheme.blackColor,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.all(AppTheme.spacing24),
@@ -73,10 +87,14 @@ class SubmissionSentScreen extends StatelessWidget {
               Container(
                 padding: EdgeInsets.all(AppTheme.spacing20),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withAlpha(12),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[200] ?? AppTheme.whiteColor
+                      : Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                   border: Border.all(
-                    color: AppTheme.primaryColor.withAlpha(51),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? (Colors.grey[300] ?? AppTheme.greyColor)
+                        : Theme.of(context).colorScheme.primary.withAlpha(51),
                   ),
                 ),
                 child: Column(
@@ -113,11 +131,24 @@ class SubmissionSentScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () {
+                        LoggingService().debug(
+                          'Back to home button pressed in SubmissionSentScreen',
+                        );
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                        });
+                      },
                       style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
+                        padding: EdgeInsets.symmetric(
+                          vertical: AppTheme.spacing16,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMedium,
+                          ),
                         ),
                         side: BorderSide(color: AppTheme.primaryColor),
                       ),
@@ -136,17 +167,31 @@ class SubmissionSentScreen extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: () {
                         // Navigate to history screen
-                        Navigator.pushReplacementNamed(context, '/user-home');
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (context.mounted) {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              AppRoutes.userHome,
+                            );
+                          }
+                        });
                         // Note: This navigates to home, user can then tap History tab
                         // For better UX, we could implement deep linking to history tab
                       },
                       style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
+                        padding: EdgeInsets.symmetric(
+                          vertical: AppTheme.spacing16,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMedium,
+                          ),
                         ),
                       ),
-                      child: Text(tr('view_history'), style: TextStyle(fontFamily: 'Poppins')),
+                      child: Text(
+                        tr('view_history'),
+                        style: TextStyle(fontFamily: 'Poppins'),
+                      ),
                     ),
                   ),
                 ],

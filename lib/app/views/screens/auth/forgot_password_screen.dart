@@ -26,13 +26,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   void _sendResetLink() async {
-    LoggingService().info('Password reset link requested for email: ${_emailController.text}');
+    LoggingService().info(
+      'Password reset link requested for email: ${_emailController.text}',
+    );
 
     if (_emailController.text.isNotEmpty &&
         _emailController.text.contains('@')) {
       try {
         await _authService.sendPasswordResetEmail(_emailController.text);
-        LoggingService().info('Password reset email sent successfully to: ${_emailController.text}');
+        LoggingService().info(
+          'Password reset email sent successfully to: ${_emailController.text}',
+        );
         if (mounted) {
           final screenWidth = MediaQuery.of(context).size.width;
           final isTablet = screenWidth > 600;
@@ -43,32 +47,38 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             builder: (context) => Container(
               constraints: BoxConstraints(maxWidth: maxWidth),
               child: AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 title: Text(
                   _tr('success_dialog_title'),
                   style: TextStyle(
                     fontSize: screenWidth * 0.045,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.onSurface,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 content: Text(
                   "${_tr('success_dialog_content')}${_emailController.text}",
                   style: TextStyle(
                     fontSize: screenWidth * 0.04,
-                    color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withAlpha(179), // 0.7 * 255
                   ),
                 ),
                 actions: [
                   TextButton(
                     onPressed: () {
                       Navigator.pop(context); // Close dialog
-                      Navigator.pop(context); // Go back from Forgot Password screen
+                      Navigator.pop(
+                        context,
+                      ); // Go back from Forgot Password screen
                     },
                     child: Text(
                       _tr('ok_button'),
                       style: TextStyle(
-                        color: AppTheme.primaryColor,
+                        color: Theme.of(context).colorScheme.primary,
                         fontSize: screenWidth * 0.04,
                         fontWeight: FontWeight.w600,
                       ),
@@ -80,22 +90,29 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           );
         }
       } on FirebaseAuthException catch (e) {
-        LoggingService().error('Failed to send password reset email: ${e.message}', e);
+        LoggingService().error(
+          'Failed to send password reset email: ${e.message}',
+          e,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text(e.message ?? _tr('error_occurred')),
-                backgroundColor: AppTheme.errorColor),
+              content: Text(e.message ?? _tr('error_occurred')),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
           );
         }
       }
     } else {
-      LoggingService().warning('Invalid email format provided: ${_emailController.text}');
+      LoggingService().warning(
+        'Invalid email format provided: ${_emailController.text}',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(_tr('invalid_email_message')),
-              backgroundColor: AppTheme.errorColor),
+            content: Text(_tr('invalid_email_message')),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     }
@@ -104,9 +121,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_tr('title')),
-      ),
+      appBar: AppBar(title: Text(_tr('title'))),
       body: Padding(
         padding: EdgeInsets.all(AppTheme.paddingMedium),
         child: Column(
@@ -116,7 +131,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             Text(
               _tr('instruction'),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody1, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeH6)),
+              style: TextStyle(
+                fontSize: AppTheme.responsiveFontSize(
+                  context,
+                  mobile: AppTheme.fontSizeBody1,
+                  tablet: AppTheme.fontSizeBody1,
+                  desktop: AppTheme.fontSizeH6,
+                ),
+              ),
             ),
             SizedBox(height: AppTheme.paddingLarge),
             TextField(

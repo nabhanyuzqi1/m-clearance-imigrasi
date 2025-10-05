@@ -29,19 +29,24 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    LoggingService().info('SplashScreen initialized, starting navigation timer');
+    LoggingService().info(
+      'SplashScreen initialized, starting navigation timer',
+    );
 
     // Atur gaya System UI Overlay agar sesuai dengan latar belakang splash screen
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark, // Ikon status bar menjadi gelap
+        statusBarIconBrightness:
+            Brightness.dark, // Ikon status bar menjadi gelap
       ),
     );
 
     // Navigasi setelah penundaan singkat
     Future.delayed(const Duration(seconds: 1), () {
-      LoggingService().info('Splash screen timer completed, navigating to login');
+      LoggingService().info(
+        'Splash screen timer completed, navigating to login',
+      );
       if (mounted) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
       }
@@ -56,8 +61,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: colorScheme.surface,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -68,15 +74,23 @@ class _SplashScreenState extends State<SplashScreen> {
               width: 150,
               height: 150,
               // Fallback jika gambar gagal dimuat
-              errorBuilder: (context, error, stackTrace) =>
-                  Icon(Icons.directions_boat, size: 150, color: AppTheme.primaryColor),
+              errorBuilder: (context, error, stackTrace) => Icon(
+                Icons.directions_boat,
+                size: 150,
+                color: colorScheme.primary,
+              ),
             ),
             SizedBox(height: AppTheme.spacing24),
             Text(
               _tr('app_name'),
               style: TextStyle(
-                color: AppTheme.onSurface,
-                fontSize: AppTheme.responsiveFontSize(context, mobile: 28, tablet: 32, desktop: 36),
+                color: colorScheme.onSurface,
+                fontSize: AppTheme.responsiveFontSize(
+                  context,
+                  mobile: 28,
+                  tablet: 32,
+                  desktop: 36,
+                ),
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Poppins',
               ),

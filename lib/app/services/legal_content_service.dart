@@ -8,13 +8,13 @@ import 'logging_service.dart';
 
 class LegalContentService {
   LegalContentService({FirebaseDatabase? database})
-      : _database = database ?? _createDatabase();
+    : _database = database ?? _createDatabase();
 
   final FirebaseDatabase _database;
 
   static FirebaseDatabase _createDatabase() {
     const databaseUrl =
-        'https://m-clearance-imigrasi-default-rtdb.asia-southeast1.firebasedatabase.app/';
+        'https://m-clearance-imigrasi-sampit.asia-southeast1.firebasedatabase.app/';
 
     FirebaseApp app;
     try {
@@ -23,10 +23,7 @@ class LegalContentService {
       app = Firebase.app();
     }
 
-    return FirebaseDatabase.instanceFor(
-      app: app,
-      databaseURL: databaseUrl,
-    );
+    return FirebaseDatabase.instanceFor(app: app, databaseURL: databaseUrl);
   }
 
   DatabaseReference _docRef(LegalDocumentType type, String languageCode) {
@@ -48,7 +45,10 @@ class LegalContentService {
         if (fallbackDoc.hasContent) return fallbackDoc;
       }
     } catch (error, stackTrace) {
-      LoggingService().warning('Failed fetching $type for $languageCode', error);
+      LoggingService().warning(
+        'Failed fetching $type for $languageCode',
+        error,
+      );
       LoggingService().debug('LegalContentService stack: $stackTrace');
     }
     return LegalDocument.empty;
@@ -96,10 +96,10 @@ class LegalContentService {
     required String content,
   }) async {
     try {
-      await _docRef(type, languageCode).set({
-        'content': content.trim(),
-        'updatedAt': ServerValue.timestamp,
-      });
+      await _docRef(
+        type,
+        languageCode,
+      ).set({'content': content.trim(), 'updatedAt': ServerValue.timestamp});
     } catch (error, stackTrace) {
       LoggingService().error(
         'Failed updating $type for $languageCode',

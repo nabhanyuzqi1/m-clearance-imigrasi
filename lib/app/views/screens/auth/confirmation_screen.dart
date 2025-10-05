@@ -18,7 +18,11 @@ import '../../../services/logging_service.dart';
 class ConfirmationScreen extends StatefulWidget {
   final Map<String, String> userData;
   final String initialLanguage;
-  const ConfirmationScreen({super.key, required this.userData, this.initialLanguage = 'EN'});
+  const ConfirmationScreen({
+    super.key,
+    required this.userData,
+    this.initialLanguage = 'EN',
+  });
 
   @override
   State<ConfirmationScreen> createState() => _ConfirmationScreenState();
@@ -43,7 +47,9 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
   @override
   void initState() {
     super.initState();
-    LoggingService().info('ConfirmationScreen initialized with language: ${widget.initialLanguage}');
+    LoggingService().info(
+      'ConfirmationScreen initialized with language: ${widget.initialLanguage}',
+    );
     _selectedLanguage = widget.initialLanguage;
 
     // Otomatis fokus ke input PIN saat layar dimuat
@@ -54,7 +60,9 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     // Ensure user authenticated; if not, go to login
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      LoggingService().warning('No authenticated user found in ConfirmationScreen, redirecting to login');
+      LoggingService().warning(
+        'No authenticated user found in ConfirmationScreen, redirecting to login',
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.login);
       });
@@ -63,7 +71,9 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     // Automatically send verification code on first load
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      LoggingService().info('Automatically sending verification code on screen load');
+      LoggingService().info(
+        'Automatically sending verification code on screen load',
+      );
       await _resendCode(silent: true);
     });
   }
@@ -82,7 +92,10 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     final code = _codeController.text.trim();
     if (code.length != 4) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('code_invalid')), backgroundColor: AppTheme.errorColor),
+        SnackBar(
+          content: Text(_tr('code_invalid')),
+          backgroundColor: AppTheme.errorColor,
+        ),
       );
       return;
     }
@@ -91,56 +104,69 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     setState(() {
       _isVerifying = true;
     });
-    fx.verifyEmailCode(code).then((_) async {
-      if (!mounted) return;
-      // Refresh client user to reflect verification
-      UserModel? updatedUser;
-      try {
-        updatedUser = await AuthService().updateEmailVerified();
-        LoggingService().debug('updateEmailVerified returned status = ${updatedUser?.status}');
-      } catch (_) {}
-      setState(() {
-        _isVerifying = false;
-        _completed = true;
-      });
+    fx
+        .verifyEmailCode(code)
+        .then((_) async {
+          if (!mounted) return;
+          // Refresh client user to reflect verification
+          UserModel? updatedUser;
+          try {
+            updatedUser = await AuthService().updateEmailVerified();
+            LoggingService().debug(
+              'updateEmailVerified returned status = ${updatedUser?.status}',
+            );
+          } catch (_) {}
+          setState(() {
+            _isVerifying = false;
+            _completed = true;
+          });
 
-      // Navigate based on user status
-      String nextRoute;
-      Map<String, dynamic> arguments = {'initialLanguage': _selectedLanguage};
-      if (updatedUser != null) {
-        final status = updatedUser.status;
-        if (status == 'pending_documents') {
-          nextRoute = AppRoutes.uploadDocuments;
-          arguments['userData'] = widget.userData;
-        } else if (status == 'pending_approval') {
-          nextRoute = AppRoutes.registrationPending;
-        } else if (status == 'approved') {
-          nextRoute = AppRoutes.userHome;
-        } else {
-          // For unknown statuses, default to login
-          nextRoute = AppRoutes.login;
-        }
-      } else {
-        // If no user data, go to login
-        nextRoute = AppRoutes.login;
-      }
+          // Navigate based on user status
+          String nextRoute;
+          Map<String, dynamic> arguments = {
+            'initialLanguage': _selectedLanguage,
+          };
+          if (updatedUser != null) {
+            final status = updatedUser.status;
+            if (status == 'pending_documents') {
+              nextRoute = AppRoutes.uploadDocuments;
+              arguments['userData'] = widget.userData;
+            } else if (status == 'pending_approval') {
+              nextRoute = AppRoutes.registrationPending;
+            } else if (status == 'approved') {
+              nextRoute = AppRoutes.userHome;
+            } else {
+              // For unknown statuses, default to login
+              nextRoute = AppRoutes.login;
+            }
+          } else {
+            // If no user data, go to login
+            nextRoute = AppRoutes.login;
+          }
 
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, nextRoute, arguments: arguments);
-      }
-    }).catchError((e) {
-      if (!mounted) return;
-      setState(() {
-        _isVerifying = false;
-      });
-      String msg = _tr('verification_failed');
-      if (e is FirebaseFunctionsException) {
-        msg = e.message ?? msg;
-      } else {
-        msg = e.toString();
-      }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppTheme.errorColor));
-    });
+          if (mounted) {
+            Navigator.pushReplacementNamed(
+              context,
+              nextRoute,
+              arguments: arguments,
+            );
+          }
+        })
+        .catchError((e) {
+          if (!mounted) return;
+          setState(() {
+            _isVerifying = false;
+          });
+          String msg = _tr('verification_failed');
+          if (e is FirebaseFunctionsException) {
+            msg = e.message ?? msg;
+          } else {
+            msg = e.toString();
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg), backgroundColor: AppTheme.errorColor),
+          );
+        });
   }
 
   Future<void> _resendCode({bool silent = false}) async {
@@ -153,11 +179,20 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         return;
       }
       final resp = await FunctionsService().issueEmailVerificationCodeEx();
-      if (resp.isNotEmpty && resp['ok'] == false && resp['reason'] == 'cooldown') {
+      if (resp.isNotEmpty &&
+          resp['ok'] == false &&
+          resp['reason'] == 'cooldown') {
         final remain = resp['retryAfterSec'] ?? 0;
         if (!mounted || silent) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('please_wait_cooldown').replaceAll('{seconds}', remain.toString())), backgroundColor: AppTheme.warningColor),
+          SnackBar(
+            content: Text(
+              _tr(
+                'please_wait_cooldown',
+              ).replaceAll('{seconds}', remain.toString()),
+            ),
+            backgroundColor: AppTheme.warningColor,
+          ),
         );
         _startCooldown(remain is int && remain > 0 ? remain : _defaultCooldown);
         return;
@@ -166,12 +201,18 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       // Set a client-side cooldown after successful enqueue
       _startCooldown(_defaultCooldown);
       // Mask email hint
-      final email = FirebaseAuth.instance.currentUser?.email ?? widget.userData['email'] ?? '';
+      final email =
+          FirebaseAuth.instance.currentUser?.email ??
+          widget.userData['email'] ??
+          '';
       setState(() {
         _lastSentMasked = _maskEmail(email);
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('resend_success')), backgroundColor: AppTheme.infoColor),
+        SnackBar(
+          content: Text(_tr('resend_success')),
+          backgroundColor: AppTheme.infoColor,
+        ),
       );
     } catch (e) {
       if (!mounted || silent) return;
@@ -182,7 +223,10 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         msg = e.toString();
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_tr('failed_to_resend_code')}: $msg'), backgroundColor: AppTheme.errorColor),
+        SnackBar(
+          content: Text('${_tr('failed_to_resend_code')}: $msg'),
+          backgroundColor: AppTheme.errorColor,
+        ),
       );
     }
   }
@@ -211,6 +255,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       if (s.length <= 2) return s;
       return s[0] + '*' * (s.length - 2) + s[s.length - 1];
     }
+
     final maskedLocal = maskPart(local);
     final domainParts = domain.split('.');
     if (domainParts.isEmpty) return '$maskedLocal@$domain';
@@ -221,7 +266,8 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String userEmail = widget.userData['email'] ??
+    final String userEmail =
+        widget.userData['email'] ??
         FirebaseAuth.instance.currentUser?.email ??
         'your.email@example.com';
     return Scaffold(
@@ -239,7 +285,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
           },
         ),
       ),
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Padding(
         padding: EdgeInsets.symmetric(horizontal: AppTheme.spacing24),
         child: Column(
@@ -253,7 +299,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                 fontSize: AppTheme.fontSizeH5,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Poppins',
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             SizedBox(height: AppTheme.spacing12),
@@ -262,7 +308,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: AppTheme.fontSizeBody1,
-                color: AppTheme.subtitleColor,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontFamily: 'Poppins',
               ),
             ),
@@ -272,7 +318,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                 _tr('sent_to') + _lastSentMasked,
                 style: TextStyle(
                   fontSize: AppTheme.fontSizeCaption,
-                  color: AppTheme.subtitleColor,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontFamily: 'Poppins',
                 ),
               ),
@@ -342,13 +388,28 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                 height: 60,
                 margin: EdgeInsets.symmetric(horizontal: AppTheme.spacing8),
                 decoration: BoxDecoration(
-                  color: hasChar ? AppTheme.primaryColor.withAlpha(12) : AppTheme.whiteColor,
+                  color: hasChar
+                      ? Theme.of(context).colorScheme.primary.withAlpha(12)
+                      : Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                  border: Border.all(color: isFocused ? AppTheme.primaryColor : AppTheme.greyShade300, width: 2),
+                  border: Border.all(
+                    color: isFocused
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline,
+                    width: 2,
+                  ),
                 ),
                 child: Center(
                   child: hasChar
-                      ? Text(text[index], style: TextStyle(fontSize: AppTheme.fontSizeH5, fontWeight: FontWeight.bold, fontFamily: 'Poppins', color: AppTheme.onSurface))
+                      ? Text(
+                          text[index],
+                          style: TextStyle(
+                            fontSize: AppTheme.fontSizeH5,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Poppins',
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        )
                       : null,
                 ),
               );
@@ -361,12 +422,19 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
 
   Widget _buildResendButton() {
     final disabled = _cooldownSec > 0;
-    final label = disabled ? '${_tr('resend_in')}${_cooldownSec}s' : _tr('resend_code');
+    final label = disabled
+        ? '${_tr('resend_in')}${_cooldownSec}s'
+        : _tr('resend_code');
     return TextButton(
       onPressed: disabled ? null : () => _resendCode(),
       child: Text(
         label,
-        style: TextStyle(color: disabled ? AppTheme.greyShade600 : AppTheme.primaryColor, fontFamily: 'Poppins'),
+        style: TextStyle(
+          color: disabled
+              ? Theme.of(context).colorScheme.onSurfaceVariant
+              : Theme.of(context).colorScheme.primary,
+          fontFamily: 'Poppins',
+        ),
       ),
     );
   }

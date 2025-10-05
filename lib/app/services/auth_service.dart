@@ -8,7 +8,26 @@ import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
 import 'package:m_clearance_imigrasi/app/services/cache_manager.dart';
 import 'package:m_clearance_imigrasi/app/services/network_utils.dart';
 import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
+import 'package:m_clearance_imigrasi/app/utils/storage_reference_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class UploadedDocumentDescriptor {
+  const UploadedDocumentDescriptor({
+    required this.storagePath,
+    this.downloadUrl,
+    this.documentType,
+    this.documentName,
+    this.originalName,
+  });
+
+  final String storagePath;
+  final String? downloadUrl;
+  final String? documentType;
+  final String? documentName;
+  final String? originalName;
+
+  String get canonicalPath => StorageReferenceUtils.canonicalize(storagePath);
+}
 
 class AuthService {
   final FirebaseAuth _firebaseAuth;
@@ -52,7 +71,10 @@ class AuthService {
       }
       return null;
     } on FirebaseAuthException catch (e) {
-      LoggingService().error('Firebase Auth Exception: ${e.message}', e);
+      LoggingService().error(
+        'Firebase Auth Exception: code=${e.code}, message=${e.message}',
+        e,
+      );
       return null;
     } catch (e) {
       LoggingService().error('An unexpected error occurred during sign-in', e);
@@ -122,6 +144,7 @@ class AuthService {
     bool forceRefresh = false,
   }) async {
     final startTime = DateTime.now();
+    LoggingService().debug('getUserData called with uid: $uid');
 
     final shouldSkipCache = forceRefresh || kDebugMode;
 
@@ -154,6 +177,7 @@ class AuthService {
     try {
       final userModel = await NetworkUtils.executeWithRetry(() async {
         final serverStart = DateTime.now();
+        LoggingService().debug('Performing doc.get() on users/$uid');
         final DocumentSnapshot doc = await NetworkUtils.withTimeout(
           _firestore.collection('users').doc(uid).get(),
           const Duration(seconds: 10),
@@ -162,6 +186,7 @@ class AuthService {
         LoggingService().debug(
           'Server fetch took ${serverTime.inMilliseconds}ms',
         );
+        LoggingService().debug('Document exists: ${doc.exists}');
 
         if (!doc.exists || doc.data() == null) {
           throw NetworkException('User document not found', isRetryable: false);
@@ -217,7 +242,7 @@ class AuthService {
   ///
   /// Uses file bytes for upload, handled uniformly across platforms by file_picker.
   /// Generates unique filename using timestamp and UUID to prevent overwrites.
-  Future<String?> uploadDocument(
+  Future<UploadedDocumentDescriptor?> uploadDocument(
     String uid,
     Uint8List fileBytes,
     String docName, {
@@ -231,7 +256,13 @@ class AuthService {
       );
 
       final ref = _storage.ref().child('users/$uid/documents/$uniqueFileName');
-      final uploadTask = ref.putData(fileBytes);
+      final metadata = SettableMetadata(
+        customMetadata: {
+          if (docType != null && docType.isNotEmpty) 'documentType': docType,
+          'originalName': docName,
+        },
+      );
+      final uploadTask = ref.putData(fileBytes, metadata);
       final snapshot = await NetworkUtils.withTimeout(
         uploadTask.whenComplete(() => null),
         const Duration(seconds: 90),
@@ -242,19 +273,14 @@ class AuthService {
           ref.getDownloadURL(),
           const Duration(seconds: 15),
         );
-        await _firestore.collection('users').doc(uid).update({
-          'documents': FieldValue.arrayUnion([
-            {
-              'documentName': docName, // Keep original name for display
-              'storagePath': downloadUrl,
-              'uploadedAt': Timestamp.now(),
-            },
-          ]),
-          'status': 'pending_approval',
-          'hasUploadedDocuments': true,
-          'updatedAt': Timestamp.now(),
-        });
-        return downloadUrl;
+        final storagePath = StorageReferenceUtils.canonicalize(ref.fullPath);
+        return UploadedDocumentDescriptor(
+          storagePath: storagePath,
+          downloadUrl: downloadUrl,
+          documentType: docType,
+          documentName: uniqueFileName,
+          originalName: docName,
+        );
       } else {
         throw NetworkException('Upload failed', isRetryable: true);
       }
@@ -423,7 +449,7 @@ class AuthService {
   /// 'pending_documents'. Accepts a list of storage paths or references.
   /// Idempotent: only adds document entries whose storagePath is not already present.
   Future<UserModel?> markDocumentsUploaded({
-    required List<String> storagePathsOrRefs,
+    required List<UploadedDocumentDescriptor> documents,
   }) async {
     final user = _firebaseAuth.currentUser;
     if (user == null) return null;
@@ -441,22 +467,48 @@ class AuthService {
       final List existingDocs = (data['documents'] as List?) ?? const [];
       final Set<String> existingPaths = existingDocs
           .whereType<Map>()
-          .map((m) => (m['storagePath'] as String?) ?? '')
+          .map(
+            (m) => StorageReferenceUtils.canonicalize(
+              (m['storagePath'] as String?) ??
+                  (m['downloadUrl'] as String?) ??
+                  (m['path'] as String?) ??
+                  (m['url'] as String?) ??
+                  (m['reference'] as String?),
+            ),
+          )
           .where((s) => s.isNotEmpty)
           .toSet();
 
-      // Build only new entries not already present by storagePath
       final List<Map<String, dynamic>> toAdd = [];
-      for (final p in storagePathsOrRefs) {
-        if (!existingPaths.contains(p)) {
-          final parts = p.split('/');
-          final name = parts.isNotEmpty ? parts.last : 'document';
-          toAdd.add({
-            'documentName': name,
-            'storagePath': p,
-            'uploadedAt': FieldValue.serverTimestamp(),
-          });
+      for (final descriptor in documents) {
+        final canonicalPath =
+            StorageReferenceUtils.canonicalize(descriptor.storagePath);
+        if (canonicalPath.isEmpty || existingPaths.contains(canonicalPath)) {
+          continue;
         }
+        final documentName = descriptor.documentName ??
+            StorageReferenceUtils.fileName(canonicalPath);
+        final originalName = descriptor.originalName?.trim().isNotEmpty == true
+            ? descriptor.originalName
+            : null;
+        final entry = <String, dynamic>{
+          'storagePath': canonicalPath,
+          'documentName': documentName,
+          'uploadedAt': FieldValue.serverTimestamp(),
+        };
+        if (descriptor.downloadUrl != null &&
+            descriptor.downloadUrl!.trim().isNotEmpty) {
+          entry['downloadUrl'] = descriptor.downloadUrl;
+        }
+        if (descriptor.documentType != null &&
+            descriptor.documentType!.trim().isNotEmpty) {
+          entry['documentType'] = descriptor.documentType;
+        }
+        if (originalName != null) {
+          entry['originalName'] = originalName;
+        }
+        toAdd.add(entry);
+        existingPaths.add(canonicalPath);
       }
 
       final Map<String, dynamic> updates = {
@@ -574,9 +626,12 @@ class AuthService {
         return null;
       }
 
-      final ref = filePathOrUrl.startsWith('https')
-          ? _storage.refFromURL(filePathOrUrl)
-          : _storage.ref().child(filePathOrUrl);
+      final normalized = filePathOrUrl.trim();
+      final ref = (normalized.startsWith('http://') ||
+              normalized.startsWith('https://') ||
+              normalized.startsWith('gs://'))
+          ? _storage.refFromURL(normalized)
+          : _storage.ref().child(normalized);
       const int maxDownloadSize = 25 * 1024 * 1024; // Cap download to 25MB
       final data = await ref.getData(maxDownloadSize);
 

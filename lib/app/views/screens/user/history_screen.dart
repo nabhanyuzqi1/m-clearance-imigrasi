@@ -94,12 +94,14 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         child: Container(
           padding: EdgeInsets.symmetric(vertical: AppTheme.spacing12),
           decoration: BoxDecoration(
-            color: isSelected ? AppTheme.whiteColor : Colors.transparent,
+            color: isSelected
+                ? Theme.of(context).colorScheme.surface
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: AppTheme.blackColor.withAlpha(25),
+                      color: Theme.of(context).colorScheme.shadow.withAlpha(25),
                       blurRadius: 5,
                       spreadRadius: 1,
                     ),
@@ -111,7 +113,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
               text,
               style: TextStyle(
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily,
               ),
             ),
@@ -164,16 +166,16 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     }
   }
 
-  Color _getStatusColor(ApplicationStatus status) {
+  Color _getStatusColor(BuildContext context, ApplicationStatus status) {
     switch (status) {
       case ApplicationStatus.waiting:
-        return AppTheme.primaryColor;
+        return Theme.of(context).colorScheme.primary;
       case ApplicationStatus.revision:
-        return AppTheme.warningColor;
+        return Theme.of(context).colorScheme.secondary;
       case ApplicationStatus.approved:
-        return AppTheme.successColor;
+        return Theme.of(context).colorScheme.tertiary;
       case ApplicationStatus.declined:
-        return AppTheme.errorColor;
+        return Theme.of(context).colorScheme.error;
     }
   }
 
@@ -184,18 +186,18 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         vertical: AppTheme.spacing8,
       ),
       decoration: BoxDecoration(
-        color: _getStatusColor(status).withAlpha(25),
+        color: _getStatusColor(context, status).withAlpha(25),
         borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.circle, color: _getStatusColor(status), size: 10),
+          Icon(Icons.circle, color: _getStatusColor(context, status), size: 10),
           SizedBox(width: AppTheme.spacing8),
           Text(
             _getStatusText(status),
             style: TextStyle(
-              color: _getStatusColor(status),
+              color: _getStatusColor(context, status),
               fontWeight: FontWeight.bold,
               fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily,
             ),
@@ -241,14 +243,14 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontFamily: 'Poppins',
-              color: AppTheme.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           Text(
             app.shipName,
             style: TextStyle(
               fontSize: AppTheme.fontSizeBody2,
-              color: AppTheme.subtitleColor,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontFamily: 'Poppins',
             ),
           ),
@@ -270,7 +272,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             fontWeight: FontWeight.bold,
             fontSize: AppTheme.fontSizeBody1,
             fontFamily: 'Poppins',
-            color: AppTheme.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         SizedBox(height: AppTheme.spacing8),
@@ -280,7 +282,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         ),
         Text(
           "${_tr('crewlist')}: ${app.wniCrew ?? '0'} WNI - ${app.wnaCrew ?? '0'} WNA",
-          style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface),
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
         ),
       ],
     );
@@ -296,7 +301,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             fontWeight: FontWeight.bold,
             fontSize: AppTheme.fontSizeBody1,
             fontFamily: 'Poppins',
-            color: AppTheme.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         SizedBox(height: AppTheme.spacing8),
@@ -308,7 +313,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
               app.agentName,
               style: TextStyle(
                 fontFamily: 'Poppins',
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ],
@@ -331,7 +336,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             fontWeight: FontWeight.bold,
             fontSize: AppTheme.fontSizeBody1,
             fontFamily: 'Poppins',
-            color: AppTheme.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         SizedBox(height: AppTheme.spacing8),
@@ -341,7 +346,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
               : app.status == ApplicationStatus.declined
               ? "${_tr('declined')} - ${app.notes ?? _tr('no_notes')}"
               : "",
-          style: TextStyle(color: AppTheme.errorColor, fontFamily: 'Poppins'),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.error,
+            fontFamily: 'Poppins',
+          ),
         ),
       ],
     );
@@ -352,7 +360,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
       case ApplicationStatus.revision:
         return ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.warningColor,
+            backgroundColor: Theme.of(context).colorScheme.secondary,
           ),
           onPressed: () {
             Navigator.pop(context);
@@ -372,14 +380,16 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         );
       case ApplicationStatus.declined:
         return ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed: () => Navigator.pop(context),
           child: Text(_tr('done_button')),
         );
       case ApplicationStatus.approved:
         return ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primaryColor,
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
           onPressed: () {
             Navigator.pop(context);
@@ -402,7 +412,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             "OK",
             style: TextStyle(
               fontFamily: 'Poppins',
-              color: AppTheme.primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         );
@@ -419,8 +429,8 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     return Scaffold(
       appBar: CustomAppBar(
         titleText: _tr('history'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
@@ -441,7 +451,9 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: AppTheme.greyShade100,
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
               ),
             ),
           ),
@@ -452,7 +464,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             ),
             child: Container(
               decoration: BoxDecoration(
-                color: AppTheme.greyShade100,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
               ),
               child: Row(
@@ -485,7 +497,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                           desktop: 18,
                         ),
                         fontFamily: 'Poppins',
-                        color: AppTheme.onSurface,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   );
@@ -502,13 +514,17 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                         Container(
                           padding: EdgeInsets.all(AppTheme.spacing24),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withAlpha(12),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withAlpha(12),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Icons.image_outlined,
                             size: 60,
-                            color: AppTheme.primaryColor.withAlpha(51),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withAlpha(51),
                           ),
                         ),
                         SizedBox(height: AppTheme.spacing24),
@@ -518,7 +534,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                             fontSize: AppTheme.fontSizeH5,
                             fontWeight: FontWeight.bold,
                             fontFamily: 'Poppins',
-                            color: AppTheme.onSurface,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         SizedBox(height: AppTheme.spacing8),
@@ -526,7 +542,9 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                           _tr('empty_subtitle'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: AppTheme.subtitleColor,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: AppTheme.fontSizeBody1,
                             fontFamily: 'Poppins',
                           ),
@@ -563,7 +581,9 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                                     app.type == ApplicationType.kedatangan
                                         ? Icons.anchor
                                         : Icons.directions_boat,
-                                    color: AppTheme.greyShade600,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                   ),
                                   SizedBox(width: AppTheme.spacing8),
                                   Column(
@@ -577,13 +597,17 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontFamily: 'Poppins',
-                                          color: AppTheme.onSurface,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
                                         ),
                                       ),
                                       Text(
                                         "${app.shipName} - ${_formatField(app.port)}",
                                         style: TextStyle(
-                                          color: AppTheme.subtitleColor,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
                                           fontFamily: 'Poppins',
                                         ),
                                       ),
@@ -595,7 +619,9 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                               Text(
                                 app.date ?? 'No Date',
                                 style: TextStyle(
-                                  color: AppTheme.subtitleColor,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                   fontFamily: 'Poppins',
                                 ),
                               ),

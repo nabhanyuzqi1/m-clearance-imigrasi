@@ -1,4 +1,4 @@
-package com.mclearance.isam.m_clearance_imigrasi
+package com.android.imigrasi
 
 import io.flutter.embedding.android.FlutterActivity
 

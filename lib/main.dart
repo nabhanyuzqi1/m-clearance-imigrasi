@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:provider/provider.dart';
 import 'app/providers/connectivity_provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -36,6 +38,10 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      if (!kIsWeb) {
+        FirebaseDatabase.instance.setPersistenceEnabled(true);
+        FirebaseDatabase.instance.setLoggingEnabled(true);
+      }
       debugPrint('[Startup] Firebase.initializeApp executed');
     } else {
       debugPrint(
@@ -51,34 +57,14 @@ void main() async {
     }
   }
 
-  // Ensure a dedicated named app with correct Dart-provided options to avoid
-  // picking up native defaults from google-services.json.
-  FirebaseApp appClient;
-  try {
-    appClient = Firebase.app('client');
-    debugPrint('[Startup] Using existing Firebase app "client"');
-  } catch (_) {
-    appClient = await Firebase.initializeApp(
-      name: 'client',
-      options: DefaultFirebaseOptions.currentPlatform,
+  // Initialize Firebase App Check
+  if (!kDebugMode) {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.deviceCheck,
+      webProvider: ReCaptchaV3Provider('your-recaptcha-site-key'),
     );
-    debugPrint('[Startup] Initialized Firebase app "client"');
-  }
-
-  // Diagnostics: print effective Firebase options for the named app.
-  final opts = appClient.options;
-  final safeKey = (opts.apiKey.length > 6)
-      ? '${opts.apiKey.substring(0, 6)}...'
-      : opts.apiKey;
-  debugPrint(
-    '[Startup] FirebaseOptions(client): projectId=${opts.projectId}, appId=${opts.appId}, apiKey=$safeKey, '
-    'storageBucket=${opts.storageBucket}, authDomain=${opts.authDomain}, '
-    'messagingSenderId=${opts.messagingSenderId}, measurementId=${opts.measurementId}',
-  );
-
-  // Note: Using firebasestorage.app bucket as specified by user
-  if (opts.storageBucket != null) {
-    debugPrint('[Startup] Storage bucket configured: ${opts.storageBucket}');
+    debugPrint('[Startup] Firebase App Check activated');
   }
 
   // Initialize Firebase Crashlytics (only on mobile platforms)

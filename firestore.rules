@@ -112,6 +112,9 @@ service cloud.firestore {
       // Delete: deny for all clients
       allow delete: if false;
     }
+    match /users {
+      allow list: if isSignedIn() && isOfficerOrAdmin();
+    }
 
     // Notifications: notifications/{uid}/items/{notifId}
     // Read allowed for owner; client writes denied (Functions use admin privileges)

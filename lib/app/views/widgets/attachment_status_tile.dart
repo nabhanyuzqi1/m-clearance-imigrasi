@@ -40,13 +40,13 @@ class AttachmentStatusTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 6.0),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: theme.brightness == Brightness.light
             ? [
                 BoxShadow(
-                  color: AppTheme.greyShade200.withAlpha(70),
+                  color: colorScheme.shadow.withAlpha(20),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -59,7 +59,9 @@ class AttachmentStatusTile extends StatelessWidget {
           leading ??
               Icon(
                 Icons.insert_drive_file_outlined,
-                color: _hasFiles ? colorScheme.primary : theme.disabledColor,
+                color: _hasFiles
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant.withAlpha(100),
                 size: 22,
               ),
           const SizedBox(width: 12),
@@ -101,7 +103,9 @@ class AttachmentStatusTile extends StatelessWidget {
             tooltip: _hasFiles ? l10n.get('attachments.view') : null,
             icon: Icon(
               Icons.remove_red_eye_outlined,
-              color: _hasFiles ? colorScheme.primary : theme.disabledColor,
+              color: _hasFiles
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant.withAlpha(100),
             ),
             onPressed: _hasFiles ? () => _handleView(context) : null,
           ),

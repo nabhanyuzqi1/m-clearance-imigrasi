@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
@@ -6,19 +7,32 @@ import '../../../services/logging_service.dart';
 class SubmissionWaitingScreen extends StatelessWidget {
   final String initialLanguage;
 
-  const SubmissionWaitingScreen({
-    super.key,
-    required this.initialLanguage,
-  });
+  const SubmissionWaitingScreen({super.key, required this.initialLanguage});
 
   @override
   Widget build(BuildContext context) {
-    LoggingService().debug('Building SubmissionWaitingScreen with language: $initialLanguage');
+    LoggingService().debug(
+      'Building SubmissionWaitingScreen with language: $initialLanguage',
+    );
+    LoggingService().info(
+      'SubmissionWaitingScreen is being displayed - checking navigation stack',
+    );
+    LoggingService().debug(
+      'SubmissionWaitingScreen build: context.hashCode=${context.hashCode}, widget.hashCode=$hashCode',
+    );
 
-    String tr(String key) => AppLocalizations.of(context).get('submissionWaiting.$key');
+    String tr(String key) =>
+        AppLocalizations.of(context).get('submissionWaiting.$key');
 
     return Scaffold(
+      key: const ValueKey('submission_waiting_scaffold'),
       backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        title: Text(tr('title')),
+        backgroundColor: AppTheme.whiteColor,
+        foregroundColor: AppTheme.blackColor,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.all(AppTheme.spacing24),
@@ -159,11 +173,24 @@ class SubmissionWaitingScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () {
+                        LoggingService().debug(
+                          'Back to home button pressed in SubmissionWaitingScreen',
+                        );
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                        });
+                      },
                       style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
+                        padding: EdgeInsets.symmetric(
+                          vertical: AppTheme.spacing16,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMedium,
+                          ),
                         ),
                         side: BorderSide(color: AppTheme.primaryColor),
                       ),
@@ -182,14 +209,25 @@ class SubmissionWaitingScreen extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: () {
                         // Navigate to history screen
-                        Navigator.pushReplacementNamed(context, '/user-home');
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (context.mounted) {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              AppRoutes.userHome,
+                            );
+                          }
+                        });
                         // Note: This navigates to home, user can then tap History tab
                         // For better UX, we could implement deep linking to history tab
                       },
                       style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: AppTheme.spacing16),
+                        padding: EdgeInsets.symmetric(
+                          vertical: AppTheme.spacing16,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMedium,
+                          ),
                         ),
                       ),
                       child: Text(tr('check_status')),
@@ -208,7 +246,9 @@ class SubmissionWaitingScreen extends StatelessWidget {
                     LinearProgressIndicator(
                       value: 0.3, // 30% progress
                       backgroundColor: AppTheme.greyShade300,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppTheme.primaryColor,
+                      ),
                     ),
                     SizedBox(height: AppTheme.spacing8),
                     Text(

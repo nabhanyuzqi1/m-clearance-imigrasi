@@ -299,23 +299,43 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                 SizedBox(height: verticalSpacing),
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: screenWidth * 0.08,
-                      backgroundColor: colorScheme.surfaceContainerHighest,
-                      backgroundImage:
-                          (displayPhotoUrl != null &&
-                              displayPhotoUrl.isNotEmpty)
-                          ? NetworkImage(displayPhotoUrl)
-                          : null,
-                      child:
-                          (displayPhotoUrl == null || displayPhotoUrl.isEmpty)
-                          ? Icon(
+                    (displayPhotoUrl != null && displayPhotoUrl.isNotEmpty)
+                        ? ClipOval(
+                            child: Image.network(
+                              displayPhotoUrl,
+                              width: screenWidth * 0.16,
+                              height: screenWidth * 0.16,
+                              fit: BoxFit.cover,
+                              errorBuilder:
+                                  (
+                                    BuildContext context,
+                                    Object error,
+                                    StackTrace? stackTrace,
+                                  ) {
+                                    LoggingService().error(
+                                      'Profile image load failed: $error',
+                                      error,
+                                      stackTrace,
+                                    );
+                                    return Image.asset(
+                                      'assets/images/logo.png',
+                                      width: screenWidth * 0.16,
+                                      height: screenWidth * 0.16,
+                                      fit: BoxFit.cover,
+                                    );
+                                  },
+                            ),
+                          )
+                        : CircleAvatar(
+                            radius: screenWidth * 0.08,
+                            backgroundColor:
+                                colorScheme.surfaceContainerHighest,
+                            child: Icon(
                               Icons.person,
                               size: screenWidth * 0.08,
                               color: colorScheme.onSurfaceVariant,
-                            )
-                          : null,
-                    ),
+                            ),
+                          ),
                     SizedBox(width: screenWidth * 0.04),
                     Expanded(
                       child: Column(

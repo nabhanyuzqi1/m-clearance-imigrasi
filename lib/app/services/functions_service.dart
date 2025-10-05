@@ -1,29 +1,50 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'logging_service.dart';
 
 class FunctionsService {
   final FirebaseFunctions _functions;
 
   FunctionsService({FirebaseFunctions? functions})
     : _functions =
-          functions ?? FirebaseFunctions.instance; // us-central1 by default
+          functions ??
+          FirebaseFunctions.instanceFor(region: 'asia-southeast1') {
+    LoggingService().info(
+      'FunctionsService initialized with asia-southeast1 region',
+    );
+  }
 
   Future<Map<String, dynamic>> getOfficerDashboardStats() async {
-    final callable = _functions.httpsCallable('getOfficerDashboardStats');
-    final result = await callable();
-    final data = Map<String, dynamic>.from(result.data ?? {});
-    return data;
+    LoggingService().info(
+      'Attempting to call getOfficerDashboardStats function',
+    );
+    try {
+      final callable = _functions.httpsCallable('getOfficerMonthlyStats');
+      LoggingService().info('Callable created for getOfficerMonthlyStats');
+      final result = await callable();
+      LoggingService().info('getOfficerMonthlyStats call successful');
+      final data = Map<String, dynamic>.from(result.data ?? {});
+      return data;
+    } catch (e) {
+      LoggingService().error('getOfficerDashboardStats failed', e);
+      return {};
+    }
   }
 
   Future<Map<String, dynamic>> getOfficerStats({
     required DateTime start,
     required DateTime end,
   }) async {
-    final callable = _functions.httpsCallable('getOfficerMonthlyStats');
-    final result = await callable(<String, dynamic>{
-      'startDate': start.toUtc().toIso8601String(),
-      'endDate': end.toUtc().toIso8601String(),
-    });
-    return Map<String, dynamic>.from(result.data ?? {});
+    try {
+      final callable = _functions.httpsCallable('getOfficerDashboardStats');
+      final result = await callable(<String, dynamic>{
+        'startDate': start.toUtc().toIso8601String(),
+        'endDate': end.toUtc().toIso8601String(),
+      });
+      return Map<String, dynamic>.from(result.data ?? {});
+    } catch (e) {
+      LoggingService().error('getOfficerStats failed', e);
+      return {};
+    }
   }
 
   Future<Map<String, dynamic>> getOfficerMonthlyStats() async {
@@ -38,52 +59,92 @@ class FunctionsService {
     required String decision, // 'approved' | 'rejected' | 'revision_requested'
     String? reason,
   }) async {
-    final callable = _functions.httpsCallable('officerDecideAccount');
-    await callable(<String, dynamic>{
-      'targetUid': targetUid,
-      'decision': decision,
-      if (reason != null && reason.isNotEmpty) 'reason': reason,
-    });
+    LoggingService().info(
+      'Attempting to call officerDecideAccount for uid: $targetUid, decision: $decision',
+    );
+    try {
+      final callable = _functions.httpsCallable('officerDecideAccount');
+      LoggingService().info('Callable created for officerDecideAccount');
+      await callable(<String, dynamic>{
+        'targetUid': targetUid,
+        'decision': decision,
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+      });
+      LoggingService().info('officerDecideAccount call successful');
+    } catch (e) {
+      LoggingService().error('officerDecideAccount failed', e);
+      rethrow;
+    }
   }
 
   Future<void> setUserRole({
     required String uid,
     required String role, // 'user' | 'officer' | 'admin'
   }) async {
-    final callable = _functions.httpsCallable('setUserRole');
-    await callable(<String, dynamic>{'uid': uid, 'role': role});
+    try {
+      final callable = _functions.httpsCallable('setUserRole');
+      await callable(<String, dynamic>{'uid': uid, 'role': role});
+    } catch (e) {
+      LoggingService().error('setUserRole failed', e);
+      rethrow;
+    }
   }
 
   Future<void> issueEmailVerificationCode() async {
-    final callable = _functions.httpsCallable('issueEmailVerificationCode');
-    await callable();
+    try {
+      final callable = _functions.httpsCallable('issueEmailVerificationCode');
+      await callable();
+    } catch (e) {
+      LoggingService().error('issueEmailVerificationCode failed', e);
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> issueEmailVerificationCodeEx() async {
-    final callable = _functions.httpsCallable('issueEmailVerificationCode');
-    final result = await callable();
-    return Map<String, dynamic>.from(result.data ?? {});
+    try {
+      final callable = _functions.httpsCallable('issueEmailVerificationCode');
+      final result = await callable();
+      return Map<String, dynamic>.from(result.data ?? {});
+    } catch (e) {
+      LoggingService().error('issueEmailVerificationCodeEx failed', e);
+      return {};
+    }
   }
 
   Future<void> verifyEmailCode(String code) async {
-    final callable = _functions.httpsCallable('verifyEmailCode');
-    await callable(<String, dynamic>{'code': code});
+    try {
+      final callable = _functions.httpsCallable('verifyEmailCode');
+      await callable(<String, dynamic>{'code': code});
+    } catch (e) {
+      LoggingService().error('verifyEmailCode failed', e);
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> generateHistoryPDF(String applicationId) async {
-    final callable = _functions.httpsCallable('generateHistoryPDF');
-    final result = await callable(<String, dynamic>{
-      'applicationId': applicationId,
-    });
-    return Map<String, dynamic>.from(result.data ?? {});
+    try {
+      final callable = _functions.httpsCallable('generateHistoryPDF');
+      final result = await callable(<String, dynamic>{
+        'applicationId': applicationId,
+      });
+      return Map<String, dynamic>.from(result.data ?? {});
+    } catch (e) {
+      LoggingService().error('generateHistoryPDF failed', e);
+      return {};
+    }
   }
 
   Future<Map<String, dynamic>> generateMonthlyReport(
     Map<String, dynamic> stats,
   ) async {
-    final callable = _functions.httpsCallable('generateMonthlyReport');
-    final result = await callable(<String, dynamic>{'stats': stats});
-    return Map<String, dynamic>.from(result.data ?? {});
+    try {
+      final callable = _functions.httpsCallable('generateMonthlyReport');
+      final result = await callable(<String, dynamic>{'stats': stats});
+      return Map<String, dynamic>.from(result.data ?? {});
+    } catch (e) {
+      LoggingService().error('generateMonthlyReport failed', e);
+      return {};
+    }
   }
 
   Future<void> logOfficerActivity({
@@ -94,32 +155,41 @@ class FunctionsService {
     String? iconData,
     Map<String, dynamic>? metadata,
   }) async {
-    final callable = _functions.httpsCallable('logOfficerActivity');
-    await callable(<String, dynamic>{
-      'title': title,
-      'description': description,
-      'type': type,
-      if (status != null) 'status': status,
-      if (iconData != null) 'iconData': iconData,
-      if (metadata != null && metadata.isNotEmpty) 'metadata': metadata,
-    });
+    try {
+      final callable = _functions.httpsCallable('logOfficerActivity');
+      await callable(<String, dynamic>{
+        'title': title,
+        'description': description,
+        'type': type,
+        if (status != null) 'status': status,
+        if (iconData != null) 'iconData': iconData,
+        if (metadata != null && metadata.isNotEmpty) 'metadata': metadata,
+      });
+    } catch (e) {
+      LoggingService().error('logOfficerActivity failed', e);
+      rethrow;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchOfficerActivities({
     int limit = 10,
   }) async {
-    final callable = _functions.httpsCallable('getOfficerActivities');
-    final result = await callable(<String, dynamic>{'limit': limit});
-    final data = result.data;
-    if (data is List) {
-      return data
-          .map(
-            (item) =>
-                item is Map ? Map<String, dynamic>.from(item) : null,
-          )
-          .whereType<Map<String, dynamic>>()
-          .toList();
+    LoggingService().info('Calling getOfficerActivities with limit: $limit');
+    try {
+      final callable = _functions.httpsCallable('getOfficerActivities');
+      final result = await callable(<String, dynamic>{'limit': limit});
+      LoggingService().info('getOfficerActivities call successful');
+      final data = result.data;
+      if (data is List) {
+        return data
+            .map((item) => item is Map ? Map<String, dynamic>.from(item) : null)
+            .whereType<Map<String, dynamic>>()
+            .toList();
+      }
+      return const [];
+    } catch (e) {
+      LoggingService().error('getOfficerActivities call failed', e);
+      return [];
     }
-    return const [];
   }
 }

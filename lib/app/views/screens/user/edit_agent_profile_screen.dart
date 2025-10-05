@@ -101,7 +101,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               style: TextStyle(
                 fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             actions: [
@@ -118,7 +118,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'camera'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -136,7 +136,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'gallery'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -146,7 +146,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'cancel'),
                   style: TextStyle(
-                    color: AppTheme.greyColor,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -218,14 +218,14 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               style: TextStyle(
                 fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             content: Text(
               message,
               style: TextStyle(
                 fontSize: screenWidth * 0.04,
-                color: AppTheme.onSurface.withAlpha(179),
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
               ),
             ),
             actions: [
@@ -234,7 +234,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'cancel'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -247,7 +247,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'open_settings'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                     fontWeight: FontWeight.w600,
                   ),
@@ -303,14 +303,16 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                   style: TextStyle(
                     fontSize: screenWidth * 0.045,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.onSurface,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 content: Text(
                   _tr(context, 'email_changed_body'),
                   style: TextStyle(
                     fontSize: screenWidth * 0.04,
-                    color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withAlpha(179), // 0.7 * 255
                   ),
                 ),
                 actions: [
@@ -325,7 +327,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                     child: Text(
                       _tr(context, 'ok'),
                       style: TextStyle(
-                        color: AppTheme.primaryColor,
+                        color: Theme.of(context).colorScheme.primary,
                         fontSize: screenWidth * 0.04,
                         fontWeight: FontWeight.w600,
                       ),
@@ -645,7 +647,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
           ),
           filled: true,
-          fillColor: AppTheme.greyShade50,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         style: TextStyle(
           fontSize: AppTheme.responsiveFontSize(

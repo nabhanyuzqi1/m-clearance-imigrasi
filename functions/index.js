@@ -7,9 +7,6 @@ const { randomUUID } = require("crypto");
 // Initialize Admin SDK exactly once
 admin.initializeApp();
 
-// Initialize Realtime Database
-const rtdb = admin.database();
-
 // Use default Firestore database everywhere
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
@@ -136,7 +133,7 @@ async function notifyRoles(roles, payload = {}, options = {}) {
   await Promise.all(tasks);
 }
 
-exports.onNotificationWrite = functions.firestore
+exports.onNotificationWrite = functions.region('asia-southeast1').firestore
   .document("notifications/{uid}/items/{notifId}")
   .onWrite(async (change, context) => {
     const uid = context.params.uid;
@@ -290,27 +287,11 @@ class EmailConfigService {
       return this.config;
     }
 
-    try {
-      const snapshot = await rtdb.ref("email_config").once("value");
-      const data = snapshot.val();
-      if (data) {
-        this.config = data;
-        this.lastFetched = now;
-        console.log(
-          "[EmailConfigService] Fetched config from RTDB at email_config",
-        );
-        return this.config;
-      }
-    } catch (error) {
-      console.error(
-        "[EmailConfigService] Failed to fetch config from RTDB:",
-        error,
-      );
-    }
-
-    // Fallback to environment variables
+    // Use fallback config from environment variables
     console.log("[EmailConfigService] Using fallback config from environment");
-    return this.getFallbackConfig();
+    this.config = this.getFallbackConfig();
+    this.lastFetched = now;
+    return this.config;
   }
 
   getFallbackConfig() {
@@ -424,11 +405,13 @@ const emailConfig = new EmailConfigService();
  * - Idempotent updates when doc already exists
  * - If email is already verified, set isEmailVerified=true and status=pending_documents once
  */
-exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
+exports.onUserCreate = functions.region('asia-southeast1').auth.user().onCreate(async (user) => {
+  console.log("[onUserCreate] Function triggered for user:", user.uid, "email:", user.email, "emailVerified:", user.emailVerified);
+
   const uid = user.uid;
   const email = user.email || "";
   console.log(
-    "[onUserCreate] uid:",
+    "[onUserCreate] Processing uid:",
     uid,
     "emailVerified:",
     !!user.emailVerified,
@@ -436,17 +419,23 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
 
   // Best-effort to assign default role via custom claims; swallow errors to avoid retries
   try {
+    console.log("[onUserCreate] Setting custom claims for uid:", uid);
     await admin.auth().setCustomUserClaims(uid, { role: "user" });
+    console.log("[onUserCreate] Custom claims set successfully for uid:", uid);
   } catch (e) {
-    console.error("[onUserCreate] setCustomUserClaims failed:", e);
+    console.error("[onUserCreate] setCustomUserClaims failed for uid:", uid, "error:", e);
   }
 
   const userRef = db.collection("users").doc(uid);
+  console.log("[onUserCreate] User ref created for uid:", uid);
 
   try {
+    console.log("[onUserCreate] Starting transaction for uid:", uid);
     await db.runTransaction(async (txn) => {
+      console.log("[onUserCreate] Inside transaction, getting user doc for uid:", uid);
       const snap = await txn.get(userRef);
       const now = FieldValue.serverTimestamp();
+      console.log("[onUserCreate] User doc exists:", snap.exists, "for uid:", uid);
 
       if (!snap.exists) {
         const verified = !!user.emailVerified;
@@ -461,11 +450,13 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
           createdAt: now,
           updatedAt: now,
         };
+        console.log("[onUserCreate] Setting initial user doc for uid:", uid, "with status:", initDoc.status);
         txn.set(userRef, initDoc);
         console.log("[onUserCreate] Created user doc:", uid);
 
         // Update counters if status is pending_approval (though initially it's not)
         if (initDoc.status === "pending_approval") {
+          console.log("[onUserCreate] Updating counters for initial status pending_approval");
           await updateUserCounters(null, initDoc.status);
         }
         return;
@@ -498,20 +489,24 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
 
       if (Object.keys(updates).length > 0) {
         updates.updatedAt = now;
+        console.log("[onUserCreate] Updating existing user doc for uid:", uid, "with updates:", updates);
         txn.update(userRef, updates);
         console.log("[onUserCreate] Updated existing user doc:", uid, updates);
 
         // Update counters if status changed
         if (updates.status && updates.status !== oldStatus) {
+          console.log("[onUserCreate] Updating counters for status change from", oldStatus, "to", updates.status);
           await updateUserCounters(oldStatus, updates.status);
         }
       } else {
         console.log("[onUserCreate] No-op for existing user doc:", uid);
       }
     });
+    console.log("[onUserCreate] Transaction completed successfully for uid:", uid);
   } catch (error) {
-    console.error("[onUserCreate] Error:", error);
+    console.error("[onUserCreate] Transaction error for uid:", uid, "error:", error);
   }
+  console.log("[onUserCreate] Function completed for uid:", uid);
 });
 
 /**
@@ -522,7 +517,7 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
  * - When status transitions to approved/rejected:
  *     * Create a notification item under notifications/{uid}/items idempotently
  */
-exports.onUserDocUpdate = functions.firestore
+exports.onUserDocUpdate = functions.region('asia-southeast1').firestore
   .document("users/{uid}")
   .onUpdate(async (change, context) => {
     const uid = context.params.uid;
@@ -700,7 +695,7 @@ exports.onUserDocUpdate = functions.firestore
  * - Idempotent based on storagePath (gs://bucket/name) or file name
  * - Does NOT modify status; only appends to documents if not already present
  */
-exports.onDocumentFinalize = functions.storage
+exports.onDocumentFinalize = functions.region('asia-southeast1').storage
   .object()
   .onFinalize(async (object) => {
     try {
@@ -750,10 +745,60 @@ exports.onDocumentFinalize = functions.storage
         const data = snap.data() || {};
         const docs = Array.isArray(data.documents) ? data.documents : [];
 
-        const alreadyPresent = docs.some((d) => {
-          if (!d || typeof d !== "object") return false;
-          return d.storagePath === storagePath || d.documentName === filename;
-        });
+        const normalizeReference = (value) => {
+          if (!value || typeof value !== "string") return "";
+          const trimmed = value.trim();
+          if (!trimmed) return "";
+          if (trimmed.startsWith("gs://")) {
+            const withoutProtocol = trimmed.slice(5);
+            const slashIndex = withoutProtocol.indexOf("/");
+            if (slashIndex === -1) return withoutProtocol;
+            return withoutProtocol.slice(slashIndex + 1);
+          }
+          if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            try {
+              const uri = new URL(trimmed);
+              const segments = uri.pathname.split("/").filter(Boolean);
+              const oIndex = segments.indexOf("o");
+              if (oIndex !== -1 && oIndex + 1 < segments.length) {
+                const encoded = segments[oIndex + 1];
+                return decodeURIComponent(encoded);
+              }
+              if (segments.length) {
+                return decodeURIComponent(segments[segments.length - 1]);
+              }
+            } catch (error) {
+              console.warn(
+                "[onDocumentFinalize] Failed to normalise URL reference",
+                error,
+              );
+            }
+            return trimmed;
+          }
+          return trimmed;
+        };
+
+        const existingKeys = docs
+          .map((d) => {
+            if (!d || typeof d !== "object") return "";
+            const ref =
+              d.storagePath ||
+              d.downloadUrl ||
+              d.path ||
+              d.url ||
+              d.reference;
+            return normalizeReference(ref);
+          })
+          .filter((v) => Boolean(v));
+
+        const candidateKey = normalizeReference(storagePath);
+        const alreadyPresent =
+          existingKeys.includes(candidateKey) ||
+          docs.some((d) => {
+            if (!d || typeof d !== "object") return false;
+            const docName = (d.documentName || "").toString().toLowerCase();
+            return docName && docName === filename.toLowerCase();
+          });
 
         if (alreadyPresent) {
           console.log(
@@ -769,11 +814,37 @@ exports.onDocumentFinalize = functions.storage
           ? Timestamp.fromDate(new Date(object.timeCreated))
           : FieldValue.serverTimestamp();
 
+        const inferDocumentType = (value) => {
+          if (!value) return null;
+          const lower = value.toLowerCase();
+          if (lower.includes("ktp")) return "ktp";
+          if (lower.includes("nib")) return "nib";
+          return null;
+        };
+
+        const metadata = object.metadata || {};
+        const documentType =
+          metadata.documentType || inferDocumentType(filename);
+        const originalName =
+          metadata.originalName || metadata.original_name || filename;
+        const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(
+          name,
+        )}?alt=media`;
+
         const entry = {
           documentName: filename,
-          storagePath: storagePath,
-          uploadedAt: uploadedAt,
+          storagePath: name,
+          downloadUrl,
+          uploadedAt,
         };
+
+        if (documentType) {
+          entry.documentType = documentType;
+        }
+
+        if (originalName) {
+          entry.originalName = originalName;
+        }
 
         // Append without touching status; do not mutate updatedAt here to avoid unintended triggers
         txn.update(userRef, {
@@ -797,7 +868,7 @@ exports.onDocumentFinalize = functions.storage
  * - Updates Firebase Auth custom claims
  * - Mirrors the role to Firestore users/{uid}.role and updates updatedAt
  */
-exports.setUserRole = functions.https.onCall(async (data, context) => {
+exports.setUserRole = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   requireAuth(context);
   const role = await callerRole(context);
   if (role !== "admin") {
@@ -1286,7 +1357,7 @@ async function generateClearanceDocument(uid, application) {
  * Effect: updates users/{uid}.status and updatedAt. Optionally stores decidedBy/note metadata.
  * onUserDocUpdate will generate notifications.
  */
-exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
+exports.officerDecideAccount = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   try {
     requireAuth(context);
     const callerUid = context.auth.uid;
@@ -1407,7 +1478,7 @@ exports.officerDecideAccount = functions.https.onCall(async (data, context) => {
   }
 });
 
-exports.logOfficerActivity = functions.https.onCall(async (data, context) => {
+exports.logOfficerActivity = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   try {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);
@@ -1500,7 +1571,7 @@ exports.logOfficerActivity = functions.https.onCall(async (data, context) => {
   }
 });
 
-exports.getOfficerActivities = functions.https.onCall(async (data, context) => {
+exports.getOfficerActivities = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   try {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);
@@ -1555,7 +1626,7 @@ exports.getOfficerActivities = functions.https.onCall(async (data, context) => {
 /**
  * - pendingArrival/pendingDeparture: applications awaiting review by type
  */
-exports.getOfficerDashboardStats = functions.https.onCall(
+exports.getOfficerDashboardStats = functions.region('asia-southeast1').https.onCall(
   async (data, context) => {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);
@@ -1661,7 +1732,7 @@ exports.getOfficerDashboardStats = functions.https.onCall(
 /**
  * Get officer monthly statistics
  */
-exports.getOfficerMonthlyStats = functions.https.onCall(
+exports.getOfficerMonthlyStats = functions.region('asia-southeast1').https.onCall(
   async (data, context) => {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);
@@ -1893,17 +1964,23 @@ exports.getOfficerMonthlyStats = functions.https.onCall(
  * Generates a short-lived 4-digit code for email verification and stores it on users/{uid}.
  * Optionally integrate with email provider; for now we only store and return masked info.
  */
-exports.issueEmailVerificationCode = functions.https.onCall(
+exports.issueEmailVerificationCode = functions.region('asia-southeast1').https.onCall(
   async (data, context) => {
+    console.log("[issueEmailVerificationCode] Function started for uid:", context.auth.uid);
+    const startTime = Date.now();
     requireAuth(context);
     const uid = context.auth.uid;
     const userRef = db.collection("users").doc(uid);
 
+    console.time("[issueEmailVerificationCode] Config fetch");
     // Fetch dynamic configuration
     const globalSettings = await emailConfig.getGlobalSettings();
     const templateSettings =
       await emailConfig.getTemplateSettings("verification");
+    console.timeEnd("[issueEmailVerificationCode] Config fetch");
+    console.log("[issueEmailVerificationCode] Config fetched in", Date.now() - startTime, "ms");
 
+    console.time("[issueEmailVerificationCode] Transaction");
     // Optimized transaction: minimize reads, use server timestamps
     let code, now, expiresAt, emailDocId;
     try {
@@ -1949,6 +2026,8 @@ exports.issueEmailVerificationCode = functions.https.onCall(
           emailDocId: mailId,
         };
       });
+      console.timeEnd("[issueEmailVerificationCode] Transaction");
+      console.log("[issueEmailVerificationCode] Transaction completed in", Date.now() - startTime, "ms");
       if (result && result.cooldown) {
         return {
           ok: false,
@@ -1963,52 +2042,58 @@ exports.issueEmailVerificationCode = functions.https.onCall(
     }
 
     console.log("[issueEmailVerificationCode] uid:", uid, "code_issued");
+console.time("[issueEmailVerificationCode] User resolution");
+// Send email directly using Resend API
+const tokenEmail =
+  (context.auth && context.auth.token && context.auth.token.email) || "";
+const recipientEmail = await resolveUserEmail(uid, tokenEmail);
+const recipientName = await resolveUserName(uid, tokenEmail);
+console.timeEnd("[issueEmailVerificationCode] User resolution");
+console.log("[issueEmailVerificationCode] User resolved in", Date.now() - startTime, "ms");
 
-    // Send email directly using Resend API
-    const tokenEmail =
-      (context.auth && context.auth.token && context.auth.token.email) || "";
-    const recipientEmail = await resolveUserEmail(uid, tokenEmail);
-    const recipientName = await resolveUserName(uid, tokenEmail);
-    if (!recipientEmail) {
-      console.warn(
-        "[issueEmailVerificationCode] Could not resolve recipient email for uid:",
-        uid,
-      );
-      return { ok: true, sent: false, reason: "noRecipientEmail" };
-    }
+if (!recipientEmail) {
+  console.warn(
+    "[issueEmailVerificationCode] Could not resolve recipient email for uid:",
+    uid,
+  );
+  return { ok: true, sent: false, reason: "noRecipientEmail" };
+}
 
-    try {
-      // Initialize Resend client
-      const resend = new Resend(process.env.RESEND_API_KEY);
+console.time("[issueEmailVerificationCode] Email send");
+try {
+  // Initialize Resend client
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
-      const subject = templateSettings.subject || "Your verification code";
-      const html = (
-        templateSettings.html ||
-        "<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.<br/>It expires in 10 minutes.</p><p>Regards,<br/>{accountName}</p>"
-      )
-        .replace(/{name}/g, recipientName)
-        .replace(/{code}/g, code)
-        .replace(/{accountName}/g, globalSettings.accountName);
-      const text = (
-        templateSettings.text ||
-        "Hello {name},\nYour verification code is {code}. It expires in 10 minutes.\nRegards, {accountName}"
-      )
-        .replace(/{name}/g, recipientName)
-        .replace(/{code}/g, code)
-        .replace(/{accountName}/g, globalSettings.accountName);
+  const subject = templateSettings.subject || "Your verification code";
+  const html = (
+    templateSettings.html ||
+    "<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.<br/>It expires in 10 minutes.</p><p>Regards,<br/>{accountName}</p>"
+  )
+    .replace(/{name}/g, recipientName)
+    .replace(/{code}/g, code)
+    .replace(/{accountName}/g, globalSettings.accountName);
+  const text = (
+    templateSettings.text ||
+    "Hello {name},\nYour verification code is {code}. It expires in 10 minutes.\nRegards, {accountName}"
+  )
+    .replace(/{name}/g, recipientName)
+    .replace(/{code}/g, code)
+    .replace(/{accountName}/g, globalSettings.accountName);
 
-      // Prepare email data for Resend
-      const emailData = {
-        from: `${globalSettings.fromName} <${globalSettings.from}>`,
-        to: recipientEmail,
-        subject: subject,
-        html: html,
-        text: text,
-        reply_to: globalSettings.supportEmail || globalSettings.from,
-      };
+  // Prepare email data for Resend
+  const emailData = {
+    from: `${globalSettings.fromName} <${globalSettings.from}>`,
+    to: recipientEmail,
+    subject: subject,
+    html: html,
+    text: text,
+    reply_to: globalSettings.supportEmail || globalSettings.from,
+  };
 
-      // Send the email
-      const { data, error } = await resend.emails.send(emailData);
+  // Send the email
+  const { data, error } = await resend.emails.send(emailData);
+  console.timeEnd("[issueEmailVerificationCode] Email send");
+  console.log("[issueEmailVerificationCode] Email sent in", Date.now() - startTime, "ms");
 
       if (error) {
         console.error(
@@ -2027,6 +2112,7 @@ exports.issueEmailVerificationCode = functions.https.onCall(
         "[issueEmailVerificationCode] Email sent successfully:",
         data,
       );
+      console.log("[issueEmailVerificationCode] Total function time:", Date.now() - startTime, "ms");
       return { ok: true, sent: true, messageId: data?.id };
     } catch (e) {
       // If thrown by cooldown guard
@@ -2039,6 +2125,7 @@ exports.issueEmailVerificationCode = functions.https.onCall(
         return { ok: false, reason: "cooldown", retryAfterSec: remain };
       }
       console.error("[issueEmailVerificationCode] Failed to send email:", e);
+      console.log("[issueEmailVerificationCode] Total function time before error:", Date.now() - startTime, "ms");
       return { ok: true, sent: false, reason: "sendFailed", error: e.message };
     }
   },
@@ -2054,7 +2141,7 @@ exports.issueEmailVerificationCode = functions.https.onCall(
  * Initialize dashboard counters by counting existing documents.
  * Run this once after deployment to set up counters.
  */
-exports.initializeCounters = functions.https.onCall(async (data, context) => {
+exports.initializeCounters = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   requireAuth(context);
   await ensureOfficerOrAdmin(context);
 
@@ -2106,7 +2193,7 @@ exports.initializeCounters = functions.https.onCall(async (data, context) => {
   };
 });
 
-exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
+exports.verifyEmailCode = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   requireAuth(context);
   const uid = context.auth.uid;
   const submitted = data && data.code ? String(data.code) : "";
@@ -2190,7 +2277,7 @@ exports.verifyEmailCode = functions.https.onCall(async (data, context) => {
  * Test function to verify direct Resend integration
  * Sends a test email directly using Resend API
  */
-exports.testEmailSend = functions.https.onCall(async (data, context) => {
+exports.testEmailSend = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   try {
     console.log("[testEmailSend] Testing direct Resend integration...");
 
@@ -2283,7 +2370,7 @@ exports.testEmailSend = functions.https.onCall(async (data, context) => {
  * generateHistoryPDF (callable)
  * Generates a PDF document for application history details with M-Clearance ISam logo.
  */
-exports.generateHistoryPDF = functions.https.onCall(async (data, context) => {
+exports.generateHistoryPDF = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   requireAuth(context);
   const uid = context.auth.uid;
   const applicationId = data?.applicationId;
@@ -2371,7 +2458,7 @@ exports.generateHistoryPDF = functions.https.onCall(async (data, context) => {
  * - Update counters on create
  * - Notify user on status decision transitions (approved/declined)
  */
-exports.onApplicationCreate = functions.firestore
+exports.onApplicationCreate = functions.region('asia-southeast1').firestore
   .document("applications/{appId}")
   .onCreate(async (snap, context) => {
     const data = snap.data() || {};
@@ -2394,7 +2481,7 @@ exports.onApplicationCreate = functions.firestore
     );
   });
 
-exports.onApplicationUpdate = functions.firestore
+exports.onApplicationUpdate = functions.region('asia-southeast1').firestore
   .document("applications/{appId}")
   .onUpdate(async (change, context) => {
     try {
@@ -2632,7 +2719,7 @@ async function generateMonthlyReportPDF(uid, stats) {
   }
 }
 
-exports.generateMonthlyReport = functions.https.onCall(
+exports.generateMonthlyReport = functions.region('asia-southeast1').https.onCall(
   async (data, context) => {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);
@@ -2692,7 +2779,7 @@ exports.generateMonthlyReport = functions.https.onCall(
  * @param {object} context - The context object containing authentication information.
  * @returns {object} - An object indicating the success of the operation.
  */
-exports.updateUserAccountStatus = functions.https.onCall(
+exports.updateUserAccountStatus = functions.region('asia-southeast1').https.onCall(
   async (data, context) => {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);

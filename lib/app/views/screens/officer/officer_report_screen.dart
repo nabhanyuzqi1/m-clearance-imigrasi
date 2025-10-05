@@ -400,7 +400,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           title: _tr('departure'),
           color: colorScheme.secondary,
           stats: stats.departure,
-          icon: Icons.flight_takeoff_outlined,
+          icon: Icons.directions_boat,
         ),
         _SummaryCard(
           title: _tr('registration'),
@@ -868,43 +868,38 @@ class _SummaryCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return SizedBox(
-      width: 280,
-      child: Container(
-        padding: const EdgeInsets.all(AppTheme.spacing16),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
-          border: Border.all(color: colorScheme.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: color.withValues(alpha: 0.12),
-                  foregroundColor: color,
-                  child: Icon(icon),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTheme.spacing16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withValues(alpha: 0.12),
+                foregroundColor: color,
+                child: Icon(icon),
+              ),
+              const SizedBox(width: AppTheme.spacing12),
+              Text(
+                title,
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(width: AppTheme.spacing12),
-                Text(
-                  title,
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.spacing12),
-            _SummaryMetric(label: 'Total', value: stats.total.toString()),
-            _SummaryMetric(label: 'Pending', value: stats.pending.toString()),
-            _SummaryMetric(
-              label: 'Processed',
-              value: stats.processed.toString(),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacing12),
+          _SummaryMetric(label: 'Total', value: stats.total.toString()),
+          _SummaryMetric(label: 'Pending', value: stats.pending.toString()),
+          _SummaryMetric(label: 'Processed', value: stats.processed.toString()),
+        ],
       ),
     );
   }
@@ -951,9 +946,9 @@ class _ChartLegend extends StatelessWidget {
   Widget build(BuildContext context) {
     final entries = [
       _LegendEntry(colorScheme.primary, tr('pending')),
-      _LegendEntry(Colors.green, tr('approved')),
+      _LegendEntry(colorScheme.tertiary, tr('approved')),
       _LegendEntry(colorScheme.error, tr('declined')),
-      _LegendEntry(Colors.orange, tr('revision')),
+      _LegendEntry(colorScheme.secondary, tr('revision')),
       _LegendEntry(colorScheme.secondary, tr('produced')),
     ];
     return Wrap(
@@ -1019,9 +1014,9 @@ class DataColumnBuilder {
     }
 
     addStack(data.pending, scheme.primary);
-    addStack(data.approved, Colors.green);
+    addStack(data.approved, scheme.tertiary);
     addStack(data.declined, scheme.error);
-    addStack(data.revision, Colors.orange);
+    addStack(data.revision, scheme.secondary);
     addStack(data.produced, scheme.secondary);
 
     if (items.isEmpty) {

@@ -9,6 +9,7 @@ import '../../../services/logging_service.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/officer_service.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/storage_reference_utils.dart';
 import '../../screens/user/document_view_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/attachment_status_tile.dart';
@@ -429,49 +430,31 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
+  static const List<String> _registrationDocOrder = ['nib', 'ktp'];
+
   List<Widget> _buildRegistrationDocumentTiles(
     List<Map<String, dynamic>> docs,
   ) {
-    final grouped = <String, Set<String>>{};
-    final labels = <String, String>{};
+    final grouped = <String, Set<String>>{
+      for (final key in _registrationDocOrder) key: <String>{},
+    };
 
     for (final doc in docs) {
-      final raw = (doc['documentName'] ?? doc['name'] ?? doc['type'] ?? '')
-          .toString()
-          .trim();
-      final key = _normalizeDocumentKey(raw);
-      if (key.isEmpty) continue;
-
-      final url = (doc['storagePath'] ?? doc['path'] ?? doc['url'] ?? '')
-          .toString();
-      labels.putIfAbsent(key, () => _labelForDocumentKey(key, raw));
-      grouped.putIfAbsent(key, () => <String>{});
-      if (url.trim().isNotEmpty) {
-        grouped[key]!.add(url.trim());
+      final reference = _canonicalDocumentReference(doc);
+      if (reference.isEmpty) {
+        continue;
       }
+      final key = _extractRegistrationDocKey(doc, reference);
+      if (key == null) {
+        continue;
+      }
+      grouped[key]!.add(reference);
     }
 
-    for (final expected in const ['ktp', 'nib']) {
-      labels.putIfAbsent(
-        expected,
-        () => _labelForDocumentKey(expected, expected),
-      );
-      grouped.putIfAbsent(expected, () => <String>{});
-    }
-
-    final keys = labels.keys.toList()
-      ..sort((a, b) {
-        const priority = {'ktp': 0, 'nib': 1, 'siup': 2, 'npwp': 3};
-        final pa = priority[a] ?? 999;
-        final pb = priority[b] ?? 999;
-        if (pa != pb) return pa.compareTo(pb);
-        return labels[a]!.compareTo(labels[b]!);
-      });
-
-    return keys
+    return _registrationDocOrder
         .map(
           (key) => AttachmentStatusTile(
-            label: labels[key]!,
+            label: _documentLabel(key),
             fileUrls: grouped[key]!.toList(),
             onViewFile: (ctx, url) => _openDocumentUrl(url),
           ),
@@ -479,39 +462,79 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         .toList();
   }
 
-  String _normalizeDocumentKey(String raw) {
+  String _documentLabel(String key) {
+    switch (key) {
+      case 'nib':
+        return _tr('nib_label');
+      case 'ktp':
+        return _tr('ktp_label');
+      default:
+        return key.toUpperCase();
+    }
+  }
+
+  String _canonicalDocumentReference(Map<String, dynamic> doc) {
+    const preferredKeys = [
+      'storagePath',
+      'path',
+      'storage_path',
+      'reference',
+      'ref',
+      'downloadUrl',
+      'downloadURL',
+      'url',
+      'fileUrl',
+      'fileURL',
+    ];
+
+    for (final key in preferredKeys) {
+      final value = doc[key];
+      if (value is String && value.trim().isNotEmpty) {
+        final canonical = StorageReferenceUtils.canonicalize(value);
+        if (canonical.isNotEmpty) {
+          return canonical;
+        }
+      }
+    }
+
+    return '';
+  }
+
+  String? _extractRegistrationDocKey(
+    Map<String, dynamic> doc,
+    String reference,
+  ) {
+    final candidates = <String?>[
+      doc['documentType'] as String?,
+      doc['type'] as String?,
+      doc['name'] as String?,
+      doc['documentName'] as String?,
+      doc['document_name'] as String?,
+      doc['displayName'] as String?,
+      doc['originalName'] as String?,
+    ];
+
+    for (final candidate in candidates) {
+      final key = _normalizeDocumentKey(candidate);
+      if (key != null && _registrationDocOrder.contains(key)) {
+        return key;
+      }
+    }
+
+    final fromReference = _normalizeDocumentKey(reference);
+    if (fromReference != null && _registrationDocOrder.contains(fromReference)) {
+      return fromReference;
+    }
+
+    return null;
+  }
+
+  String? _normalizeDocumentKey(String? raw) {
+    if (raw == null) return null;
     final lower = raw.toLowerCase();
     if (lower.contains('ktp')) return 'ktp';
     if (lower.contains('nib')) return 'nib';
-    if (lower.contains('siup')) return 'siup';
-    if (lower.contains('npwp')) return 'npwp';
-    return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
-  }
-
-  String _labelForDocumentKey(String key, String fallback) {
-    switch (key) {
-      case 'ktp':
-        return 'KTP';
-      case 'nib':
-        return 'NIB';
-      case 'siup':
-        return 'SIUP';
-      case 'npwp':
-        return 'NPWP';
-      default:
-        if (fallback.trim().isEmpty) {
-          return _tr('registration_docs');
-        }
-        final words = fallback
-            .replaceAll('_', ' ')
-            .split(RegExp(r'\s+'))
-            .where((word) => word.isNotEmpty)
-            .map(
-              (word) =>
-                  '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
-            );
-        return words.join(' ');
-    }
+    return null;
   }
 
   Future<void> _openDocumentUrl(String url) async {

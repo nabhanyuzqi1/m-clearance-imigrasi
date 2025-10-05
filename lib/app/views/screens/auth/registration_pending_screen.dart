@@ -12,7 +12,8 @@ class RegistrationPendingScreen extends StatefulWidget {
   const RegistrationPendingScreen({super.key, this.initialLanguage = 'EN'});
 
   @override
-  State<RegistrationPendingScreen> createState() => _RegistrationPendingScreenState();
+  State<RegistrationPendingScreen> createState() =>
+      _RegistrationPendingScreenState();
 }
 
 class _RegistrationPendingScreenState extends State<RegistrationPendingScreen> {
@@ -37,9 +38,10 @@ class _RegistrationPendingScreenState extends State<RegistrationPendingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.all(AppTheme.spacing24),
@@ -50,9 +52,27 @@ class _RegistrationPendingScreenState extends State<RegistrationPendingScreen> {
               const Spacer(),
               BouncingDotsLoader(),
               SizedBox(height: AppTheme.spacing48),
-              Text(_tr('title'), textAlign: TextAlign.center, style: TextStyle(fontSize: AppTheme.fontSizeH5, fontWeight: FontWeight.bold, color: AppTheme.onSurface, fontFamily: 'Poppins')),
+              Text(
+                _tr('title'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: AppTheme.fontSizeH5,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                  fontFamily: 'Poppins',
+                ),
+              ),
               SizedBox(height: AppTheme.spacing16),
-              Text(_tr('message'), textAlign: TextAlign.center, style: TextStyle(fontSize: AppTheme.fontSizeBody1, color: AppTheme.subtitleColor, height: 1.5, fontFamily: 'Poppins')),
+              Text(
+                _tr('message'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: AppTheme.fontSizeBody1,
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                  fontFamily: 'Poppins',
+                ),
+              ),
               const Spacer(),
               ElevatedButton(
                 onPressed: _signOutAndGoToLogin,

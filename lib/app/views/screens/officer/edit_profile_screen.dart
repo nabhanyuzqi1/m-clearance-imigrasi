@@ -275,7 +275,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
             content: Text(_tr('profile_updated')),
-            backgroundColor: Colors.green,
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
         Navigator.of(context).pop(true);
@@ -286,7 +286,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       LoggingService().error('Error updating profile: $e', e);
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text(_tr('error')), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(_tr('error')),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     } finally {

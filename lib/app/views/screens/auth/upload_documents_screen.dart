@@ -55,6 +55,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         LoggingService().info(
           'User signed out, navigating to login from upload documents screen',
         );
+        LoggingService().debug(
+          'Auth subscription navigation: context.mounted=$mounted, context.hashCode=${context.hashCode}',
+        );
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       }
     });
@@ -114,6 +117,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       LoggingService().info(
         'Email not verified, navigating to confirmation screen',
       );
+      LoggingService().debug(
+        '_routeForErrorMessage navigation to confirmation: context.mounted=$mounted, context.hashCode=${context.hashCode}',
+      );
       Navigator.pushReplacementNamed(
         context,
         AppRoutes.confirmation,
@@ -127,6 +133,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       LoggingService().warning(
         'No authenticated user or user data not found, navigating to login',
       );
+      LoggingService().debug(
+        '_routeForErrorMessage navigation to login (no auth): context.mounted=$mounted, context.hashCode=${context.hashCode}',
+      );
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     } else if (message.contains('Current status')) {
       // Parse the status from the message
@@ -138,6 +147,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         LoggingService().info(
           'User status pending_approval, navigating to registration pending',
         );
+        LoggingService().debug(
+          '_routeForErrorMessage navigation to registrationPending: context.mounted=$mounted, context.hashCode=${context.hashCode}',
+        );
         Navigator.pushReplacementNamed(
           context,
           AppRoutes.registrationPending,
@@ -145,17 +157,26 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         );
       } else if (status == 'approved') {
         LoggingService().info('User status approved, navigating to user home');
+        LoggingService().debug(
+          '_routeForErrorMessage navigation to userHome: context.mounted=$mounted, context.hashCode=${context.hashCode}',
+        );
         Navigator.pushReplacementNamed(context, AppRoutes.userHome);
       } else {
         // For other statuses like pending_documents or unknown, navigate to login or handle gracefully
         LoggingService().warning(
           'Unknown user status: $status, navigating to login',
         );
+        LoggingService().debug(
+          '_routeForErrorMessage navigation to login (unknown status): context.mounted=$mounted, context.hashCode=${context.hashCode}',
+        );
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       }
     } else {
       // Handle unexpected errors gracefully
       LoggingService().error('Unexpected error during routing: $message');
+      LoggingService().debug(
+        '_routeForErrorMessage navigation to login (unexpected): context.mounted=$mounted, context.hashCode=${context.hashCode}',
+      );
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     }
   }
@@ -173,8 +194,8 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       final payload = sourceType == 'camera'
           ? await _captureImage(fallbackName: 'nib.jpg')
           : await _pickFromFiles(
-              allowedExtensions: const ['pdf'],
-              fallbackName: 'nib.pdf',
+              allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
+              fallbackName: 'nib.jpg',
             );
 
       if (payload == null) return;
@@ -236,14 +257,16 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                     style: TextStyle(
                       fontSize: screenWidth * 0.045,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.onSurface,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   content: Text(
                     _tr('camera_permission_message'),
                     style: TextStyle(
                       fontSize: screenWidth * 0.04,
-                      color: AppTheme.onSurface.withAlpha(179),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withAlpha(179),
                     ),
                   ),
                   actions: [
@@ -252,7 +275,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                       child: Text(
                         _tr('cancel'),
                         style: TextStyle(
-                          color: AppTheme.primaryColor,
+                          color: Theme.of(context).colorScheme.primary,
                           fontSize: screenWidth * 0.04,
                         ),
                       ),
@@ -265,7 +288,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                       child: Text(
                         _tr('open_settings'),
                         style: TextStyle(
-                          color: AppTheme.primaryColor,
+                          color: Theme.of(context).colorScheme.primary,
                           fontSize: screenWidth * 0.04,
                           fontWeight: FontWeight.w600,
                         ),
@@ -303,14 +326,16 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                     style: TextStyle(
                       fontSize: screenWidth * 0.045,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.onSurface,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   content: Text(
                     _tr('storage_permission_message'),
                     style: TextStyle(
                       fontSize: screenWidth * 0.04,
-                      color: AppTheme.onSurface.withAlpha(179),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withAlpha(179),
                     ),
                   ),
                   actions: [
@@ -319,7 +344,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                       child: Text(
                         _tr('cancel'),
                         style: TextStyle(
-                          color: AppTheme.primaryColor,
+                          color: Theme.of(context).colorScheme.primary,
                           fontSize: screenWidth * 0.04,
                         ),
                       ),
@@ -332,7 +357,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                       child: Text(
                         _tr('open_settings'),
                         style: TextStyle(
-                          color: AppTheme.primaryColor,
+                          color: Theme.of(context).colorScheme.primary,
                           fontSize: screenWidth * 0.04,
                           fontWeight: FontWeight.w600,
                         ),
@@ -354,30 +379,86 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   Future<_DocumentPayload?> _captureImage({
     required String fallbackName,
   }) async {
+    LoggingService().debug('Starting camera capture for $fallbackName');
     final hasPermission = await _requestPermissions(ImageSource.camera);
-    if (!hasPermission) return null;
+    LoggingService().debug('Camera permission result: $hasPermission');
+    if (!hasPermission) {
+      LoggingService().warning(
+        'Camera permission denied, cannot capture image',
+      );
+      return null;
+    }
 
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.camera,
-    );
-    if (pickedFile == null) return null;
+    try {
+      LoggingService().debug('Calling ImagePicker.pickImage');
+      final XFile? pickedFile = await _picker
+          .pickImage(
+            source: ImageSource.camera,
+            imageQuality: 85, // Reduce quality to prevent memory issues
+            maxWidth: 1920, // Limit dimensions
+            maxHeight: 1080,
+          )
+          .catchError((error) {
+            LoggingService().error('ImagePicker.pickImage failed: $error');
+            throw Exception('Camera capture failed: $error');
+          });
 
-    final bytes = await pickedFile.readAsBytes();
-    final extension = _extensionFromName(pickedFile.name).isNotEmpty
-        ? _extensionFromName(pickedFile.name)
-        : _extensionFromName(fallbackName);
+      LoggingService().debug('ImagePicker result: ${pickedFile?.name}');
+      if (pickedFile == null) {
+        LoggingService().debug('User cancelled camera capture');
+        return null;
+      }
 
-    final processedBytes = await minifyImageData(
-      bytes,
-      fileExtension: extension,
-    );
+      LoggingService().debug('Reading file bytes');
+      final bytes = await pickedFile.readAsBytes().catchError((error) {
+        LoggingService().error('Failed to read file bytes: $error');
+        throw Exception('Failed to read captured image: $error');
+      });
 
-    final normalizedName = _ensureExtension(
-      pickedFile.name.isNotEmpty ? pickedFile.name : fallbackName,
-      extension.isNotEmpty ? extension : 'jpg',
-    );
+      LoggingService().debug('File bytes length: ${bytes.length}');
+      if (bytes.isEmpty) {
+        LoggingService().error('Captured image has no data');
+        throw Exception('Captured image is empty');
+      }
 
-    return _DocumentPayload(bytes: processedBytes, name: normalizedName);
+      final extension = _extensionFromName(pickedFile.name).isNotEmpty
+          ? _extensionFromName(pickedFile.name)
+          : _extensionFromName(fallbackName);
+      LoggingService().debug('Extension determined: $extension');
+
+      LoggingService().debug('Minifying image data');
+      final processedBytes =
+          await minifyImageData(bytes, fileExtension: extension).catchError((
+            error,
+          ) {
+            LoggingService().error('Image minification failed: $error');
+            // Return original bytes if minification fails
+            return bytes;
+          });
+
+      LoggingService().debug(
+        'Image processed, final size: ${processedBytes.length}',
+      );
+
+      final normalizedName = _ensureExtension(
+        pickedFile.name.isNotEmpty ? pickedFile.name : fallbackName,
+        extension.isNotEmpty ? extension : 'jpg',
+      );
+      LoggingService().debug('Normalized name: $normalizedName');
+
+      return _DocumentPayload(bytes: processedBytes, name: normalizedName);
+    } catch (e, stackTrace) {
+      LoggingService().error('Error in _captureImage: $e', e, stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_tr('camera_error')),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+      return null;
+    }
   }
 
   Future<_DocumentPayload?> _pickFromFiles({
@@ -420,7 +501,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('$documentLabel ${_tr('upload_success')}'),
-        backgroundColor: AppTheme.successColor,
+        backgroundColor: Theme.of(context).colorScheme.primary,
       ),
     );
   }
@@ -510,6 +591,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) {
+        LoggingService().debug(
+          '_finishRegistration navigation to login (no user): context.mounted=$mounted, context.hashCode=${context.hashCode}',
+        );
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       }
       setState(() {
@@ -518,33 +602,33 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       return;
     }
 
-    final List<String> uploadedPaths = [];
+    final uploads = <UploadedDocumentDescriptor>[];
     try {
       // Upload NIB
-      final nibUrl = await _authService.uploadDocument(
+      final nibUpload = await _authService.uploadDocument(
         user.uid,
         _nibFile!,
         _nibFileName ?? 'nib.pdf',
         docType: 'nib',
       );
-      if (nibUrl != null && nibUrl.isNotEmpty) {
-        uploadedPaths.add(nibUrl);
+      if (nibUpload != null) {
+        uploads.add(nibUpload);
       }
 
       // Upload KTP
-      final ktpUrl = await _authService.uploadDocument(
+      final ktpUpload = await _authService.uploadDocument(
         user.uid,
         _ktpFile!,
         // Ensure a default extension when missing to avoid odd content-type behaviors
         _ktpFileName ?? 'ktp.jpg',
         docType: 'ktp',
       );
-      if (ktpUrl != null && ktpUrl.isNotEmpty) {
-        uploadedPaths.add(ktpUrl);
+      if (ktpUpload != null) {
+        uploads.add(ktpUpload);
       }
 
-      if (uploadedPaths.isNotEmpty) {
-        if (uploadedPaths.length < 2) {
+      if (uploads.isNotEmpty) {
+        if (uploads.length < 2) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -558,13 +642,14 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
           _isMarking = true;
         });
         // Mark completion and move to pending_approval (idempotent)
-        final _ = await _authService.markDocumentsUploaded(
-          storagePathsOrRefs: uploadedPaths,
-        );
+        await _authService.markDocumentsUploaded(documents: uploads);
 
         if (!mounted) {
           return;
         }
+        LoggingService().debug(
+          '_finishRegistration navigation to registrationPending: context.mounted=$mounted, context.hashCode=${context.hashCode}',
+        );
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) {
             return;
@@ -607,6 +692,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    LoggingService().debug(
+      'UploadDocumentsScreen build: context.hashCode=${context.hashCode}, widget.hashCode=$hashCode, mounted=$mounted',
+    );
     final busy = _isUploading || _isMarking;
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding =
@@ -616,11 +704,13 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_tr('title')),
-        backgroundColor: AppTheme.surfaceColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
-        iconTheme: IconThemeData(color: AppTheme.onSurface),
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
       ),
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
@@ -639,7 +729,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                       fontSize: AppTheme.fontSizeH4,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Poppins',
-                      color: AppTheme.onSurface,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   SizedBox(height: AppTheme.spacing8),
@@ -647,7 +737,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                     _tr('complete_req'),
                     style: TextStyle(
                       fontSize: AppTheme.fontSizeBody1,
-                      color: AppTheme.subtitleColor,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontFamily: 'Poppins',
                     ),
                   ),
@@ -711,9 +801,11 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     return Container(
       padding: EdgeInsets.all(horizontalPadding),
       decoration: BoxDecoration(
-        color: AppTheme.greyShade50,
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
-        border: Border.all(color: AppTheme.greyShade200),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -722,18 +814,18 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
             height: cardHeight,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: AppTheme.greyShade200,
+              color: Theme.of(context).colorScheme.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
             ),
             child: isUploaded
                 ? Icon(
                     Icons.check_circle,
-                    color: AppTheme.successColor,
+                    color: Theme.of(context).colorScheme.primary,
                     size: screenWidth > 600 ? 50 : 40,
                   )
                 : Icon(
                     Icons.image_outlined,
-                    color: AppTheme.greyShade600,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     size: screenWidth > 600 ? 50 : 40,
                   ),
           ),
@@ -744,7 +836,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
               fontSize: AppTheme.fontSizeH6,
               fontWeight: FontWeight.bold,
               fontFamily: 'Poppins',
-              color: AppTheme.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           SizedBox(height: AppTheme.spacing4),
@@ -752,7 +844,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
             subtitle,
             style: TextStyle(
               fontSize: AppTheme.fontSizeBody2,
-              color: AppTheme.subtitleColor,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontFamily: 'Poppins',
             ),
           ),
@@ -762,7 +854,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
               children: [
                 Icon(
                   Icons.check_circle,
-                  color: AppTheme.successColor,
+                  color: Theme.of(context).colorScheme.primary,
                   size: 18,
                 ),
                 SizedBox(width: AppTheme.spacing8),
@@ -770,7 +862,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                   child: Text(
                     fileName,
                     style: TextStyle(
-                      color: AppTheme.successColor,
+                      color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Poppins',
                     ),
