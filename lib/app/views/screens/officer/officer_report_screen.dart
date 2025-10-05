@@ -1,5 +1,6 @@
 // lib/app/views/screens/officer/officer_report_screen.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -59,9 +60,21 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         start: _selectedRange.start,
         end: _selectedRange.end,
       );
+      Map<String, dynamic> statsMap = raw;
+
+      if (statsMap.isEmpty || statsMap['arrival'] == null) {
+        LoggingService().warning(
+          'getOfficerStats returned empty payload, attempting Firestore fallback',
+        );
+        statsMap = await _buildFallbackStats(_selectedRange);
+      }
+
+      if (statsMap.isEmpty) {
+        throw StateError('Officer stats unavailable for selected range');
+      }
       if (!mounted) return;
       setState(() {
-        _stats = OfficerStats.fromMap(raw);
+        _stats = OfficerStats.fromMap(statsMap);
         _isLoadingStats = false;
       });
     } catch (error, stackTrace) {
@@ -77,6 +90,223 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
+    }
+  }
+
+  Future<Map<String, dynamic>> _buildFallbackStats(DateTimeRange range) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final applications = firestore.collection('applications');
+      final users = firestore.collection('users');
+
+      Future<int> countQuery(
+        Query<Map<String, dynamic>> query,
+        String label,
+      ) async {
+        try {
+          final aggregate = await query.count().get();
+          return aggregate.count ?? 0;
+        } catch (e, stackTrace) {
+          LoggingService().warning(
+            'Aggregate count failed for $label, falling back to snapshot length',
+            e,
+            stackTrace,
+          );
+          try {
+            final snapshot = await query.get();
+            return snapshot.size;
+          } catch (secondaryError, secondaryStack) {
+            LoggingService().error(
+              'Snapshot count fallback also failed for $label',
+              secondaryError,
+              secondaryStack,
+            );
+            return 0;
+          }
+        }
+      }
+
+      DateTime stripToStart(DateTime value) =>
+          DateTime(value.year, value.month, value.day);
+
+      DateTime toRangeEnd(DateTime value) =>
+          DateTime(value.year, value.month, value.day, 23, 59, 59, 999);
+
+      final start = stripToStart(range.start);
+      final end = toRangeEnd(range.end);
+      final startTs = Timestamp.fromDate(start);
+      final endTs = Timestamp.fromDate(end);
+
+      Query<Map<String, dynamic>> applicationQuery({
+        required String type,
+        String? status,
+        String? producedField,
+      }) {
+        Query<Map<String, dynamic>> query =
+            applications.where('type', isEqualTo: type);
+
+        if (status != null) {
+          query = query.where('status', isEqualTo: status);
+        }
+
+        if (producedField != null) {
+          query = query
+              .where(producedField, isGreaterThanOrEqualTo: startTs)
+              .where(producedField, isLessThanOrEqualTo: endTs);
+        } else {
+          query = query
+              .where('createdAt', isGreaterThanOrEqualTo: startTs)
+              .where('createdAt', isLessThanOrEqualTo: endTs);
+        }
+
+        if (status != null && producedField == null) {
+          query = query
+              .where('updatedAt', isGreaterThanOrEqualTo: startTs)
+              .where('updatedAt', isLessThanOrEqualTo: endTs);
+        }
+
+        return query;
+      }
+
+      Query<Map<String, dynamic>> accountQuery({
+        String? status,
+        bool useCreatedAt = true,
+      }) {
+        Query<Map<String, dynamic>> query = users;
+        if (status != null) {
+          query = query.where('status', isEqualTo: status);
+        }
+
+        final field = useCreatedAt ? 'createdAt' : 'updatedAt';
+        query = query
+            .where(field, isGreaterThanOrEqualTo: startTs)
+            .where(field, isLessThanOrEqualTo: endTs);
+
+        return query;
+      }
+
+      // Arrival domain counts
+      final arrivalTotal = await countQuery(
+        applicationQuery(type: 'arrival'),
+        'arrival_total',
+      );
+      final arrivalPending = await countQuery(
+        applicationQuery(type: 'arrival', status: 'waiting'),
+        'arrival_pending',
+      );
+      final arrivalApproved = await countQuery(
+        applicationQuery(type: 'arrival', status: 'approved'),
+        'arrival_approved',
+      );
+      final arrivalDeclined = await countQuery(
+        applicationQuery(type: 'arrival', status: 'declined'),
+        'arrival_declined',
+      );
+      final arrivalRevision = await countQuery(
+        applicationQuery(type: 'arrival', status: 'revision'),
+        'arrival_revision',
+      );
+      final arrivalProduced = await countQuery(
+        applicationQuery(
+          type: 'arrival',
+          producedField: 'clearanceResultGeneratedAt',
+        ),
+        'arrival_produced',
+      );
+
+      // Departure domain counts
+      final departureTotal = await countQuery(
+        applicationQuery(type: 'departure'),
+        'departure_total',
+      );
+      final departurePending = await countQuery(
+        applicationQuery(type: 'departure', status: 'waiting'),
+        'departure_pending',
+      );
+      final departureApproved = await countQuery(
+        applicationQuery(type: 'departure', status: 'approved'),
+        'departure_approved',
+      );
+      final departureDeclined = await countQuery(
+        applicationQuery(type: 'departure', status: 'declined'),
+        'departure_declined',
+      );
+      final departureRevision = await countQuery(
+        applicationQuery(type: 'departure', status: 'revision'),
+        'departure_revision',
+      );
+      final departureProduced = await countQuery(
+        applicationQuery(
+          type: 'departure',
+          producedField: 'clearanceResultGeneratedAt',
+        ),
+        'departure_produced',
+      );
+
+      // Accounts counts
+      final accountsTotal = await countQuery(
+        accountQuery(),
+        'accounts_total',
+      );
+      final accountsPending = await countQuery(
+        accountQuery(status: 'pending_approval'),
+        'accounts_pending',
+      );
+      final accountsApproved = await countQuery(
+        accountQuery(status: 'approved', useCreatedAt: false),
+        'accounts_approved',
+      );
+      final accountsRejected = await countQuery(
+        accountQuery(status: 'rejected', useCreatedAt: false),
+        'accounts_rejected',
+      );
+
+      final arrivalProcessed = arrivalApproved + arrivalDeclined;
+      final departureProcessed = departureApproved + departureDeclined;
+      final accountsProcessed = accountsApproved + accountsRejected;
+
+      return {
+        'range': {
+          'start': start.toIso8601String(),
+          'end': end.toIso8601String(),
+        },
+        'arrival': {
+          'total': arrivalTotal,
+          'pending': arrivalPending,
+          'approved': arrivalApproved,
+          'declined': arrivalDeclined,
+          'revision': arrivalRevision,
+          'produced': arrivalProduced,
+          'processed': arrivalProcessed,
+        },
+        'departure': {
+          'total': departureTotal,
+          'pending': departurePending,
+          'approved': departureApproved,
+          'declined': departureDeclined,
+          'revision': departureRevision,
+          'produced': departureProduced,
+          'processed': departureProcessed,
+        },
+        'accounts': {
+          'total': accountsTotal,
+          'pending': accountsPending,
+          'approved': accountsApproved,
+          'rejected': accountsRejected,
+          'processed': accountsProcessed,
+        },
+        'totals': {
+          'pending': arrivalPending + departurePending + accountsPending,
+          'approved': arrivalApproved + departureApproved + accountsApproved,
+          'rejected': arrivalDeclined + departureDeclined + accountsRejected,
+          'revision': arrivalRevision + departureRevision,
+          'produced': arrivalProduced + departureProduced,
+          'applications': arrivalTotal + departureTotal,
+        },
+      };
+    } catch (error, stackTrace) {
+      LoggingService().error('Fallback officer stats computation failed', error, stackTrace);
+      return {};
     }
   }
 

@@ -18,10 +18,10 @@ class FunctionsService {
       'Attempting to call getOfficerDashboardStats function',
     );
     try {
-      final callable = _functions.httpsCallable('getOfficerMonthlyStats');
-      LoggingService().info('Callable created for getOfficerMonthlyStats');
+      final callable = _functions.httpsCallable('getOfficerDashboardStats');
+      LoggingService().info('Callable created for getOfficerDashboardStats');
       final result = await callable();
-      LoggingService().info('getOfficerMonthlyStats call successful');
+      LoggingService().info('getOfficerDashboardStats call successful');
       final data = Map<String, dynamic>.from(result.data ?? {});
       return data;
     } catch (e) {
@@ -35,7 +35,7 @@ class FunctionsService {
     required DateTime end,
   }) async {
     try {
-      final callable = _functions.httpsCallable('getOfficerDashboardStats');
+      final callable = _functions.httpsCallable('getOfficerMonthlyStats');
       final result = await callable(<String, dynamic>{
         'startDate': start.toUtc().toIso8601String(),
         'endDate': end.toUtc().toIso8601String(),
