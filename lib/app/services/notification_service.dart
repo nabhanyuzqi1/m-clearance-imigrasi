@@ -1,13 +1,66 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/services.dart';
 import '../models/notification_item.dart';
+import '../models/notification_preferences.dart';
 import '../models/clearance_application.dart';
 import 'logging_service.dart';
 
 class NotificationService {
+  NotificationService._internal();
+
+  static final NotificationService _instance = NotificationService._internal();
+
+  factory NotificationService() => _instance;
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  static const MethodChannel _androidNotificationChannel =
+      MethodChannel('com.android.imigrasi/notifications');
+
+  bool _isInitialised = false;
+  NotificationPreferences? _cachedPreferences;
+
+  static const AndroidNotificationChannel _defaultAndroidChannel =
+      AndroidNotificationChannel(
+    'mclearance_updates',
+    'M-Clearance Updates',
+    description: 'Status updates and announcements from M-Clearance ISam',
+    importance: Importance.max,
+    enableLights: true,
+    enableVibration: true,
+    showBadge: true,
+  );
+
+  Future<void> ensureInitialised() async {
+    if (_isInitialised) return;
+
+    const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
+    const darwinSettings = DarwinInitializationSettings();
+    const initializationSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: darwinSettings,
+    );
+
+    await _localNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (response) {
+        LoggingService().info('Local notification tapped: ${response.payload}');
+      },
+    );
+
+    await _localNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(_defaultAndroidChannel);
+
+    _isInitialised = true;
+  }
 
   // Get user's notifications
   Stream<List<NotificationItem>> getUserNotifications() {
@@ -60,6 +113,8 @@ class NotificationService {
       }
 
       await notifRef.update({'isRead': true});
+      final unread = await _getUnreadCount();
+      await _updateAndroidBadge(unread);
       return true;
     } catch (e) {
       LoggingService().error('Error marking notification as read', e);
@@ -86,6 +141,8 @@ class NotificationService {
       }
 
       await batch.commit();
+      final unread = await _getUnreadCount();
+      await _updateAndroidBadge(unread);
       return true;
     } catch (e) {
       LoggingService().error('Error marking all notifications as read', e);
@@ -104,7 +161,8 @@ class NotificationService {
           .doc(user.uid)
           .collection('items')
           .add(notification.toFirestore());
-
+      final unread = await _getUnreadCount();
+      await _updateAndroidBadge(unread);
       return docRef.id;
     } catch (e) {
       LoggingService().error('Error creating notification', e);
@@ -127,6 +185,8 @@ class NotificationService {
       final snap = await notifRef.get();
       if (!snap.exists) return false;
       await notifRef.delete();
+      final unread = await _getUnreadCount();
+      await _updateAndroidBadge(unread);
       return true;
     } catch (e) {
       LoggingService().error('Error deleting notification', e);
@@ -169,6 +229,8 @@ class NotificationService {
           return null;
       }
 
+      final preferences = await getPreferences();
+
       final notification = NotificationItem(
         id: '',
         title: title,
@@ -179,14 +241,12 @@ class NotificationService {
       );
 
       final id = await createNotification(notification);
+      if (id == null) {
+        return null;
+      }
 
-      // Send push notification if permissions are granted
-      if (id != null) {
-        final permissionStatus = await checkPermissionStatus();
-        if (permissionStatus?.authorizationStatus ==
-            AuthorizationStatus.authorized) {
-          await sendPushNotification(title, body, user.uid);
-        }
+      if (preferences.pushEnabled && !preferences.muteAll) {
+        await _showLocalNotification(title, body, user.uid, preferences: preferences);
       }
 
       return id;
@@ -243,6 +303,195 @@ class NotificationService {
     }
   }
 
+  Future<void> deleteFcmToken() async {
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+      LoggingService().info('FCM token deleted');
+    } catch (e) {
+      LoggingService().error('Error deleting FCM token', e);
+    }
+  }
+
+  Future<NotificationPreferences> getPreferences() async {
+    if (_cachedPreferences != null) {
+      return _cachedPreferences!;
+    }
+
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const NotificationPreferences(
+        pushEnabled: true,
+        muteAll: false,
+        playSound: true,
+        badgeEnabled: true,
+      );
+    }
+
+    try {
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      final data = doc.data();
+      final preferencesMap =
+          data != null && data.containsKey('notificationPreferences')
+              ? (data['notificationPreferences'] as Map<String, dynamic>?)
+              : null;
+      final preferences = NotificationPreferences.fromMap(preferencesMap);
+      _cachedPreferences = preferences;
+      return preferences;
+    } catch (e, stackTrace) {
+      LoggingService().error('Failed fetching notification preferences', e, stackTrace);
+      return const NotificationPreferences(
+        pushEnabled: true,
+        muteAll: false,
+        playSound: true,
+        badgeEnabled: true,
+      );
+    }
+  }
+
+  Future<void> updatePreferences(NotificationPreferences preferences) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      await _firestore.collection('users').doc(user.uid).set(
+        {
+          'notificationPreferences': preferences
+              .copyWith(updatedAt: DateTime.now())
+              .toMap(),
+        },
+        SetOptions(merge: true),
+      );
+      _cachedPreferences = preferences;
+
+      if (!preferences.pushEnabled) {
+        await deleteFcmToken();
+      } else {
+        await getFCMToken();
+      }
+
+      if (!preferences.badgeEnabled) {
+        await _updateAndroidBadge(0);
+      }
+    } catch (e, stackTrace) {
+      LoggingService().error('Failed updating notification preferences', e, stackTrace);
+    }
+  }
+
+  Future<void> handleForegroundMessage(RemoteMessage message) async {
+    final notification = message.notification;
+    if (notification == null) {
+      return;
+    }
+
+    await ensureInitialised();
+    final prefs = await getPreferences();
+    if (!prefs.pushEnabled || prefs.muteAll) {
+      return;
+    }
+
+    await _showLocalNotification(
+      notification.title ?? 'Notification',
+      notification.body ?? '',
+      message.data['payload'] as String?,
+      preferences: prefs,
+    );
+  }
+
+  Future<void> _showLocalNotification(
+    String title,
+    String body,
+    String? payload, {
+    NotificationPreferences? preferences,
+  }) async {
+    await ensureInitialised();
+    final prefs = preferences ?? await getPreferences();
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      final unreadCount = prefs.badgeEnabled ? await _getUnreadCount() + 1 : 0;
+      try {
+        await _androidNotificationChannel.invokeMethod('showBubble', {
+          'title': title,
+          'body': body,
+          'badge': prefs.badgeEnabled ? unreadCount : 0,
+          'muted': prefs.muteAll,
+        });
+      } catch (e, stackTrace) {
+        LoggingService().warning('Falling back to standard notification', e, stackTrace);
+        await _showStandardLocalNotification(title, body, payload, prefs);
+      }
+      return;
+    }
+
+    await _showStandardLocalNotification(title, body, payload, prefs);
+  }
+
+  Future<void> _showStandardLocalNotification(
+    String title,
+    String body,
+    String? payload,
+    NotificationPreferences prefs,
+  ) async {
+    final androidDetails = AndroidNotificationDetails(
+      _defaultAndroidChannel.id,
+      _defaultAndroidChannel.name,
+      channelDescription: _defaultAndroidChannel.description,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: prefs.playSound && !prefs.muteAll,
+      enableVibration: !prefs.muteAll,
+      channelShowBadge: prefs.badgeEnabled,
+      icon: '@mipmap/launcher_icon',
+      ticker: title,
+    );
+
+    const darwinDetails = DarwinNotificationDetails();
+
+    final notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: darwinDetails,
+    );
+
+    await _localNotificationsPlugin.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
+      notificationDetails,
+      payload: payload,
+    );
+  }
+
+  Future<int> _getUnreadCount() async {
+    final user = _auth.currentUser;
+    if (user == null) return 0;
+    try {
+      final snapshot = await _firestore
+          .collection('notifications')
+          .doc(user.uid)
+          .collection('items')
+          .where('isRead', isEqualTo: false)
+          .count()
+          .get();
+      final countValue = snapshot.count;
+      return countValue is int ? countValue : 0;
+    } catch (e, stackTrace) {
+      LoggingService().warning('Failed to compute unread count', e, stackTrace);
+      return 0;
+    }
+  }
+
+  Future<void> _updateAndroidBadge(int count) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
+    try {
+      await _androidNotificationChannel.invokeMethod(
+        'updateBadge',
+        {'badge': count},
+      );
+    } catch (e, stackTrace) {
+      LoggingService().warning('Failed to update Android badge count', e, stackTrace);
+    }
+  }
+
   // Send push notification alongside in-app notification
   Future<bool> sendPushNotification(
     String title,
@@ -250,10 +499,11 @@ class NotificationService {
     String userId,
   ) async {
     try {
-      // For now, this is a placeholder. In a real implementation,
-      // you would send the notification via your backend server
-      // which would use FCM to send the push notification.
-      // Here we just create the in-app notification.
+      await ensureInitialised();
+      final prefs = await getPreferences();
+      if (!prefs.pushEnabled || prefs.muteAll) {
+        return false;
+      }
 
       final notification = NotificationItem(
         id: '',
@@ -265,10 +515,21 @@ class NotificationService {
       );
 
       final id = await createNotification(notification);
-      return id != null;
+
+      if (id == null) {
+        return false;
+      }
+
+      await _showLocalNotification(title, body, userId, preferences: prefs);
+
+      return true;
     } catch (e) {
       LoggingService().error('Error sending push notification', e);
       return false;
     }
+  }
+
+  Future<void> handleOpenedNotification(RemoteMessage message) async {
+    LoggingService().info('Notification opened with payload: ${message.data}');
   }
 }

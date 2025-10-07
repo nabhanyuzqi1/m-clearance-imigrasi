@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../services/auth_service.dart';
@@ -89,7 +89,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
           );
         }
-      } on FirebaseAuthException catch (e) {
+      } on FirebaseFunctionsException catch (e) {
         LoggingService().error(
           'Failed to send password reset email: ${e.message}',
           e,
@@ -98,6 +98,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(e.message ?? _tr('error_occurred')),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      } catch (e) {
+        LoggingService().error(
+          'Unexpected error requesting password reset',
+          e,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_tr('error_occurred')),
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );

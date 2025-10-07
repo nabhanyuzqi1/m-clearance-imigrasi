@@ -286,15 +286,178 @@ class EmailConfigService {
     if (this.config && now - this.lastFetched < this.cacheDuration) {
       return this.config;
     }
+    try {
+      const snapshot = await admin.database().ref('emailConfig').get();
+      if (snapshot.exists()) {
+        this.config = snapshot.val();
+        this.lastFetched = now;
+        return this.config;
+      }
+      console.log('[EmailConfigService] RTDB config not found, using fallback');
+    } catch (error) {
+      console.error('[EmailConfigService] Failed to fetch RTDB config:', error);
+    }
 
-    // Use fallback config from environment variables
-    console.log("[EmailConfigService] Using fallback config from environment");
     this.config = this.getFallbackConfig();
     this.lastFetched = now;
     return this.config;
   }
 
   getFallbackConfig() {
+    const verificationHtmlEn = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Email Verification</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f7fb;font-family:'Segoe UI',Arial,sans-serif;color:#1f2933;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+    <tr>
+      <td align="center" style="padding:24px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:600px;background-color:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 18px 45px rgba(102,126,234,0.18);">
+          <tr>
+            <td align="center" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:40px 24px;">
+              <h1 style="margin:0;font-size:28px;letter-spacing:0.5px;color:#ffffff;text-transform:uppercase;">{accountName}</h1>
+              <p style="margin:12px 0 0 0;font-size:16px;color:rgba(255,255,255,0.78);">Email Verification</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px 32px 48px 32px;background-color:#ffffff;">
+              <h2 style="margin-top:0;margin-bottom:16px;font-size:22px;color:#1f2933;">Verify Your Email Address</h2>
+              <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#4b5563;">Hello <strong>{name}</strong>,</p>
+              <p style="margin:0 0 24px 0;font-size:16px;line-height:1.6;color:#4b5563;">Thank you for registering with {accountName}. Please enter the verification code below to complete your registration.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:24px 0;">
+                <tr>
+                  <td align="center" style="background:#f5f7ff;border:2px dashed #667eea;padding:24px 16px;border-radius:12px;">
+                    <p style="margin:0;font-size:14px;font-weight:600;letter-spacing:0.35em;color:#667eea;text-transform:uppercase;">Your Verification Code</p>
+                    <p style="margin:12px 0 0 0;font-size:42px;font-weight:700;letter-spacing:0.2em;color:#4c51bf;">{code}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#4b5563;">This code will expire in <strong>10 minutes</strong>. Please keep it confidential to protect your account.</p>
+              <p style="margin:0 0 32px 0;font-size:16px;line-height:1.6;color:#4b5563;">If you didn’t request this verification, you can safely ignore this message.</p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 24px 0;" />
+              <p style="margin:0;font-size:14px;line-height:1.6;color:#6b7280;text-align:center;">Best regards,<br /><strong>{accountName} Team</strong><br /><a href="mailto:{supportEmail}" style="color:#667eea;text-decoration:none;font-weight:600;">{supportEmail}</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    const verificationHtmlId = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verifikasi Email</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f7fb;font-family:'Segoe UI',Arial,sans-serif;color:#1f2933;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+    <tr>
+      <td align="center" style="padding:24px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:600px;background-color:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 18px 45px rgba(102,126,234,0.18);">
+          <tr>
+            <td align="center" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:40px 24px;">
+              <h1 style="margin:0;font-size:28px;letter-spacing:0.5px;color:#ffffff;text-transform:uppercase;">{accountName}</h1>
+              <p style="margin:12px 0 0 0;font-size:16px;color:rgba(255,255,255,0.78);">Verifikasi Email</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px 32px 48px 32px;background-color:#ffffff;">
+              <h2 style="margin-top:0;margin-bottom:16px;font-size:22px;color:#1f2933;">Mohon Verifikasi Alamat Email Anda</h2>
+              <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#4b5563;">Halo <strong>{name}</strong>,</p>
+              <p style="margin:0 0 24px 0;font-size:16px;line-height:1.6;color:#4b5563;">Terima kasih telah mendaftar di {accountName}. Silakan gunakan kode verifikasi berikut untuk melengkapi proses pendaftaran Anda.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:24px 0;">
+                <tr>
+                  <td align="center" style="background:#f5f7ff;border:2px dashed #667eea;padding:24px 16px;border-radius:12px;">
+                    <p style="margin:0;font-size:14px;font-weight:600;letter-spacing:0.35em;color:#667eea;text-transform:uppercase;">Kode Verifikasi Anda</p>
+                    <p style="margin:12px 0 0 0;font-size:42px;font-weight:700;letter-spacing:0.2em;color:#4c51bf;">{code}</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#4b5563;">Kode ini akan kedaluwarsa dalam <strong>10 menit</strong>. Mohon jaga kerahasiaannya demi keamanan akun Anda.</p>
+              <p style="margin:0 0 32px 0;font-size:16px;line-height:1.6;color:#4b5563;">Jika Anda tidak merasa meminta verifikasi ini, silakan abaikan email ini.</p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 24px 0;" />
+              <p style="margin:0;font-size:14px;line-height:1.6;color:#6b7280;text-align:center;">Salam hangat,<br /><strong>Tim {accountName}</strong><br /><a href="mailto:{supportEmail}" style="color:#667eea;text-decoration:none;font-weight:600;">{supportEmail}</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    const verificationTextEn = `Hello {name},\n\nYour verification code for {accountName} is {code}.\nThe code will expire in 10 minutes.\nIf you didn't request this verification, please ignore this email.\n\nBest regards,\n{accountName} Team\n{supportEmail}`;
+
+    const verificationTextId = `Halo {name},\n\nKode verifikasi Anda untuk {accountName} adalah {code}.\nKode ini akan kedaluwarsa dalam 10 menit.\nJika Anda tidak meminta verifikasi ini, silakan abaikan email ini.\n\nSalam hangat,\nTim {accountName}\n{supportEmail}`;
+
+    const clearanceStatusHtml = `<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>{statusHeadline}</title>
+  <style>
+    body { margin: 0; padding: 0; background-color: #f5f7fb; font-family: 'Segoe UI', Arial, sans-serif; color: #1f2933; }
+    .wrapper { width: 100%; padding: 24px 0; }
+    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 18px 45px rgba(102, 126, 234, 0.18); }
+    .hero { background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); text-align: center; padding: 36px 24px; }
+    .hero h1 { margin: 0; font-size: 24px; letter-spacing: 0.4px; color: #ffffff; text-transform: uppercase; }
+    .content { padding: 36px 32px 44px 32px; }
+    .meta { font-size: 14px; color: #475569; margin-bottom: 24px; }
+    .meta strong { color: #1f2937; }
+    .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; background: #f8fafc; }
+    .card h3 { margin: 0 0 12px 0; font-size: 16px; color: #0f172a; }
+    .card p { margin: 0; font-size: 15px; color: #334155; line-height: 1.6; }
+    .notes { border-left: 4px solid #f59e0b; background: #fff7ed; padding: 18px 20px; border-radius: 10px; margin-top: 24px; color: #92400e; font-size: 15px; }
+    .footer { border-top: 1px solid #e2e8f0; margin-top: 32px; padding-top: 24px; text-align: center; font-size: 13px; color: #64748b; }
+    .footer a { color: #2563eb; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class=\"wrapper\">
+    <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\">
+      <tr>
+        <td align=\"center\">
+          <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"container\">
+            <tr>
+              <td class=\"hero\">
+                <h1>{accountName}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td class=\"content\">
+                <div class=\"meta\">
+                  <strong>Vessel:</strong> {shipName}<br />
+                  <strong>Clearance Type:</strong> {type}<br />
+                  <strong>Status:</strong> {statusLabel}
+                </div>
+                <div class=\"card\">
+                  <h3>{statusHeadline}</h3>
+                  <p>{statusSummary}</p>
+                  <p>{actionText}</p>
+                </div>
+                {notesParagraph}
+                <div class=\"footer\">
+                  <p>Best regards,<br /><strong>{accountName} Team</strong><br /><a href=\"mailto:{supportEmail}\">{supportEmail}</a></p>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>`;
+
+    const clearanceStatusText = `Hello {name},\n\nVessel: {shipName}\nClearance type: {type}\nStatus: {statusLabel}\n\n{statusSummary}\n{actionText}\n{notesText}\n\nBest regards,\n{accountName} Team\n{supportEmail}`;
+
     return {
       global: {
         apiKey: process.env.RESEND_API_KEY || "",
@@ -302,15 +465,58 @@ class EmailConfigService {
         fromName: "M-Clearance",
         accountName: "M-Clearance",
         supportEmail: "support@mclearanceisam.com",
+        superAdminEmail: "mclearanceisam@gmail.com",
         maxRetries: Number(process.env.MAX_EMAIL_RETRIES) || 3,
         cooldownSeconds: Number(process.env.MAILERSEND_COOLDOWN_SECONDS) || 60,
         maxAttempts: Number(process.env.MAILERSEND_MAX_ATTEMPTS) || 5,
+        portalUrl: process.env.PORTAL_URL || "https://mclearanceisam.com",
+        passwordResetRedirectUrl:
+          process.env.PASSWORD_RESET_REDIRECT_URL ||
+          process.env.PORTAL_URL ||
+          "https://mclearanceisam.com/reset-password",
       },
       templates: {
         verification: {
-          templateId: "",
-          subject: "Your verification code",
+          defaultLanguage: 'en',
           tags: ["email_verification"],
+          languages: {
+            en: {
+              subject: 'Verify your email address - {accountName}',
+              html: verificationHtmlEn,
+              text: verificationTextEn,
+            },
+            id: {
+              subject: 'Verifikasi alamat email Anda - {accountName}',
+              html: verificationHtmlId,
+              text: verificationTextId,
+            },
+          },
+        },
+        passwordReset: {
+          subject: 'Password reset request - {accountName}',
+          html:
+            "<p>Hello {name},</p><p>You requested to reset your password.</p><p>You can create a new password using the link below:</p><p><a href='{resetLink}'>{resetLink}</a></p><p>If you didn’t request a reset, you can safely ignore this email.</p><p>Regards,<br/>{accountName} Team</p>",
+          text:
+            "Hello {name},\n\nYou requested a password reset for {accountName}. Use the following link to set a new password:\n{resetLink}\n\nIf you didn’t request this, you can ignore this message.\n\nRegards, {accountName} Team",
+          tags: ["password_reset"],
+        },
+        approval: {
+          subject: 'Application approved - {accountName}',
+          html: clearanceStatusHtml,
+          text: clearanceStatusText,
+          tags: ["application_approval"],
+        },
+        revision: {
+          subject: 'Application requires revision - {accountName}',
+          html: clearanceStatusHtml,
+          text: clearanceStatusText,
+          tags: ["application_revision"],
+        },
+        rejection: {
+          subject: 'Application update - {accountName}',
+          html: clearanceStatusHtml,
+          text: clearanceStatusText,
+          tags: ["application_rejection"],
         },
       },
     };
@@ -336,68 +542,271 @@ class EmailConfigService {
       maxRetries: globalConfig.maxRetries || 3,
       cooldownSeconds: globalConfig.cooldownSeconds || 60,
       maxAttempts: globalConfig.maxAttempts || 5,
+      superAdminEmail:
+        globalConfig.superAdminEmail || 'mclearanceisam@gmail.com',
+      portalUrl:
+        globalConfig.portalUrl ||
+        process.env.PORTAL_URL ||
+        "https://mclearanceisam.com",
+      passwordResetRedirectUrl:
+        globalConfig.passwordResetRedirectUrl ||
+        process.env.PASSWORD_RESET_REDIRECT_URL ||
+        process.env.PORTAL_URL ||
+        "https://mclearanceisam.com/reset-password",
     };
   }
 
-  async getTemplateSettings(templateName = "verification") {
+  async getTemplateSettings(templateName = "verification", language = "en") {
     const config = await this.getConfig();
     // Handle both RTDB flat structure and fallback nested structure
     const templatesConfig = config.templates || config;
-    const templateFieldMap = {
-      verification: {
-        subject:
-          templatesConfig.verification?.subject ||
-          "Your verification code - M-Clearance",
-        html:
-          templatesConfig.verification?.html ||
-          "<p>Your verification code is: {code}</p>",
-        text:
-          templatesConfig.verification?.text ||
-          "Your verification code is: {code}",
-        tags: ["email_verification"],
-      },
-      passwordReset: {
-        subject:
-          templatesConfig.passwordReset?.subject ||
-          "Password Reset Request - M-Clearance",
-        html:
-          templatesConfig.passwordReset?.html ||
-          "<p>Reset your password: {resetLink}</p>",
-        text:
-          templatesConfig.passwordReset?.text ||
-          "Reset your password: {resetLink}",
-        tags: ["password_reset"],
-      },
-      approval: {
-        subject:
-          templatesConfig.approval?.subject ||
-          "Application Approved - M-Clearance",
-        html:
-          templatesConfig.approval?.html ||
-          "<p>Your application has been approved.</p>",
-        text:
-          templatesConfig.approval?.text ||
-          "Your application has been approved.",
-        tags: ["application_approval"],
-      },
-      rejection: {
-        subject:
-          templatesConfig.rejection?.subject ||
-          "Application Status Update - M-Clearance",
-        html:
-          templatesConfig.rejection?.html ||
-          "<p>Your application requires additional information.</p>",
-        text:
-          templatesConfig.rejection?.text ||
-          "Your application requires additional information.",
-        tags: ["application_rejection"],
-      },
+    const defaults = this.getFallbackConfig().templates || {};
+    const rawTemplate = templatesConfig[templateName] || {};
+    const defaultTemplate = defaults[templateName] || {};
+
+    const mergedLanguages = {
+      ...(defaultTemplate.languages || {}),
+      ...(rawTemplate.languages || {}),
     };
-    return templateFieldMap[templateName] || {};
+
+    const normalizedLang = (language || rawTemplate.defaultLanguage || defaultTemplate.defaultLanguage || 'en').toLowerCase();
+    const langKey = normalizedLang.split('-')[0];
+
+    const localized = mergedLanguages[normalizedLang] || mergedLanguages[langKey] || {};
+    const fallbackLang = mergedLanguages[rawTemplate.defaultLanguage]?.subject
+      ? mergedLanguages[rawTemplate.defaultLanguage]
+      : mergedLanguages[defaultTemplate.defaultLanguage] || {};
+
+    const subject = localized.subject || fallbackLang.subject || rawTemplate.subject || defaultTemplate.subject || 'Notification';
+    const html = localized.html || fallbackLang.html || rawTemplate.html || defaultTemplate.html || '<p>{code}</p>';
+    const text = localized.text || fallbackLang.text || rawTemplate.text || defaultTemplate.text || '{code}';
+    const tags = rawTemplate.tags || defaultTemplate.tags || [];
+
+    return {
+      subject,
+      html,
+      text,
+      tags,
+      language: normalizedLang,
+    };
   }
 }
 
 const emailConfig = new EmailConfigService();
+
+function normalizeEmails(value) {
+  if (!value) return null;
+  const array = Array.isArray(value) ? value : [value];
+  const cleaned = array
+    .map((item) => (item || '').toString().trim())
+    .filter((item) => item.length > 0);
+  if (cleaned.length === 0) return null;
+  return Array.from(new Set(cleaned));
+}
+
+function isValidEmail(value) {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  // Lightweight sanity guard; defers strict RFC validation to the provider.
+  return /.+@.+\..+/.test(trimmed);
+}
+
+function normalizeTags(value) {
+  if (!value) return null;
+  const source = Array.isArray(value) ? value : [value];
+  const normalized = source
+    .map((tag) => {
+      if (typeof tag === 'string') {
+        return { name: tag };
+      }
+      if (tag && typeof tag === 'object') {
+        const name = typeof tag.name === 'string' ? tag.name : undefined;
+        if (name) {
+          const entry = { name };
+          if (
+            Object.prototype.hasOwnProperty.call(tag, 'value') &&
+            typeof tag.value === 'string'
+          ) {
+            entry.value = tag.value;
+          }
+          return entry;
+        }
+      }
+      return null;
+    })
+    .filter(Boolean);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function escapeHtml(input) {
+  if (typeof input !== 'string' || input.length === 0) return input || '';
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function sanitizeTextNode(input) {
+  if (typeof input !== 'string') return '';
+  return input
+    .replace(/[<>]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function emailPreferenceAllowsApplicationUpdates(preferences) {
+  if (preferences === false) return false;
+  if (!preferences || typeof preferences !== 'object') return true;
+
+  if (preferences.applicationUpdatesEmail === false) return false;
+  if (preferences.applicationUpdates === false) return false;
+
+  const emailPref = preferences.email;
+  if (emailPref === false) return false;
+  if (emailPref && typeof emailPref === 'object') {
+    if (emailPref.enabled === false) return false;
+    if (emailPref.applicationUpdates === false) return false;
+  }
+
+  return true;
+}
+
+function applyTemplate(template, replacements = {}) {
+  const replaceAll = (input) => {
+    let output = input || '';
+    for (const [key, value] of Object.entries(replacements)) {
+      const pattern = new RegExp(`\\{${key}\\}`, 'g');
+      output = output.replace(pattern, value ?? '');
+    }
+    return output;
+  };
+
+  return {
+    subject: replaceAll(template.subject || ''),
+    html: replaceAll(template.html || ''),
+    text: replaceAll(template.text || ''),
+    tags: template.tags || [],
+  };
+}
+
+async function sendEmailFromTemplate({
+  templateName,
+  language,
+  to,
+  cc,
+  bcc,
+  replacements = {},
+  includeSuperAdmin = false,
+  globalSettings,
+  templateSettings,
+}) {
+  const resolvedGlobal =
+    globalSettings || (await emailConfig.getGlobalSettings());
+  const resolvedTemplate =
+    templateSettings ||
+    (await emailConfig.getTemplateSettings(templateName, language));
+
+  const senderAddress = (resolvedGlobal.from || '').trim();
+  if (!isValidEmail(senderAddress)) {
+    console.error(
+      '[sendEmailFromTemplate] Invalid or missing sender address:',
+      senderAddress,
+    );
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Email sender address is not configured correctly.',
+    );
+  }
+
+  const finalReplacements = {
+    accountName: resolvedGlobal.accountName,
+    supportEmail: resolvedGlobal.supportEmail || resolvedGlobal.from,
+    ...replacements,
+  };
+
+  const rendered = applyTemplate(resolvedTemplate, finalReplacements);
+
+  const toList = normalizeEmails(to);
+  if (!toList || toList.length === 0) {
+    throw new Error('No email recipients specified.');
+  }
+
+  const ccList = normalizeEmails(cc);
+  const bccList = normalizeEmails(bcc);
+  const finalBcc = new Set(bccList || []);
+
+  if (includeSuperAdmin && resolvedGlobal.superAdminEmail) {
+    if (isValidEmail(resolvedGlobal.superAdminEmail)) {
+      finalBcc.add(resolvedGlobal.superAdminEmail.trim());
+    } else {
+      console.warn(
+        '[sendEmailFromTemplate] Skipped invalid super admin email:',
+        resolvedGlobal.superAdminEmail,
+      );
+    }
+  }
+
+  if (!resolvedGlobal.apiKey && !process.env.RESEND_API_KEY) {
+    console.warn('[sendEmailFromTemplate] Missing Resend API key. Email skipped.');
+    return;
+  }
+
+  const resend = new Resend(
+    resolvedGlobal.apiKey || process.env.RESEND_API_KEY,
+  );
+
+  const message = {
+    from: `${resolvedGlobal.fromName || 'M-Clearance'} <${senderAddress}>`,
+    to: toList,
+    subject: rendered.subject,
+    html: rendered.html,
+    text: rendered.text,
+  };
+
+  const replyToCandidate =
+    (resolvedGlobal.supportEmail && resolvedGlobal.supportEmail.trim()) ||
+    senderAddress;
+  if (isValidEmail(replyToCandidate)) {
+    message.reply_to = replyToCandidate;
+  }
+
+  if (ccList && ccList.length > 0) {
+    const filtered = ccList.filter((address) => isValidEmail(address));
+    if (filtered.length > 0) {
+      message.cc = filtered;
+    }
+  }
+  if (finalBcc.size > 0) {
+    const filteredBcc = Array.from(finalBcc).filter((address) =>
+      isValidEmail(address),
+    );
+    if (filteredBcc.length > 0) {
+      message.bcc = filteredBcc;
+    }
+  }
+  const normalizedTags = normalizeTags(rendered.tags);
+  if (normalizedTags) {
+    message.tags = normalizedTags;
+  }
+
+  console.log('[sendEmailFromTemplate] Dispatching email via Resend', {
+    to: message.to,
+    subject: message.subject,
+    hasCc: Array.isArray(message.cc) && message.cc.length > 0,
+    hasBcc: Array.isArray(message.bcc) && message.bcc.length > 0,
+    tags: message.tags || [],
+  });
+
+  const { error } = await resend.emails.send(message);
+  if (error) {
+    throw new Error(error.message || 'Failed to send email via Resend');
+  }
+}
 
 /**
  * onAuth user create
@@ -1964,8 +2373,9 @@ exports.getOfficerMonthlyStats = functions.region('asia-southeast1').https.onCal
  * Generates a short-lived 4-digit code for email verification and stores it on users/{uid}.
  * Optionally integrate with email provider; for now we only store and return masked info.
  */
-exports.issueEmailVerificationCode = functions.region('asia-southeast1').https.onCall(
-  async (data, context) => {
+exports.issueEmailVerificationCode = functions
+  .region('asia-southeast1')
+  .https.onCall(async (data, context) => {
     console.log("[issueEmailVerificationCode] Function started for uid:", context.auth.uid);
     const startTime = Date.now();
     requireAuth(context);
@@ -1975,8 +2385,14 @@ exports.issueEmailVerificationCode = functions.region('asia-southeast1').https.o
     console.time("[issueEmailVerificationCode] Config fetch");
     // Fetch dynamic configuration
     const globalSettings = await emailConfig.getGlobalSettings();
-    const templateSettings =
-      await emailConfig.getTemplateSettings("verification");
+    const requestedLanguage =
+      typeof data?.language === 'string' && data.language.trim().length > 0
+        ? data.language.trim().toLowerCase()
+        : 'en';
+    const templateSettings = await emailConfig.getTemplateSettings(
+      "verification",
+      requestedLanguage,
+    );
     console.timeEnd("[issueEmailVerificationCode] Config fetch");
     console.log("[issueEmailVerificationCode] Config fetched in", Date.now() - startTime, "ms");
 
@@ -2064,21 +2480,41 @@ try {
   // Initialize Resend client
   const resend = new Resend(process.env.RESEND_API_KEY);
 
-  const subject = templateSettings.subject || "Your verification code";
-  const html = (
+  const safeAccountName =
+    globalSettings.accountName || globalSettings.fromName || 'M-Clearance';
+  const supportEmail =
+    globalSettings.supportEmail || globalSettings.from || 'support@mclearanceisam.com';
+  const expiresInMinutes = 10;
+
+  const subjectTemplate = templateSettings.subject || 'Your verification code';
+  const subject = subjectTemplate
+    .replace(/{name}/g, recipientName)
+    .replace(/{code}/g, code)
+    .replace(/{accountName}/g, safeAccountName)
+    .replace(/{supportEmail}/g, supportEmail)
+    .replace(/{language}/g, requestedLanguage);
+
+  const htmlTemplate =
     templateSettings.html ||
-    "<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.<br/>It expires in 10 minutes.</p><p>Regards,<br/>{accountName}</p>"
-  )
+    "<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.</p>";
+  const html = htmlTemplate
     .replace(/{name}/g, recipientName)
     .replace(/{code}/g, code)
-    .replace(/{accountName}/g, globalSettings.accountName);
-  const text = (
+    .replace(/{accountName}/g, safeAccountName)
+    .replace(/{supportEmail}/g, supportEmail)
+    .replace(/{language}/g, requestedLanguage)
+    .replace(/{expiresInMinutes}/g, expiresInMinutes.toString());
+
+  const textTemplate =
     templateSettings.text ||
-    "Hello {name},\nYour verification code is {code}. It expires in 10 minutes.\nRegards, {accountName}"
-  )
+    "Hello {name},\nYour verification code is {code}.";
+  const text = textTemplate
     .replace(/{name}/g, recipientName)
     .replace(/{code}/g, code)
-    .replace(/{accountName}/g, globalSettings.accountName);
+    .replace(/{accountName}/g, safeAccountName)
+    .replace(/{supportEmail}/g, supportEmail)
+    .replace(/{language}/g, requestedLanguage)
+    .replace(/{expiresInMinutes}/g, expiresInMinutes.toString());
 
   // Prepare email data for Resend
   const emailData = {
@@ -2130,6 +2566,161 @@ try {
     }
   },
 );
+
+exports.sendPasswordResetEmailLink = functions
+  .region('asia-southeast1')
+  .https.onCall(async (data, context) => {
+    const rawEmail =
+      data && typeof data.email === 'string' ? data.email.trim() : '';
+    if (!rawEmail) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Email is required.',
+      );
+    }
+
+    const email = rawEmail.toLowerCase();
+    const requestedLanguage =
+      data && typeof data.language === 'string' && data.language.trim().length > 0
+        ? data.language.trim().toLowerCase()
+        : null;
+
+    let userRecord;
+    try {
+      userRecord = await admin.auth().getUserByEmail(email);
+    } catch (error) {
+      if (error && error.code === 'auth/user-not-found') {
+        console.warn(
+          '[sendPasswordResetEmailLink] No auth user found for email, returning success to avoid enumeration:',
+          email,
+        );
+        return { ok: true };
+      }
+      logger.error('[sendPasswordResetEmailLink] Failed to resolve user by email', error);
+      throw new functions.https.HttpsError(
+        'internal',
+        'Failed to process password reset request.',
+      );
+    }
+
+    const uid = userRecord.uid;
+    let userDocData = null;
+    if (uid) {
+      try {
+        const userSnap = await db.collection('users').doc(uid).get();
+        if (userSnap.exists) {
+          userDocData = userSnap.data() || {};
+        }
+      } catch (fetchError) {
+        console.warn(
+          '[sendPasswordResetEmailLink] Failed to fetch Firestore user document:',
+          uid,
+          fetchError,
+        );
+      }
+    }
+
+    const languageCandidates = [
+      requestedLanguage,
+      userDocData && typeof userDocData.preferredLanguage === 'string'
+        ? userDocData.preferredLanguage
+        : null,
+      userDocData && typeof userDocData.language === 'string'
+        ? userDocData.language
+        : null,
+      userDocData && typeof userDocData.locale === 'string'
+        ? userDocData.locale
+        : null,
+    ].filter(Boolean);
+    const language =
+      languageCandidates.length > 0
+        ? languageCandidates[0].toLowerCase()
+        : 'en';
+
+    const globalSettings = await emailConfig.getGlobalSettings();
+    const templateSettings = await emailConfig.getTemplateSettings(
+      'passwordReset',
+      language,
+    );
+
+    let resetLink;
+
+    const redactError = (error) => ({
+      code: error?.code || error?.errorInfo?.code || null,
+      message: error?.message || null,
+    });
+
+    try {
+      resetLink = await admin.auth().generatePasswordResetLink(email);
+    } catch (error) {
+      if (error && error.code === 'auth/user-not-found') {
+        console.warn(
+          '[sendPasswordResetEmailLink] generatePasswordResetLink user-not-found for email:',
+          email,
+        );
+        return { ok: true };
+      }
+      const errorDetail = redactError(error);
+      logger.error('[sendPasswordResetEmailLink] Failed to generate reset link', error);
+      console.error(
+        '[sendPasswordResetEmailLink] Failure detail:',
+        errorDetail,
+      );
+      throw new functions.https.HttpsError(
+        'internal',
+        'Could not generate password reset link.',
+        errorDetail,
+      );
+    }
+
+    if (language && typeof language === 'string') {
+      const separator = resetLink.includes('?') ? '&' : '?';
+      resetLink = `${resetLink}${separator}lang=${encodeURIComponent(language)}`;
+    }
+
+    const nameCandidates = [
+      userDocData && typeof userDocData.corporateName === 'string'
+        ? userDocData.corporateName
+        : null,
+      userDocData && typeof userDocData.fullName === 'string'
+        ? userDocData.fullName
+        : null,
+      userDocData && typeof userDocData.username === 'string'
+        ? userDocData.username
+        : null,
+      userDocData && typeof userDocData.name === 'string'
+        ? userDocData.name
+        : null,
+      userRecord.displayName,
+    ].filter((value) => typeof value === 'string' && value.trim().length > 0);
+    const resolvedName =
+      nameCandidates.length > 0
+        ? nameCandidates[0].trim()
+        : await resolveUserName(uid, email);
+
+    try {
+      await sendEmailFromTemplate({
+        templateName: 'passwordReset',
+        language,
+        to: email,
+        replacements: {
+          name: resolvedName,
+          resetLink,
+        },
+        includeSuperAdmin: true,
+        globalSettings,
+        templateSettings,
+      });
+    } catch (error) {
+      logger.error('[sendPasswordResetEmailLink] Failed to dispatch email', error);
+      throw new functions.https.HttpsError(
+        'internal',
+        'Failed to send password reset email.',
+      );
+    }
+
+    return { ok: true };
+  });
 
 /**
  * verifyEmailCode (callable)
@@ -2538,27 +3129,31 @@ exports.onApplicationUpdate = functions.region('asia-southeast1').firestore
         after.agentName ||
         before.agentName ||
         null;
+      let agentUserData = null;
 
-      if (!corporateName && userUid) {
+      if (userUid) {
         try {
           const userSnapshot = await db.collection("users").doc(userUid).get();
           if (userSnapshot.exists) {
-            const userData = userSnapshot.data() || {};
-            corporateName =
-              userData.corporateName ||
-              userData.fullName ||
-              userData.name ||
-              userData.username ||
-              userData.email ||
-              corporateName;
+            agentUserData = userSnapshot.data() || {};
           }
         } catch (fetchError) {
           console.warn(
-            "[onApplicationUpdate] Failed fetching corporateName:",
+            "[onApplicationUpdate] Failed fetching agent user data:",
             userUid,
             fetchError,
           );
         }
+      }
+
+      if (!corporateName && agentUserData) {
+        corporateName =
+          agentUserData.corporateName ||
+          agentUserData.fullName ||
+          agentUserData.name ||
+          agentUserData.username ||
+          agentUserData.email ||
+          corporateName;
       }
 
       const applicationDate =
@@ -2638,6 +3233,254 @@ exports.onApplicationUpdate = functions.region('asia-southeast1').firestore
         },
         { skipUid: userUid },
       );
+
+      try {
+        const normalizedType =
+          typeof type === "string" && type.length > 0
+            ? type.toLowerCase()
+            : "arrival";
+        const typeLabel =
+          normalizedType === "arrival"
+            ? "Arrival"
+            : normalizedType === "departure"
+              ? "Departure"
+              : sanitizeTextNode(type || "Clearance");
+        const safeShipName = sanitizeTextNode(shipName) || "your vessel";
+        const officerNoteText = note ? sanitizeTextNode(note) : "";
+        const documentUrlCandidate =
+          after.clearanceDocumentUrl ||
+          after.clearanceResultFile ||
+          before.clearanceDocumentUrl ||
+          before.clearanceResultFile ||
+          null;
+        const safeDocumentUrl =
+          typeof documentUrlCandidate === "string" &&
+          /^https?:\/\//i.test(documentUrlCandidate)
+            ? documentUrlCandidate
+            : null;
+
+        const globalSettings = await emailConfig.getGlobalSettings();
+        const portalUrl =
+          typeof globalSettings.portalUrl === "string" &&
+          globalSettings.portalUrl.trim().length > 0
+            ? globalSettings.portalUrl.trim()
+            : "https://mclearanceisam.com";
+
+        const statusEmailMeta = {
+          approved: {
+            templateName: "approval",
+            statusLabel: "Approved",
+            headline: "Clearance Approved",
+            summary: `Your ${typeLabel.toLowerCase()} clearance for ${safeShipName} has been approved.`,
+            action: safeDocumentUrl
+              ? `Download the clearance certificate or sign in to the portal (${portalUrl}).`
+              : `Sign in to the portal to review the clearance package: ${portalUrl}.`,
+          },
+          declined: {
+            templateName: "rejection",
+            statusLabel: "Declined",
+            headline: "Clearance Declined",
+            summary: `We were unable to approve your ${typeLabel.toLowerCase()} clearance for ${safeShipName}.`,
+            action: `Review the details and next steps in the portal: ${portalUrl}.`,
+          },
+          revision: {
+            templateName: "revision",
+            statusLabel: "Needs Revision",
+            headline: "Additional Information Required",
+            summary: `Your ${typeLabel.toLowerCase()} clearance for ${safeShipName} requires additional information.`,
+            action: `Provide the requested updates in the portal: ${portalUrl}.`,
+          },
+        };
+
+        const emailMeta = statusEmailMeta[status];
+        if (!emailMeta) {
+          console.warn(
+            "[onApplicationUpdate] Missing email metadata for status:",
+            status,
+          );
+          return;
+        }
+
+        const agentEmailCandidates = [
+          typeof after.agentEmail === "string" ? after.agentEmail : null,
+          typeof before.agentEmail === "string" ? before.agentEmail : null,
+          agentUserData && typeof agentUserData.email === "string"
+            ? agentUserData.email
+            : null,
+        ].filter((value) => value && value.trim().length > 0);
+
+        const agentEmailFallback =
+          agentEmailCandidates.length > 0 ? agentEmailCandidates[0] : "";
+        const agentEmail = await resolveUserEmail(userUid, agentEmailFallback);
+
+        const languageCandidates = [
+          typeof after.language === "string" ? after.language : null,
+          typeof before.language === "string" ? before.language : null,
+          typeof after.locale === "string" ? after.locale : null,
+          typeof before.locale === "string" ? before.locale : null,
+          agentUserData && typeof agentUserData.preferredLanguage === "string"
+            ? agentUserData.preferredLanguage
+            : null,
+          agentUserData && typeof agentUserData.language === "string"
+            ? agentUserData.language
+            : null,
+          agentUserData && typeof agentUserData.locale === "string"
+            ? agentUserData.locale
+            : null,
+        ].filter((value) => value && value.trim().length > 0);
+
+        const emailLanguage =
+          languageCandidates.length > 0
+            ? languageCandidates[0].trim().toLowerCase()
+            : 'en';
+
+        const agentNameCandidates = [
+          corporateName,
+          agentUserData && agentUserData.fullName,
+          agentUserData && agentUserData.username,
+          agentUserData && agentUserData.name,
+          agentEmail,
+        ].filter((value) => value && value.toString().trim().length > 0);
+
+        const agentDisplayName =
+          agentNameCandidates.length > 0
+            ? agentNameCandidates[0].toString().trim()
+            : await resolveUserName(userUid, agentEmail);
+
+        const officerEmails = new Map();
+        const addOfficerEmail = (candidate) => {
+          if (typeof candidate !== "string") return;
+          const trimmed = candidate.trim();
+          if (!trimmed || !trimmed.includes("@")) return;
+          if (
+            agentEmail &&
+            agentEmail.trim().length > 0 &&
+            trimmed.toLowerCase() === agentEmail.trim().toLowerCase()
+          ) {
+            return;
+          }
+          officerEmails.set(trimmed.toLowerCase(), trimmed);
+        };
+
+        [
+          after.decidedBy,
+          before.decidedBy,
+          after.officerEmail,
+          before.officerEmail,
+          after.reviewedByEmail,
+          before.reviewedByEmail,
+          after.lastUpdatedByEmail,
+          before.lastUpdatedByEmail,
+        ].forEach(addOfficerEmail);
+
+        if (officerEmails.size === 0) {
+          for (const role of ["officer", "admin"]) {
+            try {
+              const snapshot = await db
+                .collection("users")
+                .where("role", "==", role)
+                .select("email", "status", "notificationPreferences")
+                .limit(10)
+                .get();
+              snapshot.forEach((doc) => {
+                const data = doc.data() || {};
+                if (data.status && data.status !== "approved") return;
+                if (
+                  !emailPreferenceAllowsApplicationUpdates(
+                    data.notificationPreferences,
+                  )
+                ) {
+                  return;
+                }
+                addOfficerEmail(data.email);
+              });
+            } catch (officerFetchError) {
+              console.warn(
+                `[onApplicationUpdate] Failed to fetch ${role} recipients:`,
+                officerFetchError,
+              );
+            }
+          }
+        }
+
+        const recipientList = [];
+        if (agentEmail && agentEmail.trim().length > 0) {
+          recipientList.push(agentEmail.trim());
+        }
+
+        const officerList = Array.from(officerEmails.values());
+        if (recipientList.length === 0 && officerList.length > 0) {
+          recipientList.push(officerList.shift());
+        }
+
+        const recipientKeys = new Set(
+          recipientList.map((address) => address.toLowerCase()),
+        );
+        const ccList = officerList.filter(
+          (address) => !recipientKeys.has(address.toLowerCase()),
+        );
+
+        if (recipientList.length === 0) {
+          console.warn(
+            "[onApplicationUpdate] Skipped email send due to missing recipients:",
+            context.params.appId,
+          );
+          return;
+        }
+
+        const notesHtmlParts = [];
+        const notesTextParts = [];
+
+        if (safeDocumentUrl) {
+          notesHtmlParts.push(
+            `<div class="notes"><strong>Clearance document:</strong> <a href="${safeDocumentUrl}">${safeDocumentUrl}</a></div>`,
+          );
+          notesTextParts.push(`Clearance document: ${safeDocumentUrl}`);
+        }
+
+        if (officerNoteText) {
+          notesHtmlParts.push(
+            `<div class="notes"><strong>Officer note:</strong> ${officerNoteText}</div>`,
+          );
+          notesTextParts.push(`Officer note: ${officerNoteText}`);
+        }
+
+        const notesParagraph = notesHtmlParts.join("");
+        const notesText = notesTextParts.join("\n");
+
+        await sendEmailFromTemplate({
+          templateName: emailMeta.templateName,
+          language: emailLanguage,
+          to: recipientList,
+          cc: ccList,
+          replacements: {
+            name: agentDisplayName,
+            shipName: safeShipName,
+            type: typeLabel,
+            statusLabel: emailMeta.statusLabel,
+            statusHeadline: emailMeta.headline,
+            statusSummary: emailMeta.summary,
+            actionText: emailMeta.action,
+            notesParagraph,
+            notesText,
+          },
+          includeSuperAdmin: true,
+          globalSettings,
+          templateSettings: await emailConfig.getTemplateSettings(
+            emailMeta.templateName,
+            emailLanguage,
+          ),
+        });
+        console.log(
+          "[onApplicationUpdate] Status email dispatched for application:",
+          context.params.appId,
+        );
+      } catch (emailError) {
+        console.error(
+          "[onApplicationUpdate] Failed to send status email:",
+          emailError,
+        );
+      }
     } catch (e) {
       console.error("[onApplicationUpdate] Error:", e);
     }

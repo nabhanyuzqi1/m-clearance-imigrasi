@@ -553,6 +553,15 @@ class AppStrings {
         'mute_notifications': 'Mute Notifications',
         'toggle_sound': 'Notification Sound',
         'view_notifications': 'View Notifications',
+        'receive_push_notifications': 'Receive Push Notifications',
+        'enable_app_icon_badge': 'Show Badge on App Icon',
+        'permission_required': 'Notification permission is required to enable push alerts.',
+        'update_failed': 'Failed to update notification preferences',
+        'push_notifications': 'Push Notifications',
+        'checking_permissions': 'Checking permissions...',
+        'status_enabled': 'Enabled',
+        'status_disabled': 'Disabled',
+        'enable': 'Enable',
       },
       //endregion
 
@@ -1425,6 +1434,15 @@ class AppStrings {
         'mute_notifications': 'Bisukan Notifikasi',
         'toggle_sound': 'Suara Notifikasi',
         'view_notifications': 'Lihat Notifikasi',
+        'receive_push_notifications': 'Terima Notifikasi Push',
+        'enable_app_icon_badge': 'Tampilkan Badge pada Ikon Aplikasi',
+        'permission_required': 'Izin notifikasi diperlukan untuk mengaktifkan notifikasi push.',
+        'update_failed': 'Gagal memperbarui preferensi notifikasi',
+        'push_notifications': 'Notifikasi Push',
+        'checking_permissions': 'Memeriksa izin...',
+        'status_enabled': 'Aktif',
+        'status_disabled': 'Nonaktif',
+        'enable': 'Aktifkan',
       },
       //endregion
 

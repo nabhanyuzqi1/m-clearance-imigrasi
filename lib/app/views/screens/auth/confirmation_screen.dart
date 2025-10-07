@@ -178,7 +178,9 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         Navigator.pushReplacementNamed(context, AppRoutes.login);
         return;
       }
-      final resp = await FunctionsService().issueEmailVerificationCodeEx();
+      final resp = await FunctionsService().issueEmailVerificationCodeEx(
+        language: _selectedLanguage,
+      );
       if (resp.isNotEmpty &&
           resp['ok'] == false &&
           resp['reason'] == 'cooldown') {

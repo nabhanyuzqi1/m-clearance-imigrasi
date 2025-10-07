@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
 import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
 import 'package:m_clearance_imigrasi/app/services/cache_manager.dart';
@@ -34,6 +35,7 @@ class AuthService {
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
   late final CacheManager _cacheManager;
+  Future<void>? _cacheInitFuture;
 
   AuthService({
     FirebaseAuth? firebaseAuth,
@@ -42,11 +44,16 @@ class AuthService {
   }) : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
        _firestore = firestore ?? FirebaseFirestore.instance,
        _storage = storage ?? FirebaseStorage.instance {
-    _initializeCacheManager();
+    _cacheInitFuture = _initializeCacheManager();
   }
 
   Future<void> _initializeCacheManager() async {
     _cacheManager = await CacheManager.getInstance();
+  }
+
+  Future<void> _ensureCacheManagerInitialized() async {
+    _cacheInitFuture ??= _initializeCacheManager();
+    await _cacheInitFuture;
   }
 
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -62,7 +69,45 @@ class AuthService {
       final authTime = DateTime.now().difference(startTime);
       LoggingService().debug('Auth sign-in took ${authTime.inMilliseconds}ms');
       if (userCredential.user != null) {
-        final userModel = await getUserData(userCredential.user!.uid);
+        await _ensureCacheManagerInitialized();
+        final uid = userCredential.user!.uid;
+        UserModel? userModel = await getUserData(uid);
+
+        if (userModel == null) {
+          LoggingService().warning(
+            'Primary user data fetch returned null after sign-in; retrying with cache flush',
+          );
+          try {
+            await _cacheManager.clearUserDataCache();
+            LoggingService().debug('Cleared cached user data after null fetch');
+          } catch (cacheError) {
+            LoggingService().warning(
+              'Failed to clear cached user data before retrying fetch',
+              cacheError,
+            );
+          }
+
+          final retryStart = DateTime.now();
+          userModel = await getUserData(uid, forceRefresh: true);
+          final retryDuration = DateTime.now().difference(retryStart);
+          LoggingService().debug(
+            'Force-refresh fetch completed in ${retryDuration.inMilliseconds}ms (success: ${userModel != null})',
+          );
+        }
+
+        if (userModel == null) {
+          final diagnosticMessage =
+              'Authenticated user $uid missing Firestore profile after retries';
+          LoggingService().reportCustomError(
+            'sign_in_profile_fetch',
+            diagnosticMessage,
+          );
+          await _firebaseAuth.signOut();
+          throw NetworkException(
+            'Failed to load your profile data. Please try again.',
+            isRetryable: true,
+          );
+        }
         final totalTime = DateTime.now().difference(startTime);
         LoggingService().debug(
           'Total sign-in process took ${totalTime.inMilliseconds}ms',
@@ -75,10 +120,10 @@ class AuthService {
         'Firebase Auth Exception: code=${e.code}, message=${e.message}',
         e,
       );
-      return null;
+      rethrow;
     } catch (e) {
       LoggingService().error('An unexpected error occurred during sign-in', e);
-      return null;
+      rethrow;
     }
   }
 
@@ -111,14 +156,29 @@ class AuthService {
           documents: [],
         );
 
-        await _firestore
-            .collection('users')
-            .doc(user.uid)
-            .set(newUser.toFirestore());
-        // Fire-and-forget email verification code issuance to avoid blocking registration
-        FunctionsService().issueEmailVerificationCode().catchError((e) {
+        try {
+          await _firestore
+              .collection('users')
+              .doc(user.uid)
+              .set(newUser.toFirestore());
+        } catch (firestoreError) {
+          LoggingService().error(
+            'Error writing user document during registration, rolling back auth user',
+            firestoreError,
+          );
+          await user.delete().catchError((deleteError) {
+            LoggingService().warning(
+              'Failed deleting auth user after Firestore write failure',
+              deleteError,
+            );
+          });
+          rethrow;
+        }
+
+        FunctionsService()
+            .issueEmailVerificationCode(language: _currentLocale())
+            .catchError((e) {
           LoggingService().warning('Failed issuing verification code', e);
-          // Non-critical error, don't fail registration
         });
 
         return newUser;
@@ -129,12 +189,21 @@ class AuthService {
         'Firebase Auth Exception during registration: ${e.message}',
         e,
       );
-      return null;
+      rethrow;
     } catch (e) {
       LoggingService().error(
         'An unexpected error occurred during registration',
         e,
       );
+      rethrow;
+    }
+  }
+
+  String? _currentLocale() {
+    try {
+      final locale = WidgetsBinding.instance.platformDispatcher.locale;
+      return locale.toLanguageTag();
+    } catch (_) {
       return null;
     }
   }
@@ -145,6 +214,7 @@ class AuthService {
   }) async {
     final startTime = DateTime.now();
     LoggingService().debug('getUserData called with uid: $uid');
+    await _ensureCacheManagerInitialized();
 
     final shouldSkipCache = forceRefresh || kDebugMode;
 
@@ -540,16 +610,13 @@ class AuthService {
 
   Future<void> sendPasswordResetEmail(String email) async {
     try {
-      await _firebaseAuth.sendPasswordResetEmail(email: email);
-    } on FirebaseAuthException catch (e) {
-      LoggingService().error(
-        'Firebase Auth Exception during password reset: ${e.message}',
-        e,
+      await FunctionsService().sendPasswordResetEmailLink(
+        email: email,
+        language: _currentLocale(),
       );
-      rethrow;
     } catch (e) {
       LoggingService().error(
-        'An unexpected error occurred during password reset',
+        'An unexpected error occurred during password reset request',
         e,
       );
       rethrow;
@@ -605,6 +672,7 @@ class AuthService {
 
   Future<void> signOut() async {
     await _firebaseAuth.signOut();
+    await _ensureCacheManagerInitialized();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user_selected_index');
     await prefs.remove('officer_selected_index');
@@ -614,6 +682,7 @@ class AuthService {
 
   /// Clear user data cache (useful when user data is updated)
   Future<void> clearUserDataCache() async {
+    await _ensureCacheManagerInitialized();
     await _cacheManager.clearUserDataCache();
   }
 

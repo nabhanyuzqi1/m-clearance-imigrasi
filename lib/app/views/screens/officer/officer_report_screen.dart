@@ -105,7 +105,8 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
       ) async {
         try {
           final aggregate = await query.count().get();
-          return aggregate.count ?? 0;
+          final countValue = aggregate.count;
+          return countValue ?? 0;
         } catch (e, stackTrace) {
           LoggingService().warning(
             'Aggregate count failed for $label, falling back to snapshot length',

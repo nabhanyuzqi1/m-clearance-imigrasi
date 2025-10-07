@@ -90,24 +90,54 @@ class FunctionsService {
     }
   }
 
-  Future<void> issueEmailVerificationCode() async {
+  Future<void> issueEmailVerificationCode({String? language}) async {
     try {
       final callable = _functions.httpsCallable('issueEmailVerificationCode');
-      await callable();
+      await callable(<String, dynamic>{
+        if (language != null && language.isNotEmpty)
+          'language': language.toLowerCase(),
+      });
     } catch (e) {
       LoggingService().error('issueEmailVerificationCode failed', e);
       rethrow;
     }
   }
 
-  Future<Map<String, dynamic>> issueEmailVerificationCodeEx() async {
+  Future<Map<String, dynamic>> issueEmailVerificationCodeEx({String? language}) async {
     try {
       final callable = _functions.httpsCallable('issueEmailVerificationCode');
-      final result = await callable();
+      final result = await callable(<String, dynamic>{
+        if (language != null && language.isNotEmpty)
+          'language': language.toLowerCase(),
+      });
       return Map<String, dynamic>.from(result.data ?? {});
     } catch (e) {
       LoggingService().error('issueEmailVerificationCodeEx failed', e);
       return {};
+    }
+  }
+
+  Future<void> sendPasswordResetEmailLink({
+    required String email,
+    String? language,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('sendPasswordResetEmailLink');
+      await callable(<String, dynamic>{
+        'email': email,
+        if (language != null && language.isNotEmpty)
+          'language': language.toLowerCase(),
+      });
+    } catch (e) {
+      if (e is FirebaseFunctionsException) {
+        LoggingService().error(
+          'sendPasswordResetEmailLink failed: ${e.code} ${e.message} details=${e.details}',
+          e,
+        );
+      } else {
+        LoggingService().error('sendPasswordResetEmailLink failed', e);
+      }
+      rethrow;
     }
   }
 

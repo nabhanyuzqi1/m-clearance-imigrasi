@@ -13,6 +13,7 @@ import 'app/config/routes.dart';
 import 'app/config/theme.dart';
 import 'app/localization/app_localizations.dart';
 import 'app/services/auth_service.dart';
+import 'app/services/notification_service.dart';
 import 'firebase_options.dart';
 import 'app/views/widgets/auth_wrapper.dart';
 import 'app/views/widgets/connectivity_gate.dart';
@@ -86,6 +87,8 @@ void main() async {
   // Set up Firebase Cloud Messaging
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+  final notificationService = NotificationService();
+
   // Request notification permissions on app start if not already granted
   try {
     final settings = await FirebaseMessaging.instance.getNotificationSettings();
@@ -96,8 +99,16 @@ void main() async {
         sound: true,
       );
     }
+    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    await notificationService.ensureInitialised();
+    await notificationService.getFCMToken();
   } catch (e) {
     debugPrint('[Startup] Error handling notification permissions: $e');
+    await notificationService.ensureInitialised();
   }
 
   // Preload critical assets for better startup performance
@@ -122,21 +133,20 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  late final NotificationService _notificationService;
+
   @override
   void initState() {
     super.initState();
+    _notificationService = NotificationService();
     WidgetsBinding.instance.addObserver(this);
     // Set up foreground message handling
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Got a message whilst in the foreground!');
-      debugPrint('Message data: ${message.data}');
-
-      if (message.notification != null) {
-        debugPrint(
-          'Message also contained a notification: ${message.notification}',
-        );
-      }
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      await _notificationService.handleForegroundMessage(message);
     });
+    FirebaseMessaging.onMessageOpenedApp.listen(
+      _notificationService.handleOpenedNotification,
+    );
   }
 
   @override
