@@ -5,6 +5,7 @@ import 'package:m_clearance_imigrasi/app/services/auth_service.dart';
 import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
 import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import 'package:m_clearance_imigrasi/app/config/theme.dart';
+import 'bouncing_dots_loader.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -50,11 +51,7 @@ class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
         if (snapshot.connectionState != ConnectionState.active) {
           return Scaffold(
             backgroundColor: AppTheme.backgroundColor,
-            body: Center(
-              child: CircularProgressIndicator(
-                color: AppTheme.primaryColor,
-              ),
-            ),
+            body: const Center(child: BouncingDotsLoader()),
           );
         }
 
@@ -67,11 +64,7 @@ class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
           });
           return Scaffold(
             backgroundColor: AppTheme.backgroundColor,
-            body: Center(
-              child: CircularProgressIndicator(
-                color: AppTheme.primaryColor,
-              ),
-            ),
+            body: const Center(child: BouncingDotsLoader()),
           );
         }
 
@@ -82,11 +75,7 @@ class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
             if (userSnapshot.connectionState != ConnectionState.done) {
               return Scaffold(
                 backgroundColor: AppTheme.backgroundColor,
-                body: Center(
-                  child: CircularProgressIndicator(
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
+                body: const Center(child: BouncingDotsLoader()),
               );
             }
 
@@ -94,17 +83,15 @@ class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
 
             if (userModel == null) {
               // Missing user document after login; fallback to register
-              LoggingService().warning('Missing user document for authenticated user, redirecting to register');
+              LoggingService().warning(
+                'Missing user document for authenticated user, redirecting to register',
+              );
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 Navigator.pushReplacementNamed(context, AppRoutes.register);
               });
               return Scaffold(
                 backgroundColor: AppTheme.backgroundColor,
-                body: Center(
-                  child: CircularProgressIndicator(
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
+                body: const Center(child: BouncingDotsLoader()),
               );
             }
 
@@ -173,11 +160,7 @@ class _AuthWrapperState extends State<AuthWrapper> with RestorationMixin {
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      body: Center(
-        child: CircularProgressIndicator(
-          color: AppTheme.primaryColor,
-        ),
-      ),
+      body: const Center(child: BouncingDotsLoader()),
     );
   }
 }

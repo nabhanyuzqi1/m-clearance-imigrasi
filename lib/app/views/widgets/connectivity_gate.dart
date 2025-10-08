@@ -39,14 +39,19 @@ class _ConnectivityGateState extends State<ConnectivityGate> {
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.wifi_off_rounded, color: Colors.white),
+                Icon(
+                  Icons.wifi_off_rounded,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     provider.isInitialized
                         ? l10n.get('connectivity.title')
                         : l10n.get('connectivity.checking'),
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                 ),
               ],

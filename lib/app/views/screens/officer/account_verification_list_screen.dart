@@ -5,6 +5,7 @@ import '../../../models/user_model.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class AccountVerificationListScreen extends StatefulWidget {
   const AccountVerificationListScreen({super.key});
@@ -340,7 +341,7 @@ class _AccountVerificationListScreenState
                 stream: repo.streamAllUsers(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Center(child: BouncingDotsLoader());
                   }
                   if (snapshot.hasError) {
                     LoggingService().error(

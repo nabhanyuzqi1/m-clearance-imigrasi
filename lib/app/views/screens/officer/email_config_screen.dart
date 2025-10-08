@@ -5,6 +5,7 @@ import '../../../services/email_config_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class EmailConfigScreen extends StatefulWidget {
   const EmailConfigScreen({super.key});
@@ -198,14 +199,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
             TextButton(
               onPressed: _isSaving ? null : _saveConfig,
               child: _isSaving
-                  ? SizedBox(
-                      width: AppTheme.spacing20,
-                      height: AppTheme.spacing20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    )
+                  ? const BouncingDotsLoader()
                   : Text(
                       _tr('emailConfig', 'save'),
                       style: TextStyle(
@@ -218,11 +212,7 @@ class _EmailConfigScreenState extends State<EmailConfigScreen> {
         ],
       ),
       body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            )
+          ? const Center(child: BouncingDotsLoader())
           : SingleChildScrollView(
               padding: EdgeInsets.all(AppTheme.responsivePadding(context)),
               child: Column(

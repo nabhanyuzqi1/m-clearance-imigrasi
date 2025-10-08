@@ -12,6 +12,7 @@ import '../../../localization/app_localizations.dart';
 import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:m_clearance_imigrasi/app/views/widgets/bouncing_dots_loader.dart';
 
 class UploadDocumentsScreen extends StatefulWidget {
   final String initialLanguage;
@@ -763,14 +764,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                     child: ElevatedButton(
                       onPressed: busy ? null : _finishRegistration,
                       child: busy
-                          ? SizedBox(
-                              height: 22,
-                              width: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Theme.of(context).colorScheme.onPrimary,
-                              ),
-                            )
+                          ? const BouncingDotsLoader()
                           : Text(_tr('submit')),
                     ),
                   ),

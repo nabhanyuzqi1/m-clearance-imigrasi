@@ -190,9 +190,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         }
 
         if (currentUser == null) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: Center(child: BouncingDotsLoader()));
         }
 
         final List<Widget> pages = <Widget>[

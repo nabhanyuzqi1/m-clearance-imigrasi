@@ -19,6 +19,7 @@ import '../../../services/logging_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../utils/file_utils.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 import 'clearance_result_screen.dart';
 import 'document_view_screen.dart';
 
@@ -1409,14 +1410,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                         ? Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              SizedBox(
-                                width: screenWidth * 0.05,
-                                height: screenWidth * 0.05,
-                                child: const CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              ),
+                              const BouncingDotsLoader(),
                               SizedBox(width: screenWidth * 0.03),
                               Text(_saving),
                             ],

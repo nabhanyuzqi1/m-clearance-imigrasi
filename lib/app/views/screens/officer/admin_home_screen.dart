@@ -16,6 +16,7 @@ import '../../../services/officer_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_bottom_navbar.dart';
 import '../../widgets/skeleton_loader.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 import 'package:intl/intl.dart';
 import 'account_verification_list_screen.dart';
 import 'arrival_verification_screen.dart';
@@ -665,23 +666,11 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
       desktop: AppTheme.fontSizeBody1,
     );
 
-    final progressColor = isPrimary
-        ? colorScheme.onPrimary
-        : colorScheme.primary;
     final trailingWidget = isBusy
         ? SizedBox(
             width: iconSize,
             height: iconSize,
-            child: Center(
-              child: SizedBox(
-                width: iconSize * 0.6,
-                height: iconSize * 0.6,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                ),
-              ),
-            ),
+            child: Center(child: BouncingDotsLoader()),
           )
         : Icon(
             iconData,

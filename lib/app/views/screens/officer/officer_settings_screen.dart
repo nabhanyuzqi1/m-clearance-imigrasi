@@ -13,6 +13,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 import '../auth/change_password_screen.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class OfficerSettingsScreen extends StatefulWidget {
   const OfficerSettingsScreen({super.key});
@@ -203,7 +204,7 @@ class _OfficerSettingsScreenState extends State<OfficerSettingsScreen> {
         stream: authService.authStateChanges,
         builder: (context, authSnapshot) {
           if (authSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: BouncingDotsLoader());
           }
           if (authSnapshot.hasError) {
             return Center(child: Text(_tr('error_loading_user')));
@@ -224,7 +225,7 @@ class _OfficerSettingsScreenState extends State<OfficerSettingsScreen> {
             future: UserRepository().getUser(user.uid),
             builder: (context, userSnapshot) {
               if (userSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const Center(child: BouncingDotsLoader());
               }
               if (userSnapshot.hasError) {
                 LoggingService().error(

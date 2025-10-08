@@ -9,12 +9,10 @@ import '../../../models/legal_document.dart';
 import '../../../services/legal_content_service.dart';
 import '../../../services/logging_service.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class LegalDocumentScreen extends StatefulWidget {
-  const LegalDocumentScreen({
-    super.key,
-    required this.documentType,
-  });
+  const LegalDocumentScreen({super.key, required this.documentType});
 
   final LegalDocumentType documentType;
 
@@ -38,8 +36,9 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final languageCode =
-        Localizations.localeOf(context).languageCode.toLowerCase();
+    final languageCode = Localizations.localeOf(
+      context,
+    ).languageCode.toLowerCase();
     if (_activeLanguageCode == languageCode) return;
     _activeLanguageCode = languageCode;
     _observeDocument(languageCode);
@@ -52,22 +51,25 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
     _subscription = _service
         .watchDocument(widget.documentType, languageCode: languageCode)
         .listen(
-      (doc) {
-        if (!mounted) return;
-        setState(() {
-          _document = doc;
-          _isLoading = false;
-        });
-      },
-      onError: (error) {
-        LoggingService().warning('Failed updating legal document stream', error);
-        if (!mounted) return;
-        setState(() {
-          _document = LegalDocument.empty;
-          _isLoading = false;
-        });
-      },
-    );
+          (doc) {
+            if (!mounted) return;
+            setState(() {
+              _document = doc;
+              _isLoading = false;
+            });
+          },
+          onError: (error) {
+            LoggingService().warning(
+              'Failed updating legal document stream',
+              error,
+            );
+            if (!mounted) return;
+            setState(() {
+              _document = LegalDocument.empty;
+              _isLoading = false;
+            });
+          },
+        );
   }
 
   @override
@@ -77,7 +79,8 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
   }
 
   Future<void> _refresh() async {
-    final locale = _activeLanguageCode ??
+    final locale =
+        _activeLanguageCode ??
         Localizations.localeOf(context).languageCode.toLowerCase();
     final doc = await _service.fetchDocument(
       widget.documentType,
@@ -98,9 +101,9 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
     final emptyLabel = localization.get('legal.empty_state');
     final localeName = localization.languageCode;
     final formattedUpdated = _document.updatedAt != null
-        ? DateFormat.yMMMMd(localeName)
-            .add_Hm()
-            .format(_document.updatedAt!.toLocal())
+        ? DateFormat.yMMMMd(
+            localeName,
+          ).add_Hm().format(_document.updatedAt!.toLocal())
         : localization.get('legal.not_available');
 
     final content = _document.content.trim().isEmpty
@@ -108,14 +111,11 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
         : _document.content;
 
     return Scaffold(
-      appBar: CustomAppBar(
-        titleText: title,
-        showBackButton: true,
-      ),
+      appBar: CustomAppBar(titleText: title, showBackButton: true),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: BouncingDotsLoader())
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(AppTheme.spacing16),
                 child: Column(
@@ -124,11 +124,10 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
                     Text(
                       '$updatedLabel $formattedUpdated',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withAlpha(150),
-                          ),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withAlpha(150),
+                      ),
                     ),
                     const SizedBox(height: AppTheme.spacing16),
                     SelectableText(

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../providers/connectivity_provider.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class NoConnectionScreen extends StatefulWidget {
   const NoConnectionScreen({super.key});
@@ -71,11 +72,7 @@ class _NoConnectionScreenState extends State<NoConnectionScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _isChecking ? null : _retry,
                     icon: _isChecking
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const BouncingDotsLoader()
                         : const Icon(Icons.refresh_rounded),
                     label: Text(
                       _isChecking

@@ -4,6 +4,7 @@ import '../../../localization/app_localizations.dart';
 import '../../../models/notification_item.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/logging_service.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class NotificationScreen extends StatefulWidget {
   final String initialLanguage;
@@ -117,7 +118,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         stream: _notificationService.getUserNotifications(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: BouncingDotsLoader());
           }
 
           if (snapshot.hasError) {

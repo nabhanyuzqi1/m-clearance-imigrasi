@@ -14,6 +14,7 @@ import '../../../services/functions_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/report_service.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 import '../user/document_view_screen.dart';
 
 class OfficerReportScreen extends StatefulWidget {
@@ -143,8 +144,10 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         String? status,
         String? producedField,
       }) {
-        Query<Map<String, dynamic>> query =
-            applications.where('type', isEqualTo: type);
+        Query<Map<String, dynamic>> query = applications.where(
+          'type',
+          isEqualTo: type,
+        );
 
         if (status != null) {
           query = query.where('status', isEqualTo: status);
@@ -245,10 +248,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
       );
 
       // Accounts counts
-      final accountsTotal = await countQuery(
-        accountQuery(),
-        'accounts_total',
-      );
+      final accountsTotal = await countQuery(accountQuery(), 'accounts_total');
       final accountsPending = await countQuery(
         accountQuery(status: 'pending_approval'),
         'accounts_pending',
@@ -306,7 +306,11 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         },
       };
     } catch (error, stackTrace) {
-      LoggingService().error('Fallback officer stats computation failed', error, stackTrace);
+      LoggingService().error(
+        'Fallback officer stats computation failed',
+        error,
+        stackTrace,
+      );
       return {};
     }
   }
@@ -536,11 +540,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
             ? null
             : _showCreateReportSheet,
         icon: _isGeneratingReport
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const BouncingDotsLoader()
             : const Icon(Icons.summarize_outlined),
         label: Text(_tr('create_new_report')),
       ),
@@ -550,7 +550,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           await _loadReports();
         },
         child: _isLoadingStats && _stats == null
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: BouncingDotsLoader())
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(AppTheme.spacing24),
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -852,7 +852,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         ),
         const SizedBox(height: AppTheme.spacing16),
         if (_isLoadingReports)
-          const Center(child: CircularProgressIndicator())
+          const Center(child: BouncingDotsLoader())
         else if (_reports.isEmpty)
           Center(
             child: Text(

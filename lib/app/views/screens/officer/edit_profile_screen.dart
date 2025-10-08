@@ -10,6 +10,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/user_service.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -426,21 +427,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           IconButton(
             onPressed: _isLoading ? null : _saveProfile,
             icon: _isLoading
-                ? SizedBox(
-                    width: iconSize,
-                    height: iconSize,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colorScheme.primary,
-                    ),
-                  )
+                ? const BouncingDotsLoader()
                 : Icon(Icons.save, color: colorScheme.primary, size: iconSize),
             tooltip: _tr('save_changes'),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: BouncingDotsLoader())
           : SingleChildScrollView(
               padding: EdgeInsets.symmetric(
                 horizontal: horizontalPadding,
@@ -584,14 +578,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ? Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  SizedBox(
-                                    width: iconSize,
-                                    height: iconSize,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: colorScheme.onPrimary,
-                                    ),
-                                  ),
+                                  const BouncingDotsLoader(),
                                   const SizedBox(width: 12),
                                   Text(
                                     _tr('saving'),

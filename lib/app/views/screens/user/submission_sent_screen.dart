@@ -87,14 +87,10 @@ class SubmissionSentScreen extends StatelessWidget {
               Container(
                 padding: EdgeInsets.all(AppTheme.spacing20),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey[200] ?? AppTheme.whiteColor
-                      : Theme.of(context).colorScheme.surface,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                   border: Border.all(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? (Colors.grey[300] ?? AppTheme.greyColor)
-                        : Theme.of(context).colorScheme.primary.withAlpha(51),
+                    color: Theme.of(context).colorScheme.outline,
                   ),
                 ),
                 child: Column(

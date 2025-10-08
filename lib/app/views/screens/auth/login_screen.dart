@@ -13,6 +13,7 @@ import '../../../services/logging_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../../providers/language_provider.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -177,12 +178,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showErrorSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   @override
@@ -339,9 +342,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ).colorScheme.surface.withAlpha(128),
                           shape: BoxShape.circle,
                         ),
-                        child: const CircularProgressIndicator(
-                          color: Colors.white,
-                        ),
+                        child: const BouncingDotsLoader(),
                       ),
                       const SizedBox(height: AppTheme.paddingLarge),
                       Container(

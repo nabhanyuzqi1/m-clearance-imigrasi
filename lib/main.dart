@@ -99,11 +99,12 @@ void main() async {
         sound: true,
       );
     }
-    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
     await notificationService.ensureInitialised();
     await notificationService.getFCMToken();
   } catch (e) {
@@ -161,7 +162,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       try {
         await Future.wait([
           precacheImage(const AssetImage('assets/images/logo.png'), context),
-          precacheImage(const AssetImage('assets/images/dermaga.png'), context),
+          precacheImage(
+            const AssetImage('assets/images/dermaga.png'),
+            context,
+          ),
           precacheImage(
             const AssetImage('assets/images/shipping.png'),
             context,

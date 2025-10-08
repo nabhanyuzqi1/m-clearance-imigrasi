@@ -7,6 +7,7 @@ import 'package:universal_html/html.dart' as html;
 
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class DocumentViewScreen extends StatefulWidget {
   final String? storagePath;
@@ -137,7 +138,7 @@ class _DocumentViewScreenState extends State<DocumentViewScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: BouncingDotsLoader());
     }
 
     if (_error != null) {

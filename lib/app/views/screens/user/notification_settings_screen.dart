@@ -9,6 +9,7 @@ import '../../../models/notification_preferences.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/notification_service.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   final String initialLanguage;
@@ -92,9 +93,7 @@ class _NotificationSettingsScreenState
       LoggingService().error('Failed to update notification preferences', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_tr('notificationSettings', 'update_failed')),
-          ),
+          SnackBar(content: Text(_tr('notificationSettings', 'update_failed'))),
         );
         await _loadPreferences();
       }
@@ -116,12 +115,13 @@ class _NotificationSettingsScreenState
       });
       if (_pushNotificationsEnabled) {
         final updatedPrefs =
-            (_preferences ?? const NotificationPreferences(
-              pushEnabled: true,
-              muteAll: false,
-              playSound: true,
-              badgeEnabled: true,
-            ))
+            (_preferences ??
+                    const NotificationPreferences(
+                      pushEnabled: true,
+                      muteAll: false,
+                      playSound: true,
+                      badgeEnabled: true,
+                    ))
                 .copyWith(pushEnabled: true);
         await _persistPreferences(updatedPrefs);
       }
@@ -139,9 +139,7 @@ class _NotificationSettingsScreenState
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                _tr('notificationSettings', 'permission_required'),
-              ),
+              content: Text(_tr('notificationSettings', 'permission_required')),
             ),
           );
         }
@@ -153,7 +151,8 @@ class _NotificationSettingsScreenState
     }
 
     setState(() => _pushNotificationsEnabled = value);
-    final current = _preferences ??
+    final current =
+        _preferences ??
         NotificationPreferences(
           pushEnabled: value,
           muteAll: _muteNotifications,
@@ -165,40 +164,43 @@ class _NotificationSettingsScreenState
 
   Future<void> _handleMuteToggle(bool value) async {
     setState(() => _muteNotifications = value);
-    final prefs = (_preferences ??
-            NotificationPreferences(
-              pushEnabled: _pushNotificationsEnabled,
-              muteAll: value,
-              playSound: _toggleSound,
-              badgeEnabled: _badgeEnabled,
-            ))
-        .copyWith(muteAll: value);
+    final prefs =
+        (_preferences ??
+                NotificationPreferences(
+                  pushEnabled: _pushNotificationsEnabled,
+                  muteAll: value,
+                  playSound: _toggleSound,
+                  badgeEnabled: _badgeEnabled,
+                ))
+            .copyWith(muteAll: value);
     await _persistPreferences(prefs);
   }
 
   Future<void> _handleSoundToggle(bool value) async {
     setState(() => _toggleSound = value);
-    final prefs = (_preferences ??
-            NotificationPreferences(
-              pushEnabled: _pushNotificationsEnabled,
-              muteAll: _muteNotifications,
-              playSound: value,
-              badgeEnabled: _badgeEnabled,
-            ))
-        .copyWith(playSound: value);
+    final prefs =
+        (_preferences ??
+                NotificationPreferences(
+                  pushEnabled: _pushNotificationsEnabled,
+                  muteAll: _muteNotifications,
+                  playSound: value,
+                  badgeEnabled: _badgeEnabled,
+                ))
+            .copyWith(playSound: value);
     await _persistPreferences(prefs);
   }
 
   Future<void> _handleBadgeToggle(bool value) async {
     setState(() => _badgeEnabled = value);
-    final prefs = (_preferences ??
-            NotificationPreferences(
-              pushEnabled: _pushNotificationsEnabled,
-              muteAll: _muteNotifications,
-              playSound: _toggleSound,
-              badgeEnabled: value,
-            ))
-        .copyWith(badgeEnabled: value);
+    final prefs =
+        (_preferences ??
+                NotificationPreferences(
+                  pushEnabled: _pushNotificationsEnabled,
+                  muteAll: _muteNotifications,
+                  playSound: _toggleSound,
+                  badgeEnabled: value,
+                ))
+            .copyWith(badgeEnabled: value);
     await _persistPreferences(prefs);
   }
 
@@ -265,34 +267,26 @@ class _NotificationSettingsScreenState
                   ),
                   subtitle: _isLoadingPermissions
                       ? Text(
-                          _tr(
-                            'notificationSettings',
-                            'checking_permissions',
-                          ),
+                          _tr('notificationSettings', 'checking_permissions'),
                         )
                       : Text(
                           _pushNotificationsEnabled
                               ? _tr('notificationSettings', 'status_enabled')
                               : _tr('notificationSettings', 'status_disabled'),
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color:
-                                _pushNotificationsEnabled
+                            color: _pushNotificationsEnabled
                                 ? colorScheme.primary
                                 : colorScheme.error,
                           ),
                         ),
-                  trailing:
-                      !_pushNotificationsEnabled
-                          ? ElevatedButton(
-                              onPressed: (_isLoadingPermissions ||
-                                      _isSavingPrefs)
-                                  ? null
-                                  : _requestPermissions,
-                              child: Text(
-                                _tr('notificationSettings', 'enable'),
-                              ),
-                            )
-                          : null,
+                  trailing: !_pushNotificationsEnabled
+                      ? ElevatedButton(
+                          onPressed: (_isLoadingPermissions || _isSavingPrefs)
+                              ? null
+                              : _requestPermissions,
+                          child: Text(_tr('notificationSettings', 'enable')),
+                        )
+                      : null,
                 ),
                 if ((_permissionStatus?.authorizationStatus ==
                         AuthorizationStatus.authorized) ||
@@ -302,8 +296,10 @@ class _NotificationSettingsScreenState
                       const Divider(height: 1),
                       _buildSwitchTile(
                         context,
-                        title:
-                            _tr('notificationSettings', 'receive_push_notifications'),
+                        title: _tr(
+                          'notificationSettings',
+                          'receive_push_notifications',
+                        ),
                         value: _pushNotificationsEnabled,
                         enabled: !_isSavingPrefs,
                         onChanged: pushHandler,
@@ -377,7 +373,7 @@ class _NotificationSettingsScreenState
           if (_isSavingPrefs)
             const Padding(
               padding: EdgeInsets.only(top: AppTheme.spacing16),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: BouncingDotsLoader()),
             ),
         ],
       ),

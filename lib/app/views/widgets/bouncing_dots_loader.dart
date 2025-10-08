@@ -17,8 +17,9 @@ class _BouncingDotsLoaderState extends State<BouncingDotsLoader>
   void initState() {
     super.initState();
     _controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200))
-      ..repeat();
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
   }
 
   @override
@@ -36,17 +37,20 @@ class _BouncingDotsLoaderState extends State<BouncingDotsLoader>
         return AnimatedBuilder(
           animation: _controller,
           builder: (context, child) {
-            final animationValue = CurveTween(curve: Curves.easeInOutSine)
-                .transform((_controller.value - delay).clamp(0.0, 1.0));
+            final animationValue = CurveTween(
+              curve: Curves.easeInOutSine,
+            ).transform((_controller.value - delay).clamp(0.0, 1.0));
             final yOffset = -20 * (animationValue * 2 - 1).abs();
             return Transform.translate(
-                offset: Offset(0, yOffset),
-                child: _Dot(
-                    color: index == 1 || index == 4
-                        ? Colors.blue
-                        : index == 2
-                            ? Colors.black87
-                            : Colors.grey.shade300));
+              offset: Offset(0, yOffset),
+              child: _Dot(
+                color: index == 1 || index == 4
+                    ? Theme.of(context).colorScheme.primary
+                    : index == 2
+                    ? Theme.of(context).colorScheme.onSurface
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+            );
           },
         );
       }),
@@ -61,9 +65,10 @@ class _Dot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6),
-        width: 15,
-        height: 15,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle));
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      width: 15,
+      height: 15,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
   }
 }

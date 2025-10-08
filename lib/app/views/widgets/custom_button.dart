@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import 'bouncing_dots_loader.dart';
 
 enum CustomButtonType { elevated, outlined, text }
 
@@ -56,19 +57,7 @@ class CustomButton extends StatelessWidget {
           SizedBox(width: screenWidth * 0.02),
         ],
         if (isLoading) ...[
-          SizedBox(
-            width: screenWidth * 0.05,
-            height: screenWidth * 0.05,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                foregroundColor ??
-                    (type == CustomButtonType.elevated
-                        ? Theme.of(context).colorScheme.onPrimary
-                        : Theme.of(context).colorScheme.primary),
-              ),
-            ),
-          ),
+          const BouncingDotsLoader(),
           SizedBox(width: screenWidth * 0.02),
         ],
         Flexible(

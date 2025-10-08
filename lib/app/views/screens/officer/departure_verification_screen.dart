@@ -5,6 +5,7 @@ import '../../../models/clearance_application.dart';
 import '../../../services/logging_service.dart';
 import '../../../config/theme.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class DepartureVerificationScreen extends StatefulWidget {
   final String adminName;
@@ -310,7 +311,7 @@ class _DepartureVerificationScreenState
                 builder: (context, snapshot) {
                   // Display a loading indicator while waiting for the data
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Center(child: BouncingDotsLoader());
                   }
                   // Display an error message if there's an error fetching the data
                   if (snapshot.hasError) {
@@ -327,7 +328,35 @@ class _DepartureVerificationScreenState
 
                   // Display a message if there are no applications
                   if (apps.isEmpty) {
-                    return Center(child: Text(_tr('no_data')));
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(AppTheme.spacing24),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withAlpha(12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.image_outlined,
+                              size: 60,
+                              color: colorScheme.primary.withAlpha(51),
+                            ),
+                          ),
+                          SizedBox(height: AppTheme.spacing24),
+                          Text(
+                            'No data for this filter',
+                            style: TextStyle(
+                              fontSize: AppTheme.fontSizeH5,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Poppins',
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
                   }
                   // Display the list of applications
                   return ListView.builder(

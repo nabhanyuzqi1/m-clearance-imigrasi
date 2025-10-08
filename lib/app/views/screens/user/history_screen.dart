@@ -83,40 +83,29 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   }
 
   Widget _buildFilterButton(String text, HistoryFilter filter) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isSelected = _currentFilter == filter;
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _currentFilter = filter;
-          });
+      child: ElevatedButton(
+        onPressed: () {
+          setState(() => _currentFilter = filter);
         },
-        child: Container(
-          padding: EdgeInsets.symmetric(vertical: AppTheme.spacing12),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? Theme.of(context).colorScheme.surface
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Theme.of(context).colorScheme.shadow.withAlpha(25),
-                      blurRadius: 5,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : [],
-          ),
-          child: Center(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: Theme.of(context).colorScheme.onSurface,
-                fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily,
-              ),
-            ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isSelected
+              ? colorScheme.primary
+              : colorScheme.surfaceContainerHighest,
+          foregroundColor: isSelected
+              ? colorScheme.onPrimary
+              : colorScheme.onSurfaceVariant,
+          elevation: isSelected ? 2 : 0,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: AppTheme.fontSizeSmall,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
       ),

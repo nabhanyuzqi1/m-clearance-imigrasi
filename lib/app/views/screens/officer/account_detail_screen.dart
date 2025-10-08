@@ -14,6 +14,7 @@ import '../../screens/user/document_view_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/attachment_status_tile.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class AccountDetailScreen extends StatefulWidget {
   final String uid;
@@ -522,7 +523,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     }
 
     final fromReference = _normalizeDocumentKey(reference);
-    if (fromReference != null && _registrationDocOrder.contains(fromReference)) {
+    if (fromReference != null &&
+        _registrationDocOrder.contains(fromReference)) {
       return fromReference;
     }
 
@@ -608,7 +610,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         future: _userFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: BouncingDotsLoader());
           }
           final user = snapshot.data;
           if (user == null) {
@@ -737,7 +739,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     return Positioned.fill(
       child: ColoredBox(
         color: Colors.black.withAlpha(89),
-        child: const Center(child: CircularProgressIndicator()),
+        child: const Center(child: BouncingDotsLoader()),
       ),
     );
   }

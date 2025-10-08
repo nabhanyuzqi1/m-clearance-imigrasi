@@ -5,6 +5,7 @@ import '../../../config/theme.dart';
 import '../../../models/notification_item.dart';
 import '../../../services/notification_service.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class OfficerNotificationScreen extends StatefulWidget {
   final String initialLanguage;
@@ -94,7 +95,7 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
         stream: _notificationService.getUserNotifications(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: BouncingDotsLoader());
           }
 
           if (snapshot.hasError) {

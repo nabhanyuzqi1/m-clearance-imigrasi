@@ -9,6 +9,7 @@ import '../../../config/theme.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/attachment_status_tile.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 import '../user/document_view_screen.dart';
 import '../../../utils/file_utils.dart';
 
@@ -525,14 +526,12 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       child: IgnorePointer(
         ignoring: false,
         child: Container(
-          color: Colors.black.withAlpha(115),
+          color: Theme.of(context).colorScheme.scrim.withAlpha(115),
           child: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+                BouncingDotsLoader(),
                 const SizedBox(height: AppTheme.spacing16),
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -543,7 +542,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                       'submissionDetail.${_processingMessageKey ?? 'processing_request'}',
                     ),
                     style: TextStyle(
-                      color: Theme.of(context).colorScheme.surface,
+                      color: Colors.white,
                       fontSize: AppTheme.fontSizeBody1,
                       fontWeight: FontWeight.w600,
                       fontFamily: 'Poppins',
@@ -600,12 +599,14 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                 Container(
                   padding: EdgeInsets.all(AppTheme.spacing12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(51),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onPrimary.withAlpha(51),
                     borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                   ),
                   child: Icon(
                     Icons.anchor,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimary,
                     size: screenWidth > 600 ? 32.0 : screenWidth * 0.08,
                   ),
                 ),
@@ -619,7 +620,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                         style: TextStyle(
                           fontSize: AppTheme.fontSizeH5,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onPrimary,
                           fontFamily: 'Poppins',
                         ),
                       ),
@@ -628,7 +629,9 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                         '${AppLocalizations.of(context).get('submissionDetail.application_id')}: ${widget.application.id}',
                         style: TextStyle(
                           fontSize: AppTheme.fontSizeBody2,
-                          color: Colors.white.withAlpha(204),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimary.withAlpha(204),
                           fontFamily: 'Poppins',
                         ),
                       ),
