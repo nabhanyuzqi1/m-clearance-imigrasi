@@ -1,568 +1,263 @@
-# M-Clearance Immigration System
-
-[![Flutter](https://img.shields.io/badge/Flutter-3.9.0-blue.svg)](https://flutter.dev/)
-[![Firebase](https://img.shields.io/badge/Firebase-Enabled-orange.svg)](https://firebase.google.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-A comprehensive Flutter-based immigration clearance application system designed for maritime operations in Indonesia. The system supports both user (agent) and officer workflows for managing ship clearance applications, document verification, and immigration processes.
-
-## 📋 Table of Contents
-
-- [Features](#features)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Firebase Setup](#firebase-setup)
-- [Running the Application](#running-the-application)
-- [Project Structure](#project-structure)
-- [Localization](#localization)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [Contributing](#contributing)
-- [License](#license)
-
-## ✨ Features
-
-### 🔐 Authentication & User Management
-- **Multi-role Support**: User (Agent) and Officer roles
-- **Email Verification**: Secure email verification workflow
-- **Password Management**: Forgot password and change password functionality
-- **Document Upload**: NIB and KTP document submission for registration
-
-### 🚢 Clearance Application System
-- **Arrival/Departure Applications**: Complete clearance workflow
-- **Document Management**: Port clearance, crew lists, notification letters
-- **Real-time Status Tracking**: Application status monitoring
-- **Officer Verification**: Document review and approval system
-
-### 🌐 Localization
-- **Bilingual Support**: English and Indonesian (Bahasa Indonesia)
-- **Dynamic Language Switching**: Runtime language changes
-- **Comprehensive Coverage**: All screens and components localized
-
-### 📱 User Interface
-- **Responsive Design**: Optimized for mobile devices
-- **Material Design**: Modern UI following Material Design principles
-- **Intuitive Navigation**: Clean and user-friendly interface
-- **Role-based Dashboards**: Different interfaces for users and officers
-
-### 🔧 Technical Features
-- **Firebase Integration**: Auth, Firestore, Storage
-- **Named Database**: Custom Firestore database instance
-- **Error Handling**: Comprehensive error management
-- **State Management**: Provider pattern for state management
-- **Route Management**: Centralized routing system
-
-## 🏗️ Architecture
-
-### Application Flow
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   User/Agent    │────│   Application   │────│    Officer      │
-│   Registration  │    │   Submission    │    │   Verification  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ Email Verification│  │ Document Upload │  │ Status Updates   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-### Database Structure
-
-```
-Firestore Database: (default)
-├── users/
-│   ├── {uid}/
-│   │   ├── email, username, corporateName
-│   │   ├── role, status, documents[]
-│   │   └── timestamps
-├── clearance_applications/
-│   ├── {applicationId}/
-│   │   ├── ship details, voyage info
-│   │   ├── documents, status
-│   │   └── officer notes
-└── notifications/
-    ├── {notificationId}/
-    │   ├── title, body, type
-    │   └── timestamps
-```
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **Flutter**: Cross-platform mobile framework
-- **Dart**: Programming language
-- **Material Design**: UI component library
-
-### Backend & Services
-- **Firebase Authentication**: User authentication
-- **Cloud Firestore**: NoSQL database
-- **Firebase Storage**: File storage
-- **Firebase Hosting**: Web deployment (optional)
-
-### Development Tools
-- **VS Code**: Primary IDE
-- **Flutter SDK**: Development framework
-- **Firebase CLI**: Firebase management
-- **Git**: Version control
-
-### Testing
-- **Flutter Test**: Unit testing
-- **Integration Test**: End-to-end testing
-- **Mockito**: Mocking framework
-
-## 📋 Prerequisites
-
-### System Requirements
-- **Flutter SDK**: `^3.9.0`
-- **Dart SDK**: Included with Flutter
-- **Android Studio**: For Android development
-- **Xcode**: For iOS development (macOS only)
-- **VS Code**: Recommended IDE
-
-### Firebase Requirements
-- **Firebase Project**: Active Firebase project
-- **Firestore Database**: Default database
-- **Authentication**: Email/Password provider enabled
-- **Storage**: Cloud Storage bucket configured
-
-### Development Environment
-```bash
-# Check Flutter installation
-flutter --version
-
-# Check available devices
-flutter devices
-
-# Check Flutter doctor
-flutter doctor
-```
-
-## 🚀 Installation
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/your-username/m-clearance-imigrasi.git
-cd m-clearance-imigrasi
-```
-
-### 2. Install Dependencies
-```bash
-flutter pub get
-```
-
-### 3. Configure Firebase
-```bash
-# Install Firebase CLI
-npm install -g firebase-tools
-
-# Login to Firebase
-firebase login
-
-# Initialize Firebase (if not already done)
-firebase init
-```
-
-### 4. Setup Environment
-```bash
-# Copy environment configuration
-cp .env.example .env
-
-# Edit .env with your Firebase configuration
-```
-
-## ⚙️ Configuration
-
-### Firebase Configuration
-
-#### 1. Firebase Project Setup
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project: `m-clearance-imigrasi`
-3. Enable Authentication with Email/Password provider
-4. Create the default Firestore Database (no custom database ID)
-5. Set up Storage bucket
-
-#### 2. Download Configuration Files
-```bash
-# Download Firebase configuration
-flutterfire configure --project=m-clearance-imigrasi
-```
-
-#### 3. Update Configuration Files
-- `lib/firebase_options.dart`: Auto-generated by FlutterFire
-- `android/app/google-services.json`: Download from Firebase Console
-- `ios/Runner/GoogleService-Info.plist`: Download from Firebase Console
-
-### Environment Variables
-```env
-# .env file
-FIREBASE_PROJECT_ID=m-clearance-imigrasi
-FIREBASE_API_KEY=your_api_key
-FIREBASE_APP_ID=your_app_id
-FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-FIREBASE_STORAGE_BUCKET=m-clearance-imigrasi.appspot.com
-```
-
-## 🔥 Firebase Setup
-
-### Firestore Security Rules
-```javascript
-// firestore.rules
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Users can read/write their own data
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Officers can read all user data
-    match /users/{userId} {
-      allow read: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'officer';
-    }
-
-    // Clearance applications
-    match /clearance_applications/{applicationId} {
-      allow read, write: if request.auth != null;
-      allow update: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'officer';
-    }
-  }
-}
-```
-
-### Storage Security Rules
-```javascript
-// storage.rules
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    // Users can upload to their own folder
-    match /users/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Officers can read all files
-    match /users/{userId}/{allPaths=**} {
-      allow read: if request.auth != null &&
-        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'officer';
-    }
-  }
-}
-```
-
-## Email Verification (OTP via MailerSend Extension)
-
-We use the official MailerSend Firebase Extension to send a 4‑digit OTP.
-
-1) Install the extension
-
-```
-firebase ext:install mailersend/mailersend-email --project <your-project-id>
-```
-
-2) Functions enqueue email requests into the default Firestore DB collection `emails` with:
-
-```
-{
-  to: [{ email, name }],
-  subject: 'Your verification code',
-  template_id: '<optional>',
-  personalization: [{
-    email,
-    data: { code, code_spaced, d1, d2, d3, d4, name, account_name, support_email }
-  }],
-  html: '<fallback html>',
-  text: '<fallback text>',
-  tags: ['email_verification']
-}
-```
-
-3) Template variables (add in MailerSend template)
-- `{{ code }}` or `{{ code_spaced }}`
-- `{{ d1 }} {{ d2 }} {{ d3 }} {{ d4 }}`
-- `{{ name }}`, `{{ account_name }}`, `{{ support_email }}`
-
-4) Cooldown and attempts
-- Server: cooldown (default 60s) and max attempts (default 5)
-- Client: resend button shows a countdown and disables during cooldown; masked “Sent to …” hint
-
-5) Functions .env (optional overrides)
-```
-MAILERSEND_FROM=noreply@your-mailersend-sender.com
-MAILERSEND_FROM_NAME=M-Clearance
-MAILERSEND_TEMPLATE_ID=<optional-template-id>
-MAILERSEND_ACCOUNT_NAME=M-Clearance
-MAILERSEND_SUPPORT_EMAIL=support@example.com
-MAILERSEND_COOLDOWN_SECONDS=60
-MAILERSEND_MAX_ATTEMPTS=5
-```
-
-6) Delivery Status Monitoring
-- **Automatic Monitoring**: `onEmailDeliveryUpdate` function monitors delivery status updates
-- **Failure Handling**: Updates user status to `email_verification_failed` on delivery failure
-- **Retry Mechanism**: Automatically retries failed sends up to 3 times (configurable via `MAX_EMAIL_RETRIES`)
-- **Error Logging**: Comprehensive logging for debugging delivery issues
-
-7) Environment Variables
-```
-MAILERSEND_FROM=noreply@your-mailersend-sender.com
-MAILERSEND_FROM_NAME=M-Clearance
-MAILERSEND_TEMPLATE_ID=<optional-template-id>
-MAILERSEND_ACCOUNT_NAME=M-Clearance
-MAILERSEND_SUPPORT_EMAIL=support@example.com
-MAILERSEND_COOLDOWN_SECONDS=60
-MAILERSEND_MAX_ATTEMPTS=5
-MAX_EMAIL_RETRIES=3
-```
-
-Debug:
-- Default Firestore DB → `emails` gets a doc on resend
-- Extension logs: Firebase Console → Extensions → MailerSend Email → Logs
-- Functions logs: `firebase functions:log --only issueEmailVerificationCode,verifyEmailCode,onEmailDeliveryUpdate`
-
-## ▶️ Running the Application
-
-### Development Mode
-
-#### Web (with Debug Service Filtering)
-```bash
-# Use the filtered script to hide DWDS noise
-./tool/run_web_filtered.sh
-
-# Or use VS Code task
-# Command Palette → "Run Task" → "Flutter: Run Web (filtered)"
-```
-
-#### Android
-```bash
-flutter run
-```
-
-#### iOS (macOS only)
-```bash
-flutter run
-```
-
-### Production Mode
-```bash
-# Web
-flutter build web --release
-
-# Android
-flutter build apk --release
-
-# iOS
-flutter build ios --release
-```
-
-### Debug Commands
-```bash
-# Hot reload
-r
-
-# Hot restart
-R
-
-# Quit
-q
-
-# List available commands
-h
-```
-
-## 📁 Project Structure
-
-```
-m-clearance-imigrasi/
-├── android/                    # Android platform code
-├── ios/                       # iOS platform code
-├── lib/                       # Main Flutter application
-│   ├── app/
-│   │   ├── config/
-│   │   │   ├── routes.dart    # Application routing
-│   │   │   └── theme.dart     # App theme configuration
-│   │   ├── localization/
-│   │   │   └── app_strings.dart # Localization strings
-│   │   ├── models/            # Data models
-│   │   │   ├── user_model.dart
-│   │   │   ├── clearance_application.dart
-│   │   │   └── notification_item.dart
-│   │   ├── services/          # Business logic services
-│   │   │   ├── auth_service.dart
-│   │   │   └── notification_services.dart
-│   │   └── views/             # UI components
-│   │       ├── screens/       # Screen widgets
-│   │       │   ├── auth/      # Authentication screens
-│   │       │   ├── user/      # User screens
-│   │       │   └── officer/   # Officer screens
-│   │       └── widgets/       # Reusable widgets
-│   ├── firebase_options.dart  # Firebase configuration
-│   └── main.dart             # Application entry point
-├── test/                     # Unit tests
-├── integration_test/         # Integration tests
-├── web/                      # Web platform files
-├── functions/                # Firebase Cloud Functions
-├── tool/                     # Development tools
-│   └── run_web_filtered.sh   # Web debug filter script
-├── .vscode/                  # VS Code configuration
-├── firebase.json            # Firebase configuration
-├── pubspec.yaml             # Flutter dependencies
-└── README.md                # This file
-```
-
-## 🌐 Localization
-
-### Supported Languages
-- **English (EN)**: Default language
-- **Indonesian (ID)**: Bahasa Indonesia
-
-### Usage in Code
-```dart
-import '../../../localization/app_strings.dart';
-
-// Get localized string
-String title = AppStrings.tr(
-  context: context,
-  screenKey: 'login',
-  stringKey: 'welcome',
-  langCode: 'EN', // or 'ID'
-);
-```
-
-### Adding New Languages
-1. Add new language map to `_localizedStrings` in `app_strings.dart`
-2. Update all screen keys with translations
-3. Test language switching functionality
-
-## 🧪 Testing
-
-### Unit Tests
-```bash
-flutter test
-```
-
-### Integration Tests
-```bash
-flutter test integration_test/
-```
-
-### Test Coverage
-```bash
-flutter test --coverage
-```
-
-### Mock Setup
-```dart
-// Using Mockito for service mocking
-@GenerateMocks([AuthService, FirebaseAuth])
-void main() {
-  // Test implementation
-}
-```
-
-## 🚀 Deployment
-
-### Web Deployment
-```bash
-# Build for production
-flutter build web --release
-
-# Deploy to Firebase Hosting
-firebase deploy --only hosting
-```
-
-### Mobile Deployment
-
-#### Android
-```bash
-# Build APK
-flutter build apk --release
-
-# Build App Bundle
-flutter build appbundle --release
-```
-
-#### iOS
-```bash
-# Build for iOS
-flutter build ios --release
-
-# Archive for App Store
-# Use Xcode to archive and upload
-```
-
-### Firebase Functions Deployment
-```bash
-# Deploy Cloud Functions
-firebase deploy --only functions
-```
-
-## 🤝 Contributing
-
-### Development Workflow
-1. **Fork** the repository
-2. **Create** a feature branch: `git checkout -b feature/your-feature`
-3. **Commit** your changes: `git commit -m 'Add some feature'`
-4. **Push** to the branch: `git push origin feature/your-feature`
-5. **Open** a Pull Request
-
-### Code Style
-```bash
-# Format code
-flutter format .
-
-# Analyze code
-flutter analyze
-
-# Run tests before committing
-flutter test
-```
-
-### Commit Message Convention
-```
-feat: add new clearance application feature
-fix: resolve authentication bug
-docs: update README with deployment instructions
-style: format code according to Flutter guidelines
-refactor: improve service layer architecture
-test: add unit tests for auth service
-```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👥 Authors
-
-- **Your Name** - *Initial work* - [Your GitHub](https://github.com/your-username)
-
-## 🙏 Acknowledgments
-
-- Flutter Team for the amazing framework
-- Firebase for comprehensive backend services
-- Material Design for beautiful UI components
-- Indonesian Immigration Department for domain expertise
-
-## 📞 Support
-
-For support, email support@mclearance.com or join our Slack channel.
-
-## 🔄 Version History
-
-### v1.0.0 (Current)
-- Initial release with core clearance functionality
-- Multi-role authentication system
-- Document upload and verification
-- Bilingual localization support
-- Firebase integration
+# M-Clearance Immigration – User Guide
+
+M-Clearance Immigration is a mobile application that digitises vessel clearance workflows between maritime agents and immigration officers. This guide helps you install the app, understand each module, and complete daily tasks from either role.
+
+## Table of Contents
+- [Getting Started](#getting-started)
+  - [Device Requirements](#device-requirements)
+  - [Install from Google Play](#install-from-google-play)
+  - [Update to the Latest Version](#update-to-the-latest-version)
+- [Account Types](#account-types)
+- [First-Time Access](#first-time-access)
+  - [Registration (Agent)](#registration-agent)
+  - [Email Verification](#email-verification)
+  - [Officer Account Provisioning](#officer-account-provisioning)
+- [Logging In and Out](#logging-in-and-out)
+  - [Forgotten Password](#forgotten-password)
+- [Agent Experience](#agent-experience)
+  - [Home Dashboard](#home-dashboard)
+  - [Submitting Arrival or Departure Clearance](#submitting-arrival-or-departure-clearance)
+  - [Uploading Corporate Documents](#uploading-corporate-documents)
+  - [Tracking Application Status](#tracking-application-status)
+  - [Notifications](#notifications)
+  - [Application History & Documents](#application-history--documents)
+  - [Profile, Language, and Preferences](#profile-language-and-preferences)
+  - [Agent Logout](#agent-logout)
+- [Officer Experience](#officer-experience)
+  - [Officer Dashboard](#officer-dashboard)
+  - [Account Verification Queue](#account-verification-queue)
+  - [Arrival & Departure Application Review](#arrival--departure-application-review)
+  - [Submission Detail Actions](#submission-detail-actions)
+  - [Officer Reports](#officer-reports)
+  - [Email & Legal Content Management](#email--legal-content-management)
+  - [Officer Notifications](#officer-notifications)
+  - [Officer Settings & Logout](#officer-settings--logout)
+- [Connectivity Awareness](#connectivity-awareness)
+- [Language Support](#language-support)
+- [Help & Escalation](#help--escalation)
+- [Quick Reference](#quick-reference)
 
 ---
 
-**Made with ❤️ for efficient maritime immigration processes in Indonesia**
+## Getting Started
+
+### Device Requirements
+- Android 10 (API level 29) or newer
+- Stable internet connection (Wi-Fi or cellular data)
+- At least 200 MB of free storage for installation and document caching
+- Camera and photo library permissions if you plan to capture or upload images
+
+### Install from Google Play
+1. Open the **Google Play Store** on your Android device.
+2. Search for **“M-Clearance Immigration”**.
+3. Tap **Install** and wait until the download completes.
+4. Once installed, tap **Open** or launch the app from your home screen.
+
+> **Tip:** Enable automatic updates in the Play Store to receive improvements and security fixes without manual steps.
+
+### Update to the Latest Version
+- Open the Play Store, search for **M-Clearance Immigration**, and tap **Update** if available.
+- You can also enable “Auto-update” on the app’s Play Store page.
+
+---
+
+## Account Types
+
+| Role    | Description | Access Highlights |
+|--------|-------------|-------------------|
+| **Agent** | Maritime agency staff responsible for submitting vessel arrival and departure requests. | Dashboard, clearance forms, document upload, history, notifications, profile management. |
+| **Officer** | Immigration officer or admin who reviews applications and manages supporting content. | Dashboard counters, account verification, arrival/departure queues, submission detail actions, reports, email/legal settings. |
+
+You will only see modules applicable to your role after logging in.
+
+---
+
+## First-Time Access
+
+### Registration (Agent)
+1. On the login screen, tap **Create an Account**.
+2. Fill in corporate name, username, full name, nationality, email, and password.
+3. Accept the terms and policies to continue.
+4. Submit the form – your account enters the verification pipeline with status **Pending Email Verification**.
+
+### Email Verification
+- Upon registration you receive a 4-digit verification code via email (MailerSend integration).
+- Enter the code on the **Confirmation** screen. A countdown prevents rapid resend requests.
+- If the email fails to arrive, wait for the cooldown to finish and tap **Resend Code**.
+
+### Officer Account Provisioning
+- Officer accounts are created and managed by system administrators.
+- Officers receive credentials separately; there is no self-service registration for this role.
+
+---
+
+## Logging In and Out
+
+1. Enter your registered **email** and **password** on the login screen.
+2. The system checks your role and status:
+   - **Approved Agent:** redirected to the user dashboard.
+   - **Approved Officer/Admin:** directed to the officer dashboard.
+   - **Pending Email Verification:** sent to the confirmation screen.
+   - **Pending Documents:** sent to the document upload module.
+   - **Pending Approval:** shown the registration pending screen.
+   - **Rejected:** login is blocked; a message explains the reason.
+
+To logout, open your profile/settings page and confirm the sign-out prompt.
+
+### Forgotten Password
+1. Tap **Forgot Password** on the login screen.
+2. Enter your email address.
+3. Check your inbox for a password reset link sent via Firebase Authentication.
+4. Follow the instructions in the email to set a new password, then log back in.
+
+---
+
+## Agent Experience
+
+### Home Dashboard
+- Greets you with your name and profile photo (if uploaded).
+- Shows quick action cards for **Arrival Clearance** and **Departure Clearance**.
+- Displays your three most recent applications with status badges.
+- Badge counter on the notification bell reflects unread items in real time.
+
+### Submitting Arrival or Departure Clearance
+1. From the home dashboard, tap the corresponding clearance card.
+2. Complete step-by-step forms covering vessel details, flag, port, crew counts, schedules, and supporting documents.
+3. Upload or capture required files:
+   - Port clearance document
+   - Crew list (multiple files supported)
+   - Notification letter
+4. Review the summary on the final step and submit.
+5. A success message directs you to the **Submission Sent** screen; the status updates to **Waiting** while officers review it.
+
+### Uploading Corporate Documents
+- If your account status is **Pending Documents**, you are redirected to the **Upload Documents** module.
+- Provide **NIB** and **KTP** files via camera, gallery, or file picker.
+- The app enforces required formats and ensures uploads only start when prerequisites are met.
+- Once officers review your documents, the status advances to **Pending Approval**.
+
+### Tracking Application Status
+- Navigate to **History** from the bottom navigation bar.
+- Filter by **All**, **Arrival**, or **Departure**.
+- Use search to find a vessel by ship name, agent name, or flag.
+- Tap an item to open detailed screens that show:
+  - Submitted data
+  - Officer remarks
+  - Decision history
+  - Download links for generated documents
+
+### Notifications
+- Tap the bell icon on the home screen or open **Notifications** from the history tab.
+- New updates automatically appear and badge counts sync with the server.
+- Swipe or tap to mark individual items as read, or use **Mark all as read**.
+- Notifications fall into three categories:
+  - Updates (general changes)
+  - Approved (clearance granted)
+  - Revision (action required)
+
+### Application History & Documents
+- Access to previously approved or rejected submissions, along with downloadable copies of attachments.
+- Use filters to focus on specific action items that require follow-up (e.g., revision requested).
+
+### Profile, Language, and Preferences
+- Open **Settings** from the bottom navigation bar.
+- Update personal information, corporate details, and profile photo.
+- Switch between **English (EN)** and **Bahasa Indonesia (ID)** instantly.
+- Toggle appearance (System, Light, Dark Mode).
+- Review privacy and security guidelines, change password, or manage notification preferences.
+
+### Agent Logout
+- Scroll to the bottom of the **Settings** page and tap **Logout**.
+- Confirm to sign out and return to the login screen. Pending uploads are cancelled.
+
+---
+
+## Officer Experience
+
+### Officer Dashboard
+- Shows live counters for:
+  - Pending account verifications
+  - Pending arrival clearances
+  - Pending departure clearances
+- Provides quick entry buttons to inspect the relevant queues.
+- Displays headline statistics and recent officer activities when available.
+
+### Account Verification Queue
+1. Open **Account Verification** from the dashboard.
+2. Filter users by status: all, waiting, or reviewed.
+3. Search by username, email, corporate name, or nationality.
+4. Tap a user to view full registration details, review uploaded documents, and approve or reject the account.
+
+### Arrival & Departure Application Review
+1. Choose **Arrival Verification** or **Departure Verification**.
+2. Filter by waiting or reviewed submissions; search by ship name, agent, or flag.
+3. Tap an entry to open the **Submission Detail** screen (see next section).
+
+### Submission Detail Actions
+- Inspect voyage information, crew data, and all attachments (downloadable within the app).
+- Take one of the following actions:
+  - **Approve** – marks the application as cleared and sends notifications to the agent.
+  - **Request Revision** – specify required changes; status updates to **Revision** for the agent.
+  - **Reject** – record the reason; the agent is informed immediately.
+- Actions trigger audit logs and update counters on the officer dashboard.
+
+### Officer Reports
+- Access **Reports** from the bottom navigation bar.
+- Select a date range to refresh arrival/departure statistics and trends.
+- Generate downloadable summaries (e.g., PDF) for audits or monthly reporting.
+- If cloud functions are temporarily unavailable, the screen falls back to Firestore aggregation.
+
+### Email & Legal Content Management
+- **Email Configuration:** adjust SMTP credentials, sender name, template IDs, and message bodies used in OTP and password reset flows.
+- **Legal Content Editor:** maintain Terms & Conditions and Privacy Policy in both English and Indonesian. Changes propagate to user-facing screens immediately.
+
+### Officer Notifications
+- Dedicated notification screen mirroring the agent experience but scoped to officer updates (new submissions, revisions, system alerts).
+- Supports bulk or individual mark-as-read.
+
+### Officer Settings & Logout
+- Manage personal profile, change password, switch language/theme, view account metadata.
+- Logout option prompts for confirmation; confirms sign out across linked devices.
+
+---
+
+## Connectivity Awareness
+- The app monitors internet availability via the **Connectivity Gate** widget.
+- When offline:
+  - A persistent banner or dialog indicates loss of network.
+  - Submission and upload buttons are temporarily disabled to avoid data loss.
+- Use the **Retry** option on the **No Connection** screen once connectivity is restored.
+
+---
+
+## Language Support
+- Fully localised in **English** and **Bahasa Indonesia**.
+- Change language from the settings screen. The interface reloads instantly without restarting the app.
+
+---
+
+## Help & Escalation
+- **Self-service:** Review onscreen guidance, tooltips, and the privacy/security section.
+- **In-app Issues:** Capture screenshots and note the time of occurrence; contact your system administrator or support channel defined by your organisation.
+- **Email Delivery Problems:** Administrators can inspect the MailerSend extension logs or the in-app email configuration screens.
+- **Authentication Support:** For persistent login issues, contact the support desk to verify account status.
+
+---
+
+## Quick Reference
+
+| Task | Location | Notes |
+|------|----------|-------|
+| Install app | Google Play → M-Clearance Immigration | Requires Android login and internet. |
+| Verify email | Confirmation screen after registration | 4-digit OTP; respects resend cooldown. |
+| Submit arrival clearance | User Home → Arrival card | Multi-step form with document uploads. |
+| Track status | Bottom navigation → History | Filter by arrival/departure; tap for details. |
+| Officer approve submission | Arrival/Departure list → Submission detail | Approve, request revision, or reject with notes. |
+| Change language | User/Officer Settings → Language | English ↔ Indonesian instantly. |
+| Reset password | Login → Forgot Password | Email link via Firebase Auth. |
+| Logout | Settings → Logout | Confirm to terminate active session. |
+
+---
+
+If you need a printable copy, export this README as PDF or consult your organisation’s internal documentation portal. Stay updated by installing app updates promptly and reviewing release notes shared alongside each Play Store release.
+
