@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import '../../../config/routes.dart';
 import '../../../config/theme.dart';
@@ -8,6 +9,7 @@ import '../../../services/logging_service.dart';
 import '../../../services/auth_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import 'document_view_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ClearanceResultScreen extends StatelessWidget {
   final ClearanceApplication application;
@@ -32,10 +34,15 @@ class ClearanceResultScreen extends StatelessWidget {
     final submittedAtText = DateFormat(
       'dd MMM yyyy HH:mm',
     ).format(createdAtLocal);
-    final certificateGeneratedAtLocal = application.clearanceResultGeneratedAt
-        ?.toLocal();
+    final certificateGeneratedAtLocal =
+        application.clearanceResultGeneratedAt?.toLocal();
     final certificateGeneratedAtText = certificateGeneratedAtLocal != null
         ? DateFormat('dd MMM yyyy HH:mm').format(certificateGeneratedAtLocal)
+        : null;
+    final clearanceSentAtLocal =
+        application.clearanceResultSentAt?.toLocal();
+    final clearanceSentAtText = clearanceSentAtLocal != null
+        ? DateFormat('dd MMM yyyy HH:mm').format(clearanceSentAtLocal)
         : null;
     final notProvided = tr('not_provided');
 
@@ -189,6 +196,15 @@ class ClearanceResultScreen extends StatelessWidget {
                         value: formatLocation(application.location),
                         icon: Icons.place_outlined,
                       ),
+                      if (application.clearanceCode != null &&
+                          application.clearanceCode!.isNotEmpty)
+                        _buildMetaChip(
+                          context,
+                          label: tr('clearance_code'),
+                          value: application.clearanceCode!,
+                          icon: Icons.qr_code,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       _buildMetaChip(
                         context,
                         label: tr('submitted_at'),
@@ -330,6 +346,21 @@ class ClearanceResultScreen extends StatelessWidget {
                         context,
                         tr('certificate_generated_at'),
                         certificateGeneratedAtText,
+                      ),
+
+                    if (application.clearanceCode != null &&
+                        application.clearanceCode!.isNotEmpty)
+                      _buildDetailRow(
+                        context,
+                        tr('clearance_code'),
+                        application.clearanceCode!,
+                      ),
+
+                    if (clearanceSentAtText != null)
+                      _buildDetailRow(
+                        context,
+                        tr('clearance_sent_at'),
+                        clearanceSentAtText,
                       ),
 
                     _buildDetailRow(
@@ -886,8 +917,39 @@ class ClearanceResultScreen extends StatelessWidget {
         trailing: hasFile
             ? IconButton(
                 onPressed: () async {
+                  final l10n = AppLocalizations.of(context);
+                  if (kIsWeb) {
+                    final uri = Uri.tryParse(resolvedFileUrl);
+                    if (uri != null) {
+                      final launched =
+                          await launchUrl(uri, webOnlyWindowName: '_blank');
+                      if (!launched) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              l10n.get('clearanceForm.download_failed'),
+                            ),
+                          ),
+                        );
+                      }
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            l10n.get('clearanceForm.download_failed'),
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Downloading file...')),
+                    SnackBar(
+                      content: Text(
+                        l10n.get('clearanceForm.download_start'),
+                      ),
+                    ),
                   );
 
                   try {
@@ -895,6 +957,8 @@ class ClearanceResultScreen extends StatelessWidget {
                     final fileData = await authService.downloadFileData(
                       resolvedFileUrl,
                     );
+
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
                     if (fileData != null) {
                       Navigator.push(
@@ -908,15 +972,21 @@ class ClearanceResultScreen extends StatelessWidget {
                       );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Failed to download file'),
+                        SnackBar(
+                          content: Text(
+                            l10n.get('clearanceForm.download_failed'),
+                          ),
                         ),
                       );
                     }
                   } catch (e) {
                     LoggingService().error('Error downloading file: $e');
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Error downloading file')),
+                      SnackBar(
+                        content: Text(
+                          l10n.get('clearanceForm.download_failed'),
+                        ),
+                      ),
                     );
                   }
                 },
@@ -938,8 +1008,11 @@ class ClearanceResultScreen extends StatelessWidget {
   ) {
     final widgets = <Widget>[];
 
-    if (application.clearanceResultFile != null &&
-        application.clearanceResultFile!.isNotEmpty) {
+    final hasCertificate =
+        application.clearanceResultFile != null &&
+            application.clearanceResultFile!.isNotEmpty;
+
+    if (hasCertificate) {
       widgets.add(
         _buildFileCard(
           tr('clearance_certificate'),
@@ -947,6 +1020,8 @@ class ClearanceResultScreen extends StatelessWidget {
           context,
         ),
       );
+    } else if (application.status == ApplicationStatus.approved) {
+      widgets.add(_buildPendingClearanceCard(context));
     }
 
     final portFiles = application.portClearanceFiles;
@@ -1000,5 +1075,55 @@ class ClearanceResultScreen extends StatelessWidget {
     }
 
     return widgets;
+  }
+
+  Widget _buildPendingClearanceCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: EdgeInsets.only(bottom: AppTheme.spacing12),
+      padding: EdgeInsets.all(AppTheme.spacing16),
+      decoration: BoxDecoration(
+        color: colorScheme.error.withAlpha(25),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        border: Border.all(color: colorScheme.error.withAlpha(80)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            color: colorScheme.error,
+            size: 24,
+          ),
+          SizedBox(width: AppTheme.spacing12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.get('clearanceResult.clearance_pending_title'),
+                  style: TextStyle(
+                    fontSize: AppTheme.fontSizeBody1,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.error,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+                SizedBox(height: AppTheme.spacing8),
+                Text(
+                  l10n.get('clearanceResult.clearance_pending_message'),
+                  style: TextStyle(
+                    fontSize: AppTheme.fontSizeBody2,
+                    color: colorScheme.onSurface,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

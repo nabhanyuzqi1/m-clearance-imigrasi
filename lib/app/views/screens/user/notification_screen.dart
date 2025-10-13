@@ -5,6 +5,7 @@ import '../../../models/notification_item.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/logging_service.dart';
 import '../../widgets/bouncing_dots_loader.dart';
+import '../../widgets/custom_app_bar.dart';
 
 class NotificationScreen extends StatefulWidget {
   final String initialLanguage;
@@ -93,22 +94,20 @@ class _NotificationScreenState extends State<NotificationScreen> {
     LoggingService().debug(
       'Building NotificationScreen with language: ${widget.initialLanguage}',
     );
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        title: Text(
-          _tr('notifications'),
-          style: TextStyle(fontFamily: 'Poppins'),
-        ),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+      backgroundColor: colorScheme.surface,
+      appBar: CustomAppBar(
+        titleText: _tr('notifications'),
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         actions: [
           IconButton(
             onPressed: _markAllAsRead,
             icon: Icon(
               Icons.done_all,
-              color: Theme.of(context).colorScheme.primary,
+              color: colorScheme.primary,
             ),
             tooltip: _tr('mark_all_read'),
           ),

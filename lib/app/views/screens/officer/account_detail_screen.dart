@@ -144,16 +144,22 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     String subtitle, {
     Color? subtitleColor,
     bool allowFallback = true,
+    bool isSelectable = false,
   }) {
+    final theme = Theme.of(context);
     final displaySubtitle = subtitle.isNotEmpty
         ? subtitle
         : (allowFallback ? _tr('N/A') : '');
+    final subtitleStyle = TextStyle(
+      color: subtitleColor ?? theme.colorScheme.onSurfaceVariant,
+      fontSize: AppTheme.fontSizeMedium,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 24),
+          Icon(icon, color: theme.colorScheme.primary, size: 24),
           const SizedBox(width: 16.0),
           Expanded(
             child: Column(
@@ -163,21 +169,15 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                   title,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: theme.colorScheme.onSurface,
                     fontSize: AppTheme.fontSizeMedium,
                   ),
                 ),
                 if (displaySubtitle.isNotEmpty) ...[
                   const SizedBox(height: 4.0),
-                  Text(
-                    displaySubtitle,
-                    style: TextStyle(
-                      color:
-                          subtitleColor ??
-                          Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: AppTheme.fontSizeMedium,
-                    ),
-                  ),
+                  isSelectable
+                      ? SelectableText(displaySubtitle, style: subtitleStyle)
+                      : Text(displaySubtitle, style: subtitleStyle),
                 ],
               ],
             ),
@@ -590,6 +590,153 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     }
   }
 
+  Widget _buildProfileHeader(
+    UserModel user,
+    Map<String, dynamic> statusDescriptor,
+  ) {
+    final theme = Theme.of(context);
+    final statusLabel =
+        (statusDescriptor['label'] as String?) ??
+        user.status.replaceAll('_', ' ').toUpperCase();
+    final statusColor =
+        statusDescriptor['color'] as Color? ?? theme.colorScheme.primary;
+    final nameCandidates = [
+      user.fullName.trim(),
+      user.corporateName.trim(),
+      user.username.trim(),
+      user.email.trim(),
+    ];
+    final displayName = nameCandidates.firstWhere(
+      (value) => value.isNotEmpty,
+      orElse: () => user.uid,
+    );
+    final email = user.email.trim();
+    final corporateName = user.corporateName.trim();
+    final nationality = user.nationality.trim();
+    final role = user.role.trim();
+    final photoUrl = user.photoURL?.trim() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: theme.colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withAlpha(120),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 44,
+            backgroundColor:
+                theme.colorScheme.primary.withValues(alpha: 0.12),
+            backgroundImage: photoUrl.isNotEmpty
+                ? NetworkImage(photoUrl)
+                : null,
+            child: photoUrl.isNotEmpty
+                ? null
+                : Icon(
+                    Icons.person_outline,
+                    size: 44,
+                    color: theme.colorScheme.primary,
+                  ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            displayName,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          if (corporateName.isNotEmpty &&
+              corporateName.toLowerCase() != displayName.toLowerCase())
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                corporateName,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          if (email.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: SelectableText(
+                email,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              Chip(
+                avatar: Icon(
+                  Icons.verified_outlined,
+                  color: statusColor,
+                  size: 18,
+                ),
+                label: Text(statusLabel),
+                backgroundColor: statusColor.withValues(alpha: 0.12),
+                labelStyle: theme.textTheme.bodySmall?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
+                side: BorderSide(color: statusColor.withValues(alpha: 0.4)),
+              ),
+              if (role.isNotEmpty)
+                Chip(
+                  avatar: Icon(
+                    Icons.badge_outlined,
+                    color: theme.colorScheme.primary,
+                    size: 18,
+                  ),
+                  label: Text('${_tr('role')}: ${role.toUpperCase()}'),
+                  backgroundColor: theme.colorScheme.primaryContainer
+                      .withValues(alpha: 0.6),
+                  labelStyle: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              if (nationality.isNotEmpty)
+                Chip(
+                  avatar: Icon(
+                    Icons.public,
+                    color: theme.colorScheme.secondary,
+                    size: 18,
+                  ),
+                  label: Text('${_tr('nationality')}: $nationality'),
+                  backgroundColor: theme.colorScheme.secondaryContainer
+                      .withValues(alpha: 0.6),
+                  labelStyle: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSecondaryContainer,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     LoggingService().debug(
@@ -637,7 +784,15 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildProfileHeader(user, statusDescriptor),
                 _buildSectionCard(_tr('user_information'), [
+                  _buildInfoTile(
+                    Icons.fingerprint_outlined,
+                    _tr('user_id'),
+                    user.uid,
+                    allowFallback: false,
+                    isSelectable: true,
+                  ),
                   _buildInfoTile(
                     Icons.person_outline,
                     _tr('username'),
@@ -653,6 +808,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                     Icons.email_outlined,
                     _tr('email'),
                     user.email,
+                    isSelectable: true,
                   ),
                   _buildInfoTile(
                     Icons.business_outlined,

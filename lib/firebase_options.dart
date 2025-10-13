@@ -63,11 +63,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDKya9rhy6YGV7FKEpdfQqNn87dSkbPaXo',
-    appId: '1:672708613887:android:8a7810cc54101c44185eca',
+    appId: '1:672708613887:android:df3dc6ae2eb48fa3185eca',
     messagingSenderId: '672708613887',
     projectId: 'm-clearance-imigrasi-sampit',
-    databaseURL:
-        'https://m-clearance-imigrasi-sampit.asia-southeast1.firebasedatabase.app/',
+    databaseURL: 'https://m-clearance-imigrasi-sampit-default-rtdb.firebaseio.com',
     storageBucket: 'm-clearance-imigrasi-sampit.firebasestorage.app',
   );
+
 }

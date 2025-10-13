@@ -14,6 +14,7 @@ import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../../providers/language_provider.dart';
 import '../../widgets/bouncing_dots_loader.dart';
+import 'two_factor_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -161,6 +162,22 @@ class _LoginScreenState extends State<LoginScreen> {
           );
           _showErrorSnackbar(_tr('invalid_credentials'));
         }
+      } on TwoFactorRequiredException catch (twoFactor) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+        Navigator.pushReplacementNamed(
+          context,
+          AppRoutes.twoFactor,
+          arguments: TwoFactorScreenArgs(
+            email: twoFactor.email,
+            password: twoFactor.password,
+            challenge: twoFactor.challenge,
+            deviceIdentity: twoFactor.deviceIdentity,
+            rememberDeviceDays: twoFactor.rememberDeviceDays,
+          ),
+        );
       } on FirebaseAuthException catch (e) {
         LoggingService().error(
           'Login failed with FirebaseAuthException: ${e.message}',

@@ -103,7 +103,9 @@ class FunctionsService {
     }
   }
 
-  Future<Map<String, dynamic>> issueEmailVerificationCodeEx({String? language}) async {
+  Future<Map<String, dynamic>> issueEmailVerificationCodeEx({
+    String? language,
+  }) async {
     try {
       final callable = _functions.httpsCallable('issueEmailVerificationCode');
       final result = await callable(<String, dynamic>{
@@ -177,6 +179,49 @@ class FunctionsService {
     }
   }
 
+  Future<Map<String, dynamic>> sendClearanceCertificate({
+    required String applicationId,
+    String? officerName,
+    String? officerCorporateName,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('sendClearanceCertificate');
+      final payload = <String, dynamic>{
+        'applicationId': applicationId,
+        if (officerName != null && officerName.trim().isNotEmpty)
+          'officerName': officerName.trim(),
+        if (officerCorporateName != null &&
+            officerCorporateName.trim().isNotEmpty)
+          'officerCorporateName': officerCorporateName.trim(),
+      };
+      final result = await callable(payload);
+
+      final data = Map<String, dynamic>.from(result.data ?? {});
+
+      // If clearance was sent successfully, generate a short link
+      if (data['ok'] == true && data['downloadUrl'] != null) {
+        try {
+          final shortUrl = await createShortUrl(data['downloadUrl']);
+          data['shortLink'] = shortUrl;
+          LoggingService().info(
+            'Short link generated for clearance: $shortUrl',
+          );
+        } catch (shortLinkError) {
+          LoggingService().warning(
+            'Failed to generate short link',
+            shortLinkError,
+          );
+          // Don't fail the whole operation if short link generation fails
+        }
+      }
+
+      return data;
+    } catch (e) {
+      LoggingService().error('sendClearanceCertificate failed', e);
+      rethrow;
+    }
+  }
+
   Future<void> logOfficerActivity({
     required String title,
     required String description,
@@ -220,6 +265,82 @@ class FunctionsService {
     } catch (e) {
       LoggingService().error('getOfficerActivities call failed', e);
       return [];
+    }
+  }
+
+  /// Create a short URL for a clearance document (Officer function)
+  Future<String> createShortUrl(String longUrl) async {
+    LoggingService().info('Creating short URL for document');
+    try {
+      // Use the createShortUrl function that should be available in Firebase Functions
+      // This function stores the mapping in Firestore and returns a short URL
+      final callable = _functions.httpsCallable('createShortUrl');
+      final result = await callable(<String, dynamic>{'longUrl': longUrl});
+
+      final data = Map<String, dynamic>.from(result.data ?? {});
+      final shortUrl = data['shortUrl'] as String?;
+
+      if (shortUrl != null && shortUrl.isNotEmpty) {
+        LoggingService().info('Short URL created successfully: $shortUrl');
+        return shortUrl;
+      } else {
+        throw Exception('Invalid response: shortUrl not found');
+      }
+    } catch (e) {
+      LoggingService().error('createShortUrl failed', e);
+      rethrow;
+    }
+  }
+
+  /// Resolve a short URL to get the original document URL (User function)
+  Future<String> resolveShortUrl(String shortId) async {
+    LoggingService().info('Resolving short URL: $shortId');
+    try {
+      // Use HTTP call to the Firebase HTTP function
+      // This is different from httpsCallable - it's a direct HTTP request
+      final response = await _functions
+          .httpsCallable('resolveShortUrlHTTP')
+          .call(<String, dynamic>{'id': shortId});
+
+      final data = Map<String, dynamic>.from(response.data ?? {});
+      final originalUrl = data['originalUrl'] as String?;
+
+      if (originalUrl != null && originalUrl.isNotEmpty) {
+        LoggingService().info('Short URL resolved successfully');
+        return originalUrl;
+      } else {
+        throw Exception('Document not found or expired');
+      }
+    } catch (e) {
+      LoggingService().error('resolveShortUrl failed', e);
+      rethrow;
+    }
+  }
+
+  /// Generate and share short link for a clearance document (Officer function)
+  Future<String> generateClearanceShortLink(String applicationId) async {
+    LoggingService().info(
+      'Generating clearance short link for application: $applicationId',
+    );
+    try {
+      // First generate/send the clearance certificate
+      final certificateResult = await sendClearanceCertificate(
+        applicationId: applicationId,
+      );
+
+      final documentUrl = certificateResult['downloadUrl'] as String?;
+      if (documentUrl == null || documentUrl.isEmpty) {
+        throw Exception('Failed to generate clearance document');
+      }
+
+      // Create short URL for the document
+      final shortUrl = await createShortUrl(documentUrl);
+
+      LoggingService().info('Clearance short link generated: $shortUrl');
+      return shortUrl;
+    } catch (e) {
+      LoggingService().error('generateClearanceShortLink failed', e);
+      rethrow;
     }
   }
 }

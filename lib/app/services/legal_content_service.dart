@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 import '../models/legal_document.dart';
@@ -8,23 +7,9 @@ import 'logging_service.dart';
 
 class LegalContentService {
   LegalContentService({FirebaseDatabase? database})
-    : _database = database ?? _createDatabase();
+    : _database = database ?? FirebaseDatabase.instance;
 
   final FirebaseDatabase _database;
-
-  static FirebaseDatabase _createDatabase() {
-    const databaseUrl =
-        'https://m-clearance-imigrasi-sampit.asia-southeast1.firebasedatabase.app/';
-
-    FirebaseApp app;
-    try {
-      app = Firebase.app('client');
-    } catch (_) {
-      app = Firebase.app();
-    }
-
-    return FirebaseDatabase.instanceFor(app: app, databaseURL: databaseUrl);
-  }
 
   DatabaseReference _docRef(LegalDocumentType type, String languageCode) {
     return _database.ref('legal/${type.databaseKey}/$languageCode');

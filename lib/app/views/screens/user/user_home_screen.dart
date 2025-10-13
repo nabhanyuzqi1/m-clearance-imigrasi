@@ -236,7 +236,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 }
 
 // User Menu Screen - Main home screen with service cards
-class UserMenuScreen extends StatelessWidget {
+class UserMenuScreen extends StatefulWidget {
   final UserAccount userAccount;
   final String initialLanguage;
   final VoidCallback onNotificationsTap;
@@ -249,6 +249,27 @@ class UserMenuScreen extends StatelessWidget {
     required this.onNotificationsTap,
     required this.notificationService,
   });
+
+  @override
+  State<UserMenuScreen> createState() => _UserMenuScreenState();
+}
+
+class _UserMenuScreenState extends State<UserMenuScreen> {
+  late final TextEditingController _shortLinkController;
+  late final bool _isProcessingShortLink;
+
+  @override
+  void initState() {
+    super.initState();
+    _shortLinkController = TextEditingController();
+    _isProcessingShortLink = false;
+  }
+
+  @override
+  void dispose() {
+    _shortLinkController.dispose();
+    super.dispose();
+  }
 
   String _tr(BuildContext context, String screenKey, String stringKey) =>
       AppLocalizations.of(context).get('$screenKey.$stringKey');
@@ -270,8 +291,8 @@ class UserMenuScreen extends StatelessWidget {
         elevation: 0,
         actions: [
           NotificationIconWithBadge(
-            badgeCountStream: notificationService.getUnreadCount(),
-            onPressed: onNotificationsTap,
+            badgeCountStream: widget.notificationService.getUnreadCount(),
+            onPressed: widget.onNotificationsTap,
           ),
         ],
       ),
@@ -283,10 +304,10 @@ class UserMenuScreen extends StatelessWidget {
             // Welcome section
             Row(
               children: [
-                userAccount.profileImageUrl != null
+                widget.userAccount.profileImageUrl != null
                     ? ClipOval(
                         child: Image.network(
-                          userAccount.profileImageUrl!,
+                          widget.userAccount.profileImageUrl!,
                           width: screenWidth * 0.16,
                           height: screenWidth * 0.16,
                           fit: BoxFit.cover,
@@ -333,7 +354,7 @@ class UserMenuScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        userAccount.name,
+                        widget.userAccount.name,
                         style: AppTheme.headingSmall(context).copyWith(
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
@@ -371,8 +392,8 @@ class UserMenuScreen extends StatelessWidget {
                   AppRoutes.clearanceForm,
                   arguments: {
                     'type': ApplicationType.kedatangan,
-                    'agentName': userAccount.name,
-                    'initialLanguage': initialLanguage,
+                    'agentName': widget.userAccount.name,
+                    'initialLanguage': widget.initialLanguage,
                   },
                 );
               },
@@ -395,8 +416,8 @@ class UserMenuScreen extends StatelessWidget {
                   AppRoutes.clearanceForm,
                   arguments: {
                     'type': ApplicationType.keberangkatan,
-                    'agentName': userAccount.name,
-                    'initialLanguage': initialLanguage,
+                    'agentName': widget.userAccount.name,
+                    'initialLanguage': widget.initialLanguage,
                   },
                 );
               },

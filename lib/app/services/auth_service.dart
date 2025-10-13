@@ -4,11 +4,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:m_clearance_imigrasi/app/models/security_settings.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
-import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
 import 'package:m_clearance_imigrasi/app/services/cache_manager.dart';
-import 'package:m_clearance_imigrasi/app/services/network_utils.dart';
+import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
 import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
+import 'package:m_clearance_imigrasi/app/services/network_utils.dart';
+import 'package:m_clearance_imigrasi/app/services/security_service.dart';
+import 'package:m_clearance_imigrasi/app/utils/biometric_authenticator.dart';
+import 'package:m_clearance_imigrasi/app/utils/device_utils.dart';
 import 'package:m_clearance_imigrasi/app/utils/storage_reference_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -34,6 +38,8 @@ class AuthService {
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  final SecurityService _securityService;
+  final BiometricAuthenticator _biometricAuth;
   late final CacheManager _cacheManager;
   Future<void>? _cacheInitFuture;
 
@@ -41,9 +47,13 @@ class AuthService {
     FirebaseAuth? firebaseAuth,
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
-  }) : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-       _firestore = firestore ?? FirebaseFirestore.instance,
-       _storage = storage ?? FirebaseStorage.instance {
+    SecurityService? securityService,
+    BiometricAuthenticator? biometricAuthenticator,
+  })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
+        _firestore = firestore ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance,
+        _securityService = securityService ?? SecurityService(),
+        _biometricAuth = biometricAuthenticator ?? const BiometricAuthenticator() {
     _cacheInitFuture = _initializeCacheManager();
   }
 
@@ -60,8 +70,10 @@ class AuthService {
 
   Future<UserModel?> signInWithEmailAndPassword(
     String email,
-    String password,
-  ) async {
+    String password, {
+    bool skipSecurityChecks = false,
+    DeviceIdentity? reuseDeviceIdentity,
+  }) async {
     final startTime = DateTime.now();
     try {
       final UserCredential userCredential = await _firebaseAuth
@@ -108,6 +120,82 @@ class AuthService {
             isRetryable: true,
           );
         }
+
+        if (!skipSecurityChecks) {
+          final securitySettings = await _securityService.fetchSettings();
+          final deviceIdentity = reuseDeviceIdentity ??
+              await DeviceUtils.resolveIdentity();
+          final deviceMeta = _composeDeviceMeta(
+            deviceIdentity,
+            securitySettings,
+          );
+          final isTrusted = await _securityService
+              .isDeviceTrusted(deviceIdentity.fingerprint);
+
+          final requiresBiometric = securitySettings.biometricLockEnabled &&
+              await _biometricAuth.isSupported();
+
+          if (requiresBiometric) {
+            try {
+              final authenticated = await _biometricAuth.authenticate(
+                reason: 'Authenticate to continue',
+              );
+              if (!authenticated) {
+                await _firebaseAuth.signOut();
+                throw const BiometricAuthenticationRequiredException(
+                  reason: 'Biometric authentication cancelled',
+                );
+              }
+            } catch (error, stackTrace) {
+              if (error is BiometricAuthenticationRequiredException) {
+                rethrow;
+              }
+              LoggingService().warning(
+                'Failed to complete biometric authentication',
+                error,
+                stackTrace,
+              );
+              await _firebaseAuth.signOut();
+              throw const BiometricAuthenticationRequiredException(
+                reason: 'Unable to verify biometrics',
+              );
+            }
+          }
+
+          final needsTwoFactor =
+              (securitySettings.twoFactorEnabled ||
+                      securitySettings.deviceApprovalRequired) &&
+                  !isTrusted;
+
+          if (needsTwoFactor) {
+            final challenge = await _securityService
+                .initiateTwoFactorChallenge(deviceMeta: deviceMeta);
+            if (challenge == null) {
+              LoggingService().warning(
+                'Two-factor challenge could not be created. Bypassing requirement.',
+              );
+              await _securityService.logSuccessfulLogin(
+                deviceMeta: deviceMeta,
+                trusted: isTrusted,
+              );
+            } else {
+              await _firebaseAuth.signOut();
+              throw TwoFactorRequiredException(
+                email: email,
+                password: password,
+                challenge: challenge,
+                deviceIdentity: deviceIdentity,
+                rememberDeviceDays: securitySettings.rememberDeviceDays,
+              );
+            }
+          } else {
+            await _securityService.logSuccessfulLogin(
+              deviceMeta: deviceMeta,
+              trusted: isTrusted,
+            );
+          }
+        }
+
         final totalTime = DateTime.now().difference(startTime);
         LoggingService().debug(
           'Total sign-in process took ${totalTime.inMilliseconds}ms',
@@ -197,6 +285,59 @@ class AuthService {
       );
       rethrow;
     }
+  }
+
+  Future<UserModel?> completeTwoFactorSignIn({
+    required String email,
+    required String password,
+    required String challengeId,
+    required String code,
+    required DeviceIdentity deviceIdentity,
+    required bool trustDevice,
+    required int rememberDeviceDays,
+  }) async {
+    final deviceMeta = deviceIdentity.toMap()
+      ..['rememberDeviceDays'] = rememberDeviceDays
+      ..['trusted'] = trustDevice;
+
+    final result = await _securityService.verifyTwoFactorCode(
+      challengeId: challengeId,
+      code: code,
+      deviceMeta: deviceMeta,
+      trustDevice: trustDevice,
+    );
+
+    if (!result.success) {
+      throw const TwoFactorVerificationFailedException();
+    }
+
+    final userModel = await signInWithEmailAndPassword(
+      email,
+      password,
+      skipSecurityChecks: true,
+      reuseDeviceIdentity: deviceIdentity,
+    );
+
+    if (userModel != null) {
+      await _securityService.logSuccessfulLogin(
+        deviceMeta: deviceMeta,
+        trusted: trustDevice,
+      );
+    }
+    return userModel;
+  }
+
+  Map<String, dynamic> _composeDeviceMeta(
+    DeviceIdentity identity,
+    SecuritySettings settings,
+  ) {
+    final map = identity.toMap();
+    map['rememberDeviceDays'] = settings.rememberDeviceDays;
+    map['twoFactorEnabled'] = settings.twoFactorEnabled;
+    map['deviceApprovalRequired'] = settings.deviceApprovalRequired;
+    map['loginAlertsEnabled'] = settings.loginAlertsEnabled;
+    map['biometricLockEnabled'] = settings.biometricLockEnabled;
+    return map;
   }
 
   String? _currentLocale() {
@@ -627,40 +768,44 @@ class AuthService {
     String currentPassword,
     String newPassword,
   ) async {
-    bool success = false;
     try {
       final user = _firebaseAuth.currentUser;
-      if (user == null) {
-        throw Exception('No user is currently signed in.');
+      if (user == null || user.email == null) {
+        throw const ChangePasswordException('no-auth-user');
       }
 
-      // Re-authenticate the user with their current password
       final cred = EmailAuthProvider.credential(
         email: user.email!,
-        password: currentPassword,
+        password: currentPassword.trim(),
       );
 
       await user.reauthenticateWithCredential(cred);
-
-      // If re-authentication is successful, update the password
-      await user.updatePassword(newPassword);
+      await user.updatePassword(newPassword.trim());
 
       LoggingService().info(
         'Password updated successfully for user: ${user.uid}',
       );
-      success = true;
+      return true;
     } on FirebaseAuthException catch (e) {
       LoggingService().error('Error changing password: ${e.message}', e);
-      // Consider mapping specific error codes to user-friendly messages
-      rethrow;
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          throw const ChangePasswordException('invalid-current-password');
+        case 'requires-recent-login':
+          throw const ChangePasswordException('requires-recent-login');
+        case 'weak-password':
+          throw const ChangePasswordException('weak-password');
+        default:
+          throw ChangePasswordException(e.code.isNotEmpty ? e.code : 'unknown');
+      }
     } catch (e) {
       LoggingService().error(
         'An unexpected error occurred while changing password',
         e,
       );
-      rethrow;
+      throw const ChangePasswordException('unknown');
     }
-    return success;
   }
 
   Future<void> updateUserEmail(String newEmail) async {
@@ -728,4 +873,48 @@ class AuthService {
       return null;
     }
   }
+}
+
+class TwoFactorRequiredException implements Exception {
+  const TwoFactorRequiredException({
+    required this.email,
+    required this.password,
+    required this.challenge,
+    required this.deviceIdentity,
+    required this.rememberDeviceDays,
+  });
+
+  final String email;
+  final String password;
+  final TwoFactorChallenge challenge;
+  final DeviceIdentity deviceIdentity;
+  final int rememberDeviceDays;
+
+  @override
+  String toString() => 'Two-factor authentication required';
+}
+
+class TwoFactorVerificationFailedException implements Exception {
+  const TwoFactorVerificationFailedException();
+
+  @override
+  String toString() => 'Two-factor verification failed';
+}
+
+class BiometricAuthenticationRequiredException implements Exception {
+  const BiometricAuthenticationRequiredException({required this.reason});
+
+  final String reason;
+
+  @override
+  String toString() => 'Biometric authentication required: $reason';
+}
+
+class ChangePasswordException implements Exception {
+  const ChangePasswordException(this.code);
+
+  final String code;
+
+  @override
+  String toString() => 'ChangePasswordException($code)';
 }

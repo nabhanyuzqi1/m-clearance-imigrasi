@@ -8,6 +8,7 @@ class CacheManager {
   static const String _localizationStringsKey = 'cached_localization_strings';
   static const String _localizationTimestampKey =
       'cached_localization_timestamp';
+  static const String _localizationVersionKey = 'cached_localization_version';
   static const Duration _defaultCacheDuration = Duration(minutes: 30);
 
   static CacheManager? _instance;
@@ -73,13 +74,18 @@ class CacheManager {
 
   /// Cache localization strings with timestamp
   Future<void> cacheLocalizationStrings(
-    Map<String, Map<String, Map<String, String>>> strings,
-  ) async {
+    Map<String, Map<String, Map<String, String>>> strings, {
+    int? lastUpdatedMs,
+    String? version,
+  }) async {
     if (_prefs == null) return;
 
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final timestamp = lastUpdatedMs ?? DateTime.now().millisecondsSinceEpoch;
     await _prefs!.setString(_localizationStringsKey, jsonEncode(strings));
     await _prefs!.setInt(_localizationTimestampKey, timestamp);
+    if (version != null) {
+      await _prefs!.setString(_localizationVersionKey, version);
+    }
   }
 
   /// Get cached localization strings if not expired
@@ -123,10 +129,16 @@ class CacheManager {
     if (_prefs == null) return;
     await _prefs!.remove(_localizationStringsKey);
     await _prefs!.remove(_localizationTimestampKey);
+    await _prefs!.remove(_localizationVersionKey);
   }
 
   /// Check if localization strings are cached and valid
   bool hasValidLocalizationCache({Duration? maxAge}) {
     return getCachedLocalizationStrings(maxAge: maxAge) != null;
+  }
+
+  String? getCachedLocalizationVersion() {
+    if (_prefs == null) return null;
+    return _prefs!.getString(_localizationVersionKey);
   }
 }

@@ -168,30 +168,147 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     }
   }
 
-  Widget _buildStatusChip(ApplicationStatus status) {
+  Widget _buildApplicationCard(
+    ClearanceApplication app,
+    ColorScheme colorScheme,
+  ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth * 0.06;
+    final verticalSpacing = screenWidth * 0.03;
+    final statusColor = _getStatusColor(context, app.status);
+    final statusText = _getStatusText(app.status);
+    final bool isArrival = app.type == ApplicationType.kedatangan;
+    final iconData = isArrival ? Icons.anchor : Icons.directions_boat;
+    final typeLabel = isArrival ? _tr('arrival') : _tr('departure');
+    final portLabel = isArrival ? _tr('last_port') : _tr('next_port');
+    final portValue = _formatField(app.port);
+    final dateValue = _formatField(app.date);
+
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppTheme.spacing12,
-        vertical: AppTheme.spacing8,
+      margin: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalSpacing * 0.5,
       ),
+      padding: EdgeInsets.all(AppTheme.spacing16),
       decoration: BoxDecoration(
-        color: _getStatusColor(context, status).withAlpha(25),
-        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.circle, color: _getStatusColor(context, status), size: 10),
-          SizedBox(width: AppTheme.spacing8),
-          Text(
-            _getStatusText(status),
-            style: TextStyle(
-              color: _getStatusColor(context, status),
-              fontWeight: FontWeight.bold,
-              fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily,
-            ),
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        border: Border.all(color: colorScheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      child: InkWell(
+        onTap: () => _showApplicationDetail(app),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(AppTheme.spacing12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  ),
+                  child: Icon(
+                    iconData,
+                    color: colorScheme.primary,
+                    size: screenWidth * 0.075,
+                  ),
+                ),
+                SizedBox(width: AppTheme.spacing12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        app.shipName,
+                        style: AppTheme.bodyMedium(context).copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      SizedBox(height: AppTheme.spacing4),
+                      Text(
+                        '$typeLabel • ${app.flag}',
+                        style: AppTheme.bodySmall(context).copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacing12,
+                    vertical: AppTheme.spacing8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      fontSize: AppTheme.fontSizeCaption,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppTheme.spacing12),
+            Row(
+              children: [
+                Icon(
+                  Icons.place_outlined,
+                  size: 16,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                SizedBox(width: AppTheme.spacing8),
+                Expanded(
+                  child: Text(
+                    '$portLabel: $portValue',
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontFamily: 'Poppins',
+                      fontSize: AppTheme.fontSizeBody2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppTheme.spacing8),
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today,
+                  size: 16,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                SizedBox(width: AppTheme.spacing8),
+                Text(
+                  dateValue,
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontFamily: 'Poppins',
+                    fontSize: AppTheme.fontSizeBody2,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -549,77 +666,9 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                   itemCount: filteredApplications.length,
                   itemBuilder: (context, index) {
                     final app = filteredApplications[index];
-                    return GestureDetector(
-                      onTap: () => _showApplicationDetail(app),
-                      child: Card(
-                        elevation: 2,
-                        margin: EdgeInsets.only(bottom: AppTheme.spacing12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusMedium,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.all(AppTheme.spacing16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    app.type == ApplicationType.kedatangan
-                                        ? Icons.anchor
-                                        : Icons.directions_boat,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                                  SizedBox(width: AppTheme.spacing8),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        app.type == ApplicationType.kedatangan
-                                            ? _tr('arrival')
-                                            : _tr('departure'),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontFamily: 'Poppins',
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface,
-                                        ),
-                                      ),
-                                      Text(
-                                        "${app.shipName} - ${_formatField(app.port)}",
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                          fontFamily: 'Poppins',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: AppTheme.spacing8),
-                              Text(
-                                app.date ?? 'No Date',
-                                style: TextStyle(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                  fontFamily: 'Poppins',
-                                ),
-                              ),
-                              SizedBox(height: AppTheme.spacing12),
-                              _buildStatusChip(app.status),
-                            ],
-                          ),
-                        ),
-                      ),
+                    return _buildApplicationCard(
+                      app,
+                      Theme.of(context).colorScheme,
                     );
                   },
                 );

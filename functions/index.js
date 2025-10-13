@@ -2,7 +2,9 @@ const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const { Resend } = require("resend");
 const { logger } = require("firebase-functions");
-const { randomUUID } = require("crypto");
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 
 // Initialize Admin SDK exactly once
 admin.initializeApp();
@@ -133,8 +135,143 @@ async function notifyRoles(roles, payload = {}, options = {}) {
   await Promise.all(tasks);
 }
 
-exports.onNotificationWrite = functions.region('asia-southeast1').firestore
-  .document("notifications/{uid}/items/{notifId}")
+const SECURITY_CHALLENGES_COLLECTION = "securityChallenges";
+const OTP_EXPIRY_MINUTES = 5;
+
+function generateTwoFactorCode() {
+  const value = crypto.randomInt(100000, 1000000);
+  return value.toString().padStart(6, "0");
+}
+
+function hashTwoFactorCode(code) {
+  return crypto.createHash("sha256").update(code).digest("hex");
+}
+
+function maskEmailAddress(email) {
+  if (!email || typeof email !== "string") return "";
+  const [userPart, domainPart] = email.split("@");
+  if (!userPart || !domainPart) return email;
+  const visible = userPart.slice(0, 2);
+  return `${visible}${userPart.length > 2 ? "***" : ""}@${domainPart}`;
+}
+
+async function sendTwoFactorEmail({
+  uid,
+  email,
+  name,
+  code,
+  deviceName,
+  language,
+}) {
+  const replacements = {
+    name: name || email,
+    code,
+    deviceName: deviceName || "New device",
+    timestamp: new Date().toLocaleString("en-US", {
+      timeZone: "Asia/Jakarta",
+    }),
+    expiresInMinutes: OTP_EXPIRY_MINUTES.toString(),
+  };
+
+  try {
+    await sendEmailFromTemplate({
+      templateName: "twoFactorCode",
+      language: (language || "en").toLowerCase(),
+      to: email,
+      replacements,
+      includeSuperAdmin: false,
+    });
+  } catch (err) {
+    console.error(
+      "[sendTwoFactorEmail] Template delivery failed, using fallback",
+      err,
+    );
+    const globalSettings = await emailConfig.getGlobalSettings();
+    const resend = new Resend(
+      globalSettings.apiKey || process.env.RESEND_API_KEY,
+    );
+    const safeAccountName =
+      globalSettings.accountName || globalSettings.fromName || "M-Clearance";
+    const subject = `Your ${safeAccountName} security code`;
+    const fallbackHtml = `<p>Hello ${replacements.name},</p>
+      <p>Your security code is <strong style="font-size:24px;letter-spacing:4px;">${code}</strong>.</p>
+      <p>Device: ${replacements.deviceName}<br/>Time: ${replacements.timestamp}</p>
+      <p>The code expires in ${OTP_EXPIRY_MINUTES} minutes.</p>`;
+    const emailData = {
+      from: `${globalSettings.fromName || safeAccountName} <${globalSettings.from}>`,
+      to: email,
+      subject,
+      html: fallbackHtml,
+      text: `Hello ${replacements.name},\n\nYour security code is ${code}. It expires in ${OTP_EXPIRY_MINUTES} minutes.\nDevice: ${replacements.deviceName}\nTime: ${replacements.timestamp}`,
+      reply_to: globalSettings.supportEmail || globalSettings.from,
+    };
+    await resend.emails.send(emailData);
+  }
+}
+
+async function sendLoginAlertEmail({
+  email,
+  name,
+  deviceName,
+  ipAddress,
+  trusted,
+}) {
+  const globalSettings = await emailConfig.getGlobalSettings();
+  const resend = new Resend(
+    globalSettings.apiKey || process.env.RESEND_API_KEY,
+  );
+  const safeAccountName =
+    globalSettings.accountName || globalSettings.fromName || "M-Clearance";
+  const subject = `New login on your ${safeAccountName} account`;
+  const timestamp = new Date().toLocaleString("en-US", {
+    timeZone: "Asia/Jakarta",
+  });
+  const bodyDevice = deviceName || "Unknown device";
+  const trustLabel = trusted ? "trusted device" : "untrusted device";
+  const replacements = {
+    name: name || email,
+    device: bodyDevice,
+    trustLabel,
+    ipAddress: ipAddress || "Unavailable",
+    timestamp,
+  };
+
+  try {
+    await sendEmailFromTemplate({
+      templateName: "loginAlert",
+      language: "en",
+      to: email,
+      replacements,
+      includeSuperAdmin: false,
+    });
+  } catch (err) {
+    console.error(
+      "[sendLoginAlertEmail] Template send failed, falling back",
+      err,
+    );
+    await resend.emails.send({
+      from: `${globalSettings.fromName || safeAccountName} <${globalSettings.from}>`,
+      to: email,
+      subject,
+      html: `<p>Hello ${replacements.name},</p>
+        <p>A new login was detected on ${replacements.device} (${replacements.trustLabel}).</p>
+        <p>Time: ${replacements.timestamp}<br/>IP Address: ${replacements.ipAddress}</p>
+        <p>If this was you, no further action is required. If not, please reset your password immediately.</p>
+        <p>Regards,<br/>${safeAccountName} Support</p>`,
+      text:
+        `Hello ${replacements.name}\n\n` +
+        `A new login was detected on ${replacements.device} (${replacements.trustLabel}).\n` +
+        `Time: ${replacements.timestamp}\nIP Address: ${replacements.ipAddress}\n\n` +
+        `If this was you, no action is required. If not, please reset your password immediately.\n\n` +
+        `${safeAccountName} Support`,
+      reply_to: globalSettings.supportEmail || globalSettings.from,
+    });
+  }
+}
+
+exports.onNotificationWrite = functions
+  .region("asia-southeast1")
+  .firestore.document("notifications/{uid}/items/{notifId}")
   .onWrite(async (change, context) => {
     const uid = context.params.uid;
     if (!uid) return;
@@ -207,6 +344,314 @@ async function resolveUserName(uid, fallbackEmail) {
   if (email && email.includes("@")) return email.split("@")[0];
   return "User";
 }
+
+const securityInitiateTwoFactor = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    requireAuth(context);
+    const uid = context.auth.uid;
+    const device = data && data.device ? data.device : {};
+    const userRef = db.collection("users").doc(uid);
+    const userDoc = await userRef.get();
+    const userData = userDoc.exists ? userDoc.data() || {} : {};
+
+    const fallbackEmail =
+      (context.auth.token && context.auth.token.email) || "";
+    const email = await resolveUserEmail(uid, fallbackEmail);
+    if (!email) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Authenticated user does not have an email address.",
+      );
+    }
+
+    const code = generateTwoFactorCode();
+    const codeHash = hashTwoFactorCode(code);
+    const challengeId = crypto.randomUUID();
+    const expiresAtDate = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000);
+    const expiresAt = Timestamp.fromDate(expiresAtDate);
+    const sanitizedDevice = {
+      fingerprint: device.fingerprint || null,
+      deviceId: device.deviceId || null,
+      deviceName: device.deviceName || null,
+      platform: device.platform || null,
+      osVersion: device.osVersion || null,
+      brand: device.brand || null,
+      model: device.model || null,
+      locale: device.locale || null,
+      rememberDeviceDays: device.rememberDeviceDays || null,
+    };
+
+    await db
+      .collection(SECURITY_CHALLENGES_COLLECTION)
+      .doc(challengeId)
+      .set({
+        uid,
+        codeHash,
+        expiresAt,
+        createdAt: Timestamp.now(),
+        consumed: false,
+        attempts: 0,
+        device: sanitizedDevice,
+        ipAddress: context.rawRequest?.ip || null,
+      });
+
+    const name = await resolveUserName(uid, email);
+    await sendTwoFactorEmail({
+      uid,
+      email,
+      name,
+      code,
+      deviceName: sanitizedDevice.deviceName || sanitizedDevice.platform,
+      language: (userData.language || "en").toLowerCase(),
+    });
+
+    return {
+      challengeId,
+      expiresAt: expiresAtDate.getTime(),
+      delivery: {
+        type: "email",
+        target: maskEmailAddress(email),
+      },
+    };
+  });
+
+const securityVerifyTwoFactor = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data) => {
+    const challengeId = data && data.challengeId;
+    const code = data && data.code;
+    const trustDevice = !!(data && data.trustDevice);
+    const device = data && data.device ? data.device : {};
+
+    if (!challengeId || typeof challengeId !== "string") {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "challengeId must be provided.",
+      );
+    }
+    if (!code || typeof code !== "string") {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "code must be provided as a string.",
+      );
+    }
+
+    const challengeRef = db
+      .collection(SECURITY_CHALLENGES_COLLECTION)
+      .doc(challengeId);
+    const challengeSnap = await challengeRef.get();
+    if (!challengeSnap.exists) {
+      throw new functions.https.HttpsError(
+        "not-found",
+        "Two-factor challenge not found or already consumed.",
+      );
+    }
+
+    const challenge = challengeSnap.data();
+    if (challenge.consumed) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "This verification code has already been used.",
+      );
+    }
+
+    const nowMs = Date.now();
+    if (challenge.expiresAt && challenge.expiresAt.toMillis() < nowMs) {
+      await challengeRef.update({
+        consumed: true,
+        expired: true,
+        consumedAt: Timestamp.now(),
+      });
+      throw new functions.https.HttpsError(
+        "deadline-exceeded",
+        "This verification code has expired.",
+      );
+    }
+
+    const submittedHash = hashTwoFactorCode(code);
+    if (submittedHash !== challenge.codeHash) {
+      await challengeRef.update({
+        attempts: FieldValue.increment(1),
+        lastAttemptAt: Timestamp.now(),
+      });
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Invalid verification code.",
+      );
+    }
+
+    const uid = challenge.uid;
+    const sessionId =
+      device.fingerprint || device.deviceId || crypto.randomUUID();
+    const rememberDeviceDays = parseInt(device.rememberDeviceDays, 10) || 30;
+    const trustedUntilDate = trustDevice
+      ? new Date(Date.now() + rememberDeviceDays * 24 * 60 * 60 * 1000)
+      : null;
+    const now = Timestamp.now();
+
+    const sessionsCollection = db
+      .collection("users")
+      .doc(uid)
+      .collection("sessions");
+    const sessionRef = sessionsCollection.doc(sessionId);
+    const existingSession = await sessionRef.get();
+    const sessionPayload = {
+      deviceName: device.deviceName || "Unknown device",
+      platform: device.platform || "unknown",
+      appVersion: device.appVersion || "—",
+      ipAddress: device.ipAddress || "",
+      location: device.location || "",
+      lastActive: now,
+      isCurrent: true,
+      isRevoked: false,
+      trusted: trustDevice,
+      updatedAt: now,
+    };
+    if (device.locale) sessionPayload.locale = device.locale;
+    if (trustedUntilDate) {
+      sessionPayload.trustedUntil = Timestamp.fromDate(trustedUntilDate);
+    } else {
+      sessionPayload.trustedUntil = FieldValue.delete();
+    }
+    if (!existingSession.exists) {
+      sessionPayload.createdAt = now;
+    }
+
+    await sessionRef.set(sessionPayload, { merge: true });
+
+    const activeSessionsSnapshot = await sessionsCollection
+      .where("isCurrent", "==", true)
+      .get();
+    if (!activeSessionsSnapshot.empty) {
+      const batch = db.batch();
+      activeSessionsSnapshot.forEach((doc) => {
+        if (doc.id !== sessionId) {
+          batch.update(doc.ref, { isCurrent: false });
+        }
+      });
+      await batch.commit();
+    }
+
+    await challengeRef.update({
+      consumed: true,
+      consumedAt: now,
+      successfulAttempts: FieldValue.increment(1),
+    });
+
+    return {
+      success: true,
+      sessionId,
+      trustedUntil: trustedUntilDate ? trustedUntilDate.getTime() : null,
+    };
+  });
+
+const securityLogLoginEvent = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    requireAuth(context);
+    const uid = context.auth.uid;
+    const device = data && data.device ? data.device : {};
+    const trusted = !!(data && data.trusted);
+    const rememberDeviceDays = parseInt(device.rememberDeviceDays, 10) || 30;
+    const sessionId =
+      device.fingerprint || device.deviceId || crypto.randomUUID();
+    const now = Timestamp.now();
+
+    const sessionsCollection = db
+      .collection("users")
+      .doc(uid)
+      .collection("sessions");
+    const sessionRef = sessionsCollection.doc(sessionId);
+    const existingSession = await sessionRef.get();
+    const sessionPayload = {
+      deviceName: device.deviceName || "Unknown device",
+      platform: device.platform || "unknown",
+      appVersion: device.appVersion || "—",
+      ipAddress:
+        (context.rawRequest && context.rawRequest.ip) || device.ipAddress || "",
+      location: device.location || "",
+      lastActive: now,
+      isCurrent: true,
+      isRevoked: false,
+      trusted,
+      updatedAt: now,
+    };
+    if (device.locale) sessionPayload.locale = device.locale;
+    if (trusted) {
+      sessionPayload.trustedUntil = Timestamp.fromDate(
+        new Date(Date.now() + rememberDeviceDays * 24 * 60 * 60 * 1000),
+      );
+    } else {
+      sessionPayload.trustedUntil = FieldValue.delete();
+    }
+    if (!existingSession.exists) {
+      sessionPayload.createdAt = now;
+    }
+
+    await sessionRef.set(sessionPayload, { merge: true });
+
+    const activeSessionsSnapshot = await sessionsCollection
+      .where("isCurrent", "==", true)
+      .get();
+    if (!activeSessionsSnapshot.empty) {
+      const batch = db.batch();
+      activeSessionsSnapshot.forEach((doc) => {
+        if (doc.id !== sessionId) {
+          batch.update(doc.ref, { isCurrent: false });
+        }
+      });
+      await batch.commit();
+    }
+
+    const otherSessionsSnapshot = await sessionsCollection
+      .where(admin.firestore.FieldPath.documentId(), "!=", sessionId)
+      .where("isCurrent", "==", true)
+      .get();
+    if (!otherSessionsSnapshot.empty) {
+      const batch = db.batch();
+      otherSessionsSnapshot.forEach((doc) => {
+        batch.update(doc.ref, { isCurrent: false });
+      });
+      await batch.commit();
+    }
+
+    const settingsSnap = await db
+      .collection("users")
+      .doc(uid)
+      .collection("security")
+      .doc("settings")
+      .get();
+    const settings = settingsSnap.exists ? settingsSnap.data() || {} : {};
+    const loginAlertsEnabled = settings.loginAlertsEnabled !== false;
+
+    if (loginAlertsEnabled) {
+      const fallbackEmail =
+        (context.auth.token && context.auth.token.email) || "";
+      const email = await resolveUserEmail(uid, fallbackEmail);
+      if (email) {
+        const name = await resolveUserName(uid, email);
+        await sendLoginAlertEmail({
+          email,
+          name,
+          deviceName: device.deviceName || device.platform || "Unknown device",
+          ipAddress:
+            (context.rawRequest && context.rawRequest.ip) ||
+            device.ipAddress ||
+            "",
+          trusted,
+        });
+      }
+    }
+
+    return { ok: true };
+  });
+
+exports.security = {
+  initiateTwoFactor: securityInitiateTwoFactor,
+  verifyTwoFactor: securityVerifyTwoFactor,
+  logLoginEvent: securityLogLoginEvent,
+};
 
 function normalizeRole(role) {
   if (!role || typeof role !== "string") {
@@ -287,15 +732,15 @@ class EmailConfigService {
       return this.config;
     }
     try {
-      const snapshot = await admin.database().ref('emailConfig').get();
+      const snapshot = await admin.database().ref("emailConfig").get();
       if (snapshot.exists()) {
         this.config = snapshot.val();
         this.lastFetched = now;
         return this.config;
       }
-      console.log('[EmailConfigService] RTDB config not found, using fallback');
+      console.log("[EmailConfigService] RTDB config not found, using fallback");
     } catch (error) {
-      console.error('[EmailConfigService] Failed to fetch RTDB config:', error);
+      console.error("[EmailConfigService] Failed to fetch RTDB config:", error);
     }
 
     this.config = this.getFallbackConfig();
@@ -477,43 +922,41 @@ class EmailConfigService {
       },
       templates: {
         verification: {
-          defaultLanguage: 'en',
+          defaultLanguage: "en",
           tags: ["email_verification"],
           languages: {
             en: {
-              subject: 'Verify your email address - {accountName}',
+              subject: "Verify your email address - {accountName}",
               html: verificationHtmlEn,
               text: verificationTextEn,
             },
             id: {
-              subject: 'Verifikasi alamat email Anda - {accountName}',
+              subject: "Verifikasi alamat email Anda - {accountName}",
               html: verificationHtmlId,
               text: verificationTextId,
             },
           },
         },
         passwordReset: {
-          subject: 'Password reset request - {accountName}',
-          html:
-            "<p>Hello {name},</p><p>You requested to reset your password.</p><p>You can create a new password using the link below:</p><p><a href='{resetLink}'>{resetLink}</a></p><p>If you didn’t request a reset, you can safely ignore this email.</p><p>Regards,<br/>{accountName} Team</p>",
-          text:
-            "Hello {name},\n\nYou requested a password reset for {accountName}. Use the following link to set a new password:\n{resetLink}\n\nIf you didn’t request this, you can ignore this message.\n\nRegards, {accountName} Team",
+          subject: "Password reset request - {accountName}",
+          html: "<p>Hello {name},</p><p>You requested to reset your password.</p><p>You can create a new password using the link below:</p><p><a href='{resetLink}'>{resetLink}</a></p><p>If you didn’t request a reset, you can safely ignore this email.</p><p>Regards,<br/>{accountName} Team</p>",
+          text: "Hello {name},\n\nYou requested a password reset for {accountName}. Use the following link to set a new password:\n{resetLink}\n\nIf you didn’t request this, you can ignore this message.\n\nRegards, {accountName} Team",
           tags: ["password_reset"],
         },
         approval: {
-          subject: 'Application approved - {accountName}',
+          subject: "Application approved - {accountName}",
           html: clearanceStatusHtml,
           text: clearanceStatusText,
           tags: ["application_approval"],
         },
         revision: {
-          subject: 'Application requires revision - {accountName}',
+          subject: "Application requires revision - {accountName}",
           html: clearanceStatusHtml,
           text: clearanceStatusText,
           tags: ["application_revision"],
         },
         rejection: {
-          subject: 'Application update - {accountName}',
+          subject: "Application update - {accountName}",
           html: clearanceStatusHtml,
           text: clearanceStatusText,
           tags: ["application_rejection"],
@@ -543,7 +986,7 @@ class EmailConfigService {
       cooldownSeconds: globalConfig.cooldownSeconds || 60,
       maxAttempts: globalConfig.maxAttempts || 5,
       superAdminEmail:
-        globalConfig.superAdminEmail || 'mclearanceisam@gmail.com',
+        globalConfig.superAdminEmail || "mclearanceisam@gmail.com",
       portalUrl:
         globalConfig.portalUrl ||
         process.env.PORTAL_URL ||
@@ -569,17 +1012,38 @@ class EmailConfigService {
       ...(rawTemplate.languages || {}),
     };
 
-    const normalizedLang = (language || rawTemplate.defaultLanguage || defaultTemplate.defaultLanguage || 'en').toLowerCase();
-    const langKey = normalizedLang.split('-')[0];
+    const normalizedLang = (
+      language ||
+      rawTemplate.defaultLanguage ||
+      defaultTemplate.defaultLanguage ||
+      "en"
+    ).toLowerCase();
+    const langKey = normalizedLang.split("-")[0];
 
-    const localized = mergedLanguages[normalizedLang] || mergedLanguages[langKey] || {};
+    const localized =
+      mergedLanguages[normalizedLang] || mergedLanguages[langKey] || {};
     const fallbackLang = mergedLanguages[rawTemplate.defaultLanguage]?.subject
       ? mergedLanguages[rawTemplate.defaultLanguage]
       : mergedLanguages[defaultTemplate.defaultLanguage] || {};
 
-    const subject = localized.subject || fallbackLang.subject || rawTemplate.subject || defaultTemplate.subject || 'Notification';
-    const html = localized.html || fallbackLang.html || rawTemplate.html || defaultTemplate.html || '<p>{code}</p>';
-    const text = localized.text || fallbackLang.text || rawTemplate.text || defaultTemplate.text || '{code}';
+    const subject =
+      localized.subject ||
+      fallbackLang.subject ||
+      rawTemplate.subject ||
+      defaultTemplate.subject ||
+      "Notification";
+    const html =
+      localized.html ||
+      fallbackLang.html ||
+      rawTemplate.html ||
+      defaultTemplate.html ||
+      "<p>{code}</p>";
+    const text =
+      localized.text ||
+      fallbackLang.text ||
+      rawTemplate.text ||
+      defaultTemplate.text ||
+      "{code}";
     const tags = rawTemplate.tags || defaultTemplate.tags || [];
 
     return {
@@ -593,19 +1057,22 @@ class EmailConfigService {
 }
 
 const emailConfig = new EmailConfigService();
+const FONT_DIR = path.join(__dirname, "fonts");
+const IMMIGRATION_LOGO_DATA = null; // Will be loaded from storage
+const ISAM_LOGO_DATA = null; // Will be loaded from storage
 
 function normalizeEmails(value) {
   if (!value) return null;
   const array = Array.isArray(value) ? value : [value];
   const cleaned = array
-    .map((item) => (item || '').toString().trim())
+    .map((item) => (item || "").toString().trim())
     .filter((item) => item.length > 0);
   if (cleaned.length === 0) return null;
   return Array.from(new Set(cleaned));
 }
 
 function isValidEmail(value) {
-  if (typeof value !== 'string') return false;
+  if (typeof value !== "string") return false;
   const trimmed = value.trim();
   if (!trimmed) return false;
   // Lightweight sanity guard; defers strict RFC validation to the provider.
@@ -617,16 +1084,16 @@ function normalizeTags(value) {
   const source = Array.isArray(value) ? value : [value];
   const normalized = source
     .map((tag) => {
-      if (typeof tag === 'string') {
+      if (typeof tag === "string") {
         return { name: tag };
       }
-      if (tag && typeof tag === 'object') {
-        const name = typeof tag.name === 'string' ? tag.name : undefined;
+      if (tag && typeof tag === "object") {
+        const name = typeof tag.name === "string" ? tag.name : undefined;
         if (name) {
           const entry = { name };
           if (
-            Object.prototype.hasOwnProperty.call(tag, 'value') &&
-            typeof tag.value === 'string'
+            Object.prototype.hasOwnProperty.call(tag, "value") &&
+            typeof tag.value === "string"
           ) {
             entry.value = tag.value;
           }
@@ -640,35 +1107,137 @@ function normalizeTags(value) {
 }
 
 function escapeHtml(input) {
-  if (typeof input !== 'string' || input.length === 0) return input || '';
+  if (typeof input !== "string" || input.length === 0) return input || "";
   return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function sanitizeTextNode(input) {
-  if (typeof input !== 'string') return '';
+  if (typeof input !== "string") return "";
   return input
-    .replace(/[<>]/g, '')
-    .replace(/&/g, ' and ')
-    .replace(/[\r\n\t]+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/[<>]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+async function loadImageAsDataUrl(relativePath) {
+  try {
+    const fullPath = path.join(__dirname, relativePath);
+    const buffer = fs.readFileSync(fullPath);
+    const lower = relativePath.toLowerCase();
+    const mime = lower.endsWith('.jpg') || lower.endsWith('.jpeg')
+      ? 'jpeg'
+      : lower.endsWith('.svg')
+        ? 'svg+xml'
+        : 'png';
+    return `data:image/${mime};base64,${buffer.toString('base64')}`;
+  } catch (error) {
+    console.warn('[loadImageAsDataUrl] Failed to load asset:', relativePath, error);
+    return null;
+  }
+}
+
+async function loadLogoFromStorage() {
+  try {
+    const bucket = admin.storage().bucket();
+    console.log('[loadLogoFromStorage] Attempting to load logos from storage');
+
+    // Try to load immigration logo - use the same logo for both to save memory
+    const logoPaths = ['app_logo/immigration_logo.png', 'immigration_logo.png'];
+    let logoData = null;
+
+    for (const path of logoPaths) {
+      try {
+        const file = bucket.file(path);
+        const [exists] = await file.exists();
+        if (exists) {
+          console.log(`[loadLogoFromStorage] Found logo at: ${path}`);
+          const [buffer] = await file.download();
+
+          // Optimize memory usage - use smaller base64 encoding
+          logoData = `data:image/png;base64,${buffer.toString('base64')}`;
+          break;
+        }
+      } catch (pathError) {
+        console.warn(`[loadLogoFromStorage] Failed to load from ${path}:`, pathError.message);
+      }
+    }
+
+    console.log('[loadLogoFromStorage] Logo loading result:', !!logoData);
+
+    // Return the same logo for both to save memory
+    return {
+      immigrationLogo: logoData,
+      isamLogo: logoData
+    };
+  } catch (error) {
+    console.error('[loadLogoFromStorage] Failed to load logos from storage:', error);
+    return { immigrationLogo: null, isamLogo: null };
+  }
+}
+
+function generateClearanceCodeValue(applicationId, type) {
+  const prefix =
+    typeof type === "string" && type.toLowerCase().startsWith("dep")
+      ? "DEP"
+      : "ARR";
+  const now = new Date();
+  const stamp = now
+    .toISOString()
+    .replace(/[-:T.]/g, "")
+    .slice(0, 14);
+  const sanitizedId = (applicationId || "")
+    .toString()
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toUpperCase();
+  const idFragment =
+    sanitizedId.length >= 6
+      ? sanitizedId.slice(0, 6)
+      : sanitizedId.padEnd(6, "X");
+  const random = Math.floor(Math.random() * 9000) + 1000;
+  return `ISAM-${prefix}-${stamp}-${idFragment}-${random}`;
+}
+
+async function createShortUrl(longUrl) {
+  try {
+    // Generate a simple short ID based on timestamp and random number
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+    const shortId = `${timestamp}${random}`;
+
+    // Store the mapping in Firestore for later retrieval
+    const shortUrlRef = db.collection('shortUrls').doc(shortId);
+    await shortUrlRef.set({
+      originalUrl: longUrl,
+      shortId: shortId,
+      createdAt: FieldValue.serverTimestamp(),
+      clickCount: 0,
+    });
+
+    // Return the short URL format
+    return `https://mclearanceisam.com/s/${shortId}`;
+  } catch (error) {
+    console.error('[createShortUrl] Failed to create short URL:', error);
+    return longUrl; // Fallback to original URL if shortening fails
+  }
 }
 
 function emailPreferenceAllowsApplicationUpdates(preferences) {
   if (preferences === false) return false;
-  if (!preferences || typeof preferences !== 'object') return true;
+  if (!preferences || typeof preferences !== "object") return true;
 
   if (preferences.applicationUpdatesEmail === false) return false;
   if (preferences.applicationUpdates === false) return false;
 
   const emailPref = preferences.email;
   if (emailPref === false) return false;
-  if (emailPref && typeof emailPref === 'object') {
+  if (emailPref && typeof emailPref === "object") {
     if (emailPref.enabled === false) return false;
     if (emailPref.applicationUpdates === false) return false;
   }
@@ -678,18 +1247,18 @@ function emailPreferenceAllowsApplicationUpdates(preferences) {
 
 function applyTemplate(template, replacements = {}) {
   const replaceAll = (input) => {
-    let output = input || '';
+    let output = input || "";
     for (const [key, value] of Object.entries(replacements)) {
-      const pattern = new RegExp(`\\{${key}\\}`, 'g');
-      output = output.replace(pattern, value ?? '');
+      const pattern = new RegExp(`\\{${key}\\}`, "g");
+      output = output.replace(pattern, value ?? "");
     }
     return output;
   };
 
   return {
-    subject: replaceAll(template.subject || ''),
-    html: replaceAll(template.html || ''),
-    text: replaceAll(template.text || ''),
+    subject: replaceAll(template.subject || ""),
+    html: replaceAll(template.html || ""),
+    text: replaceAll(template.text || ""),
     tags: template.tags || [],
   };
 }
@@ -711,15 +1280,15 @@ async function sendEmailFromTemplate({
     templateSettings ||
     (await emailConfig.getTemplateSettings(templateName, language));
 
-  const senderAddress = (resolvedGlobal.from || '').trim();
+  const senderAddress = (resolvedGlobal.from || "").trim();
   if (!isValidEmail(senderAddress)) {
     console.error(
-      '[sendEmailFromTemplate] Invalid or missing sender address:',
+      "[sendEmailFromTemplate] Invalid or missing sender address:",
       senderAddress,
     );
     throw new functions.https.HttpsError(
-      'failed-precondition',
-      'Email sender address is not configured correctly.',
+      "failed-precondition",
+      "Email sender address is not configured correctly.",
     );
   }
 
@@ -733,7 +1302,7 @@ async function sendEmailFromTemplate({
 
   const toList = normalizeEmails(to);
   if (!toList || toList.length === 0) {
-    throw new Error('No email recipients specified.');
+    throw new Error("No email recipients specified.");
   }
 
   const ccList = normalizeEmails(cc);
@@ -745,14 +1314,16 @@ async function sendEmailFromTemplate({
       finalBcc.add(resolvedGlobal.superAdminEmail.trim());
     } else {
       console.warn(
-        '[sendEmailFromTemplate] Skipped invalid super admin email:',
+        "[sendEmailFromTemplate] Skipped invalid super admin email:",
         resolvedGlobal.superAdminEmail,
       );
     }
   }
 
   if (!resolvedGlobal.apiKey && !process.env.RESEND_API_KEY) {
-    console.warn('[sendEmailFromTemplate] Missing Resend API key. Email skipped.');
+    console.warn(
+      "[sendEmailFromTemplate] Missing Resend API key. Email skipped.",
+    );
     return;
   }
 
@@ -761,7 +1332,7 @@ async function sendEmailFromTemplate({
   );
 
   const message = {
-    from: `${resolvedGlobal.fromName || 'M-Clearance'} <${senderAddress}>`,
+    from: `${resolvedGlobal.fromName || "M-Clearance"} <${senderAddress}>`,
     to: toList,
     subject: rendered.subject,
     html: rendered.html,
@@ -794,7 +1365,7 @@ async function sendEmailFromTemplate({
     message.tags = normalizedTags;
   }
 
-  console.log('[sendEmailFromTemplate] Dispatching email via Resend', {
+  console.log("[sendEmailFromTemplate] Dispatching email via Resend", {
     to: message.to,
     subject: message.subject,
     hasCc: Array.isArray(message.cc) && message.cc.length > 0,
@@ -804,7 +1375,7 @@ async function sendEmailFromTemplate({
 
   const { error } = await resend.emails.send(message);
   if (error) {
-    throw new Error(error.message || 'Failed to send email via Resend');
+    throw new Error(error.message || "Failed to send email via Resend");
   }
 }
 
@@ -814,109 +1385,170 @@ async function sendEmailFromTemplate({
  * - Idempotent updates when doc already exists
  * - If email is already verified, set isEmailVerified=true and status=pending_documents once
  */
-exports.onUserCreate = functions.region('asia-southeast1').auth.user().onCreate(async (user) => {
-  console.log("[onUserCreate] Function triggered for user:", user.uid, "email:", user.email, "emailVerified:", user.emailVerified);
+exports.onUserCreate = functions
+  .region("asia-southeast1")
+  .runWith({
+    memory: "1GB",
+    timeoutSeconds: 300
+  })
+  .auth.user()
+  .onCreate(async (user) => {
+    console.log(
+      "[onUserCreate] Function triggered for user:",
+      user.uid,
+      "email:",
+      user.email,
+      "emailVerified:",
+      user.emailVerified,
+    );
 
-  const uid = user.uid;
-  const email = user.email || "";
-  console.log(
-    "[onUserCreate] Processing uid:",
-    uid,
-    "emailVerified:",
-    !!user.emailVerified,
-  );
+    const uid = user.uid;
+    const email = user.email || "";
+    console.log(
+      "[onUserCreate] Processing uid:",
+      uid,
+      "emailVerified:",
+      !!user.emailVerified,
+    );
 
-  // Best-effort to assign default role via custom claims; swallow errors to avoid retries
-  try {
-    console.log("[onUserCreate] Setting custom claims for uid:", uid);
-    await admin.auth().setCustomUserClaims(uid, { role: "user" });
-    console.log("[onUserCreate] Custom claims set successfully for uid:", uid);
-  } catch (e) {
-    console.error("[onUserCreate] setCustomUserClaims failed for uid:", uid, "error:", e);
-  }
+    // Best-effort to assign default role via custom claims; swallow errors to avoid retries
+    try {
+      console.log("[onUserCreate] Setting custom claims for uid:", uid);
+      await admin.auth().setCustomUserClaims(uid, { role: "user" });
+      console.log(
+        "[onUserCreate] Custom claims set successfully for uid:",
+        uid,
+      );
+    } catch (e) {
+      console.error(
+        "[onUserCreate] setCustomUserClaims failed for uid:",
+        uid,
+        "error:",
+        e,
+      );
+    }
 
-  const userRef = db.collection("users").doc(uid);
-  console.log("[onUserCreate] User ref created for uid:", uid);
+    const userRef = db.collection("users").doc(uid);
+    console.log("[onUserCreate] User ref created for uid:", uid);
 
-  try {
-    console.log("[onUserCreate] Starting transaction for uid:", uid);
-    await db.runTransaction(async (txn) => {
-      console.log("[onUserCreate] Inside transaction, getting user doc for uid:", uid);
-      const snap = await txn.get(userRef);
-      const now = FieldValue.serverTimestamp();
-      console.log("[onUserCreate] User doc exists:", snap.exists, "for uid:", uid);
-
-      if (!snap.exists) {
-        const verified = !!user.emailVerified;
-        const initDoc = {
-          email,
+    try {
+      console.log("[onUserCreate] Starting transaction for uid:", uid);
+      await db.runTransaction(async (txn) => {
+        console.log(
+          "[onUserCreate] Inside transaction, getting user doc for uid:",
           uid,
-          role: "user",
-          status: verified ? "pending_documents" : "pending_email_verification",
-          isEmailVerified: verified,
-          hasUploadedDocuments: false,
-          documents: [],
-          createdAt: now,
-          updatedAt: now,
-        };
-        console.log("[onUserCreate] Setting initial user doc for uid:", uid, "with status:", initDoc.status);
-        txn.set(userRef, initDoc);
-        console.log("[onUserCreate] Created user doc:", uid);
+        );
+        const snap = await txn.get(userRef);
+        const now = FieldValue.serverTimestamp();
+        console.log(
+          "[onUserCreate] User doc exists:",
+          snap.exists,
+          "for uid:",
+          uid,
+        );
 
-        // Update counters if status is pending_approval (though initially it's not)
-        if (initDoc.status === "pending_approval") {
-          console.log("[onUserCreate] Updating counters for initial status pending_approval");
-          await updateUserCounters(null, initDoc.status);
+        if (!snap.exists) {
+          const verified = !!user.emailVerified;
+          const initDoc = {
+            email,
+            uid,
+            role: "user",
+            status: verified
+              ? "pending_documents"
+              : "pending_email_verification",
+            isEmailVerified: verified,
+            hasUploadedDocuments: false,
+            documents: [],
+            createdAt: now,
+            updatedAt: now,
+          };
+          console.log(
+            "[onUserCreate] Setting initial user doc for uid:",
+            uid,
+            "with status:",
+            initDoc.status,
+          );
+          txn.set(userRef, initDoc);
+          console.log("[onUserCreate] Created user doc:", uid);
+
+          // Update counters if status is pending_approval (though initially it's not)
+          if (initDoc.status === "pending_approval") {
+            console.log(
+              "[onUserCreate] Updating counters for initial status pending_approval",
+            );
+            await updateUserCounters(null, initDoc.status);
+          }
+          return;
         }
-        return;
-      }
 
-      // If doc exists, only update fields once and keep idempotent behavior
-      const data = snap.data() || {};
-      const oldStatus = data.status;
-      const updates = {};
+        // If doc exists, only update fields once and keep idempotent behavior
+        const data = snap.data() || {};
+        const oldStatus = data.status;
+        const updates = {};
 
-      // Ensure required fields exist without flipping user-defined values
-      if (typeof data.email !== "string") updates.email = email;
-      if (typeof data.uid !== "string") updates.uid = uid;
-      if (!data.role) updates.role = "user";
-      if (typeof data.hasUploadedDocuments !== "boolean")
-        updates.hasUploadedDocuments = false;
-      if (!Array.isArray(data.documents)) updates.documents = [];
+        // Ensure required fields exist without flipping user-defined values
+        if (typeof data.email !== "string") updates.email = email;
+        if (typeof data.uid !== "string") updates.uid = uid;
+        if (!data.role) updates.role = "user";
+        if (typeof data.hasUploadedDocuments !== "boolean")
+          updates.hasUploadedDocuments = false;
+        if (!Array.isArray(data.documents)) updates.documents = [];
 
-      // If email already verified in Auth and not yet reflected in Firestore, set once
-      if (user.emailVerified && data.isEmailVerified !== true) {
-        updates.isEmailVerified = true;
-        const currentStatus = data.status || "pending_email_verification";
-        if (currentStatus === "pending_email_verification") {
-          updates.status = "pending_documents";
+        // If email already verified in Auth and not yet reflected in Firestore, set once
+        if (user.emailVerified && data.isEmailVerified !== true) {
+          updates.isEmailVerified = true;
+          const currentStatus = data.status || "pending_email_verification";
+          if (currentStatus === "pending_email_verification") {
+            updates.status = "pending_documents";
+          }
         }
-      }
 
-      // createdAt should be set if missing
-      if (!data.createdAt) updates.createdAt = now;
+        // createdAt should be set if missing
+        if (!data.createdAt) updates.createdAt = now;
 
-      if (Object.keys(updates).length > 0) {
-        updates.updatedAt = now;
-        console.log("[onUserCreate] Updating existing user doc for uid:", uid, "with updates:", updates);
-        txn.update(userRef, updates);
-        console.log("[onUserCreate] Updated existing user doc:", uid, updates);
+        if (Object.keys(updates).length > 0) {
+          updates.updatedAt = now;
+          console.log(
+            "[onUserCreate] Updating existing user doc for uid:",
+            uid,
+            "with updates:",
+            updates,
+          );
+          txn.update(userRef, updates);
+          console.log(
+            "[onUserCreate] Updated existing user doc:",
+            uid,
+            updates,
+          );
 
-        // Update counters if status changed
-        if (updates.status && updates.status !== oldStatus) {
-          console.log("[onUserCreate] Updating counters for status change from", oldStatus, "to", updates.status);
-          await updateUserCounters(oldStatus, updates.status);
+          // Update counters if status changed
+          if (updates.status && updates.status !== oldStatus) {
+            console.log(
+              "[onUserCreate] Updating counters for status change from",
+              oldStatus,
+              "to",
+              updates.status,
+            );
+            await updateUserCounters(oldStatus, updates.status);
+          }
+        } else {
+          console.log("[onUserCreate] No-op for existing user doc:", uid);
         }
-      } else {
-        console.log("[onUserCreate] No-op for existing user doc:", uid);
-      }
-    });
-    console.log("[onUserCreate] Transaction completed successfully for uid:", uid);
-  } catch (error) {
-    console.error("[onUserCreate] Transaction error for uid:", uid, "error:", error);
-  }
-  console.log("[onUserCreate] Function completed for uid:", uid);
-});
+      });
+      console.log(
+        "[onUserCreate] Transaction completed successfully for uid:",
+        uid,
+      );
+    } catch (error) {
+      console.error(
+        "[onUserCreate] Transaction error for uid:",
+        uid,
+        "error:",
+        error,
+      );
+    }
+    console.log("[onUserCreate] Function completed for uid:", uid);
+  });
 
 /**
  * onUserDocUpdate status/queue sync
@@ -926,8 +1558,9 @@ exports.onUserCreate = functions.region('asia-southeast1').auth.user().onCreate(
  * - When status transitions to approved/rejected:
  *     * Create a notification item under notifications/{uid}/items idempotently
  */
-exports.onUserDocUpdate = functions.region('asia-southeast1').firestore
-  .document("users/{uid}")
+exports.onUserDocUpdate = functions
+  .region("asia-southeast1")
+  .firestore.document("users/{uid}")
   .onUpdate(async (change, context) => {
     const uid = context.params.uid;
     const before = change.before.data() || {};
@@ -1104,8 +1737,13 @@ exports.onUserDocUpdate = functions.region('asia-southeast1').firestore
  * - Idempotent based on storagePath (gs://bucket/name) or file name
  * - Does NOT modify status; only appends to documents if not already present
  */
-exports.onDocumentFinalize = functions.region('asia-southeast1').storage
-  .object()
+exports.onDocumentFinalize = functions
+  .region("asia-southeast1")
+  .runWith({
+    memory: "1GB",
+    timeoutSeconds: 300
+  })
+  .storage.object()
   .onFinalize(async (object) => {
     try {
       const name = object.name; // e.g., "users/<uid>/documents/<filename>"
@@ -1191,11 +1829,7 @@ exports.onDocumentFinalize = functions.region('asia-southeast1').storage
           .map((d) => {
             if (!d || typeof d !== "object") return "";
             const ref =
-              d.storagePath ||
-              d.downloadUrl ||
-              d.path ||
-              d.url ||
-              d.reference;
+              d.storagePath || d.downloadUrl || d.path || d.url || d.reference;
             return normalizeReference(ref);
           })
           .filter((v) => Boolean(v));
@@ -1277,39 +1911,45 @@ exports.onDocumentFinalize = functions.region('asia-southeast1').storage
  * - Updates Firebase Auth custom claims
  * - Mirrors the role to Firestore users/{uid}.role and updates updatedAt
  */
-exports.setUserRole = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  requireAuth(context);
-  const role = await callerRole(context);
-  if (role !== "admin") {
-    throw new functions.https.HttpsError(
-      "permission-denied",
-      "Admin role required.",
-    );
-  }
+exports.setUserRole = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    requireAuth(context);
+    const role = await callerRole(context);
+    if (role !== "admin") {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Admin role required.",
+      );
+    }
 
-  const targetUid = (data && data.uid) || "";
-  const newRole = (data && data.role) || "";
-  if (!targetUid || !["user", "officer", "admin"].includes(newRole)) {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "Provide uid and role in [user|officer|admin].",
-    );
-  }
+    const targetUid = (data && data.uid) || "";
+    const newRole = (data && data.role) || "";
+    if (!targetUid || !["user", "officer", "admin"].includes(newRole)) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Provide uid and role in [user|officer|admin].",
+      );
+    }
 
-  await admin.auth().setCustomUserClaims(targetUid, { role: newRole });
+    await admin.auth().setCustomUserClaims(targetUid, { role: newRole });
 
-  const userRef = db.collection("users").doc(targetUid);
-  const now = FieldValue.serverTimestamp();
-  await userRef.set({ role: newRole, updatedAt: now }, { merge: true });
+    const userRef = db.collection("users").doc(targetUid);
+    const now = FieldValue.serverTimestamp();
+    await userRef.set({ role: newRole, updatedAt: now }, { merge: true });
 
-  return { ok: true, uid: targetUid, role: newRole };
-});
+    return { ok: true, uid: targetUid, role: newRole };
+  });
 
 /**
  * generateClearanceDocument (helper)
  * Generates a PDF document containing the application data with M-Clearance ISam logo and uploads it to Firebase Storage.
  */
-async function generateClearanceDocument(uid, application) {
+async function generateClearanceDocument(uid, application, officerUid = null) {
+  // Load logos from Firebase Storage
+  const logos = await loadLogoFromStorage();
+  const immigrationLogo = logos.immigrationLogo;
+  const isamLogo = logos.isamLogo;
   console.log(
     "[generateClearanceDocument] Starting PDF generation for user:",
     uid,
@@ -1323,8 +1963,10 @@ async function generateClearanceDocument(uid, application) {
 
     const fonts = {
       Roboto: {
-        normal: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Regular.ttf",
-        bold: "node_modules/pdfmake/build/vfs_fonts.js#Roboto-Medium.ttf",
+        normal: path.join(FONT_DIR, "Roboto-Regular.ttf"),
+        bold: path.join(FONT_DIR, "Roboto-Bold.ttf"),
+        italics: path.join(FONT_DIR, "Roboto-Italic.ttf"),
+        bolditalics: path.join(FONT_DIR, "Roboto-BoldItalic.ttf"),
       },
     };
     const pdfMake = new PDFMake(fonts);
@@ -1338,10 +1980,17 @@ async function generateClearanceDocument(uid, application) {
     );
     const rawApplicationId = application.id || safeShipName || "application";
     const filename = `clearance_documents/${uid}/${rawApplicationId}_${generatedMillis}.pdf`;
-    const downloadToken = randomUUID();
+    const downloadToken = crypto.randomUUID();
     const encodedPath = encodeURIComponent(filename);
     const bucketName = bucket.name;
-    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+    const longDownloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+
+    // Create short URL for better QR code scannability
+    const shortDownloadUrl = await createShortUrl(longDownloadUrl);
+    const downloadUrl = shortDownloadUrl !== longDownloadUrl ? shortDownloadUrl : longDownloadUrl;
+    const clearanceCode =
+      (application.clearanceCode && application.clearanceCode.trim()) ||
+      generateClearanceCodeValue(rawApplicationId, application.type);
 
     const asDate = (value) => {
       if (!value) return null;
@@ -1388,14 +2037,16 @@ async function generateClearanceDocument(uid, application) {
     const submittedAtText = formatDate(application.createdAt);
     const approvedAtText = formatDate(application.updatedAt);
     const status = (application.status || "").toString().toUpperCase() || "N/A";
-    const applicationTypeRaw = (application.type || "").toString().toLowerCase();
+    const applicationTypeRaw = (application.type || "")
+      .toString()
+      .toLowerCase();
     const applicationType =
       applicationTypeRaw === "arrival" || applicationTypeRaw === "kedatangan"
         ? "Arrival"
         : applicationTypeRaw === "departure" ||
             applicationTypeRaw === "keberangkatan"
-        ? "Departure"
-        : applicationTypeRaw || "Unknown";
+          ? "Departure"
+          : applicationTypeRaw || "Arrival";
 
     const officerName =
       application.clearanceResultSignedBy ||
@@ -1406,48 +2057,101 @@ async function generateClearanceDocument(uid, application) {
       application.officerCorporateName ||
       "Directorate General of Immigration";
 
+    // Logos are already loaded above
+
+    const officerNameClean = sanitizeTextNode(officerName);
+    const officerCorporateClean = sanitizeTextNode(officerCorporate);
+
+    const agentCorporateName = sanitizeTextNode(
+      application.agentCorporateName ||
+        application.corporateName ||
+        application.agentCompany ||
+        application.agentOrganization ||
+        application.agentName ||
+        "Shipping Agency",
+    );
+    const agentPersonName = sanitizeTextNode(
+      application.agentContactName ||
+        application.agentRepresentative ||
+        application.agentFullName ||
+        application.agentPerson ||
+        application.agentContact ||
+        application.agentName ||
+        "Authorized Representative",
+    );
+
+    const agentDisplayPair =
+      agentCorporateName === agentPersonName
+        ? agentCorporateName
+        : `${agentCorporateName} - ${agentPersonName}`;
+    const officerDisplayPair =
+      officerCorporateClean === officerNameClean
+        ? officerCorporateClean
+        : `${officerCorporateClean} - ${officerNameClean}`;
+
+    const agentQrPayload = `${uid}`;
+    const officerQrPayload = `OFFICER_${officerUid || 'SYSTEM'}`;
+
+    const headerColumns = [
+      {
+        width: 'auto',
+        alignment: 'left',
+        stack: [
+          ...(immigrationLogo
+            ? [
+                {
+                  image: immigrationLogo,
+                  width: 60,
+                  margin: [0, 0, 0, 8],
+                },
+              ]
+            : []),
+          {
+            text: 'Directorate General of Immigration',
+            style: 'companyHeader',
+          },
+          {
+            text: 'Republic of Indonesia',
+            style: 'companySubheader',
+          },
+        ],
+      },
+      {
+        width: '*',
+        alignment: 'right',
+        stack: [
+          {
+            width: 90,
+            stack: [
+              {
+                width: 85,
+                stack: [
+                  {
+                    qr: downloadUrl,
+                    fit: 85,
+                    alignment: 'right',
+                  },
+                  // Removed small logo from center top header - keeping only left logo
+                ],
+              },
+            ],
+          },
+          {
+            text: clearanceCode,
+            style: 'qrLabel',
+            alignment: 'right',
+            margin: [0, 6, 0, 0],
+          },
+        ],
+      },
+    ];
+
     const docDefinition = {
       content: [
         {
-          columns: [
-            {
-              stack: [
-                {
-                  text: "Directorate General of Immigration",
-                  style: "companyHeader",
-                },
-                {
-                  text: "M-Clearance ISam",
-                  style: "companySubheader",
-                },
-              ],
-              alignment: "left",
-            },
-            {
-              width: "auto",
-              margin: [0, 0, 0, 0],
-              alignment: "right",
-              table: {
-                widths: [90],
-                body: [
-                  [
-                    {
-                      qr: downloadUrl,
-                      fit: 90,
-                      alignment: "right",
-                    },
-                  ],
-                ],
-              },
-              layout: {
-                paddingLeft: () => 0,
-                paddingRight: () => 0,
-                paddingTop: () => 0,
-                paddingBottom: () => 0,
-              },
-            },
-          ],
-          margin: [0, 0, 0, 16],
+          columns: headerColumns,
+          columnGap: 15,
+          margin: [0, 0, 0, 8],
         },
         {
           canvas: [
@@ -1457,11 +2161,11 @@ async function generateClearanceDocument(uid, application) {
               y1: 0,
               x2: 515,
               y2: 0,
-              lineWidth: 2,
+              lineWidth: 1.5,
               lineColor: "#003049",
             },
           ],
-          margin: [0, 0, 0, 20],
+          margin: [0, 0, 0, 12],
         },
         {
           text: "Immigration Clearance Certificate",
@@ -1507,6 +2211,22 @@ async function generateClearanceDocument(uid, application) {
                     { text: "Location / Port", style: "label" },
                     { text: application.location || "N/A", style: "value" },
                   ],
+                  ...(applicationTypeRaw === "arrival"
+                    ? [
+                        [
+                          { text: "Last Port", style: "label" },
+                          { text: application.lastPort || application.port || application.lastPortOfCall || application.fromPort || "N/A", style: "value" },
+                        ],
+                      ]
+                    : []),
+                  ...(applicationTypeRaw === "departure"
+                    ? [
+                        [
+                          { text: "Next Port", style: "label" },
+                          { text: application.nextPort || "N/A", style: "value" },
+                        ],
+                      ]
+                    : []),
                   [
                     { text: "Crew (WNI)", style: "label" },
                     {
@@ -1544,17 +2264,15 @@ async function generateClearanceDocument(uid, application) {
               layout: "lightHorizontalLines",
             },
           ],
-          margin: [0, 0, 0, 20],
+          margin: [0, 0, 0, 12],
         },
         {
-          text:
-            "The Directorate General of Immigration certifies that the vessel and documents listed above have been reviewed and meet the clearance requirements set forth by Indonesian immigration authorities.",
+          text: "The Directorate General of Immigration certifies that the vessel and documents listed above have been reviewed and meet the clearance requirements set forth by Indonesian immigration authorities.",
           style: "paragraph",
           margin: [0, 0, 0, 18],
         },
         {
-          text:
-            "The embedded QR code links to the digitally signed certificate stored in the M-Clearance system. Presenting this certificate verifies the authenticity of the clearance decision for the vessel in question.",
+          text: "The embedded QR code links to the digitally signed certificate stored in the M-Clearance system. Presenting this certificate verifies the authenticity of the clearance decision for the vessel in question.",
           style: "note",
           margin: [0, 0, 0, 24],
         },
@@ -1563,31 +2281,52 @@ async function generateClearanceDocument(uid, application) {
             {
               width: "*",
               stack: [
-                { text: "Applicant / Shipping Agent", style: "signatureLabel" },
-                { text: "Digitally acknowledged via M-Clearance", style: "signatureHint" },
-                { text: "", margin: [0, 16, 0, 0] },
-                { text: "______________________________", style: "signatureLine" },
+                { text: "Digital Signature Agen", style: "signatureLabel" },
                 {
-                  text: application.agentName || "Authorized Representative",
-                  style: "signatureName",
-                  margin: [0, 6, 0, 0],
+                  stack: [
+                    {
+                      qr: agentQrPayload,
+                      fit: 70,
+                      alignment: "left",
+                    },
+                  ],
                 },
+                {
+                  text: "Digital acknowledgement via M-Clearance",
+                  style: "signatureHint",
+                },
+                { text: "", margin: [0, 12, 0, 0] },
+                { text: "______________________________", style: "signatureLine" },
+                { text: agentPersonName, style: "signatureName", margin: [0, 6, 0, 0] },
+                { text: agentCorporateName, style: "signatureCorp" },
               ],
             },
             {
               width: "*",
               stack: [
-                { text: "Immigration Officer", style: "signatureLabel" },
-                { text: "Digitally signed by Directorate General of Immigration", style: "signatureHint" },
-                { text: "", margin: [0, 16, 0, 0] },
+                { text: "Digital Signature Officer Imigrasi", style: "signatureLabel" },
+                {
+                  stack: [
+                    {
+                      qr: officerQrPayload,
+                      fit: 70,
+                      alignment: "left",
+                    },
+                  ],
+                },
+                {
+                  text: "Ditandatangani secara digital oleh Direktorat Jenderal Imigrasi",
+                  style: "signatureHint",
+                },
+                { text: "", margin: [0, 12, 0, 0] },
                 { text: "______________________________", style: "signatureLine" },
-                { text: officerName, style: "signatureName", margin: [0, 6, 0, 0] },
-                { text: officerCorporate, style: "signatureCorp" },
+                { text: officerNameClean, style: "signatureName", margin: [0, 6, 0, 0] },
+                { text: officerCorporateClean, style: "signatureCorp" },
               ],
             },
           ],
-          columnGap: 30,
-          margin: [0, 0, 0, 30],
+          columnGap: 20,
+          margin: [0, 0, 0, 10],
         },
         ...(application.notes
           ? [
@@ -1604,9 +2343,10 @@ async function generateClearanceDocument(uid, application) {
             ]
           : []),
         {
-          text: `Document Reference: ${rawApplicationId}-${generatedMillis}`,
+          text: `Ref: ${rawApplicationId}`,
           style: "footer",
           alignment: "center",
+          margin: [0, 3, 0, 0],
         },
       ],
       styles: {
@@ -1628,6 +2368,11 @@ async function generateClearanceDocument(uid, application) {
         subtitle: {
           fontSize: 12,
           color: "#495057",
+        },
+        qrLabel: {
+          fontSize: 10,
+          bold: true,
+          color: "#003049",
         },
         label: {
           fontSize: 10,
@@ -1657,6 +2402,10 @@ async function generateClearanceDocument(uid, application) {
           fontSize: 9,
           italics: true,
           color: "#6c757d",
+        },
+        signatureQrLabel: {
+          fontSize: 9,
+          color: "#1f2937",
         },
         signatureLine: {
           fontSize: 11,
@@ -1698,57 +2447,41 @@ async function generateClearanceDocument(uid, application) {
     const pdfDoc = pdfMake.createPdfKitDocument(docDefinition);
     console.log("[generateClearanceDocument] PDF document created");
 
-    // Collect PDF data
-    const chunks = [];
-    pdfDoc.on("data", (chunk) => chunks.push(chunk));
-    console.log("[generateClearanceDocument] PDF data collection started");
+    // Use streaming approach to reduce memory usage
+    console.log("[generateClearanceDocument] Starting PDF generation with streaming");
 
-    // Return a promise that resolves when PDF is generated and uploaded
     return new Promise((resolve, reject) => {
-      pdfDoc.on("end", async () => {
-        try {
-          console.log(
-            "[generateClearanceDocument] PDF generation completed, concatenating chunks...",
-          );
-          const result = Buffer.concat(chunks);
-          console.log(
-            "[generateClearanceDocument] PDF buffer created, size:",
-            result.length,
-          );
+      const file = bucket.file(filename);
 
-          // Upload to Firebase Storage
-          console.log(
-            "[generateClearanceDocument] Starting upload to Firebase Storage...",
-          );
-          const file = bucket.file(filename);
-
-          await file.save(result, {
-            metadata: {
-              contentType: "application/pdf",
-              metadata: {
-                firebaseStorageDownloadTokens: downloadToken,
-                applicationId: rawApplicationId,
-                generatedBy: officerName,
-              },
-            },
-          });
-          console.log("[generateClearanceDocument] File uploaded successfully");
-
-          resolve(downloadUrl);
-        } catch (uploadError) {
-          console.error(
-            "[generateClearanceDocument] Upload error:",
-            uploadError,
-          );
-          reject(new Error(`Upload failed: ${uploadError.message}`));
-        }
+      // Pipe PDF directly to storage to avoid buffering in memory
+      const stream = file.createWriteStream({
+        metadata: {
+          contentType: "application/pdf",
+          metadata: {
+            firebaseStorageDownloadTokens: downloadToken,
+            applicationId: rawApplicationId,
+            generatedAt: new Date(generatedMillis).toISOString(),
+            generatedBy: officerName,
+            clearanceCode,
+          },
+        },
       });
 
+      stream.on("error", (uploadError) => {
+        console.error("[generateClearanceDocument] Upload stream error:", uploadError);
+        reject(new Error(`Upload failed: ${uploadError.message}`));
+      });
+
+      stream.on("finish", () => {
+        console.log("[generateClearanceDocument] PDF uploaded successfully via stream");
+        resolve(downloadUrl);
+      });
+
+      pdfDoc.pipe(stream);
+
       pdfDoc.on("error", (error) => {
-        console.error(
-          "[generateClearanceDocument] PDF generation error:",
-          error,
-        );
+        console.error("[generateClearanceDocument] PDF generation error:", error);
+        stream.end();
         reject(new Error(`PDF generation failed: ${error.message}`));
       });
 
@@ -1766,277 +2499,633 @@ async function generateClearanceDocument(uid, application) {
  * Effect: updates users/{uid}.status and updatedAt. Optionally stores decidedBy/note metadata.
  * onUserDocUpdate will generate notifications.
  */
-exports.officerDecideAccount = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  try {
-    requireAuth(context);
-    const callerUid = context.auth.uid;
-    const userRef = db.collection("users").doc(callerUid);
-    const userSnap = await userRef.get();
+exports.officerDecideAccount = functions
+  .region("asia-southeast1")
+  .runWith({
+    memory: "1GB",
+    timeoutSeconds: 300
+  })
+  .https.onCall(async (data, context) => {
+    try {
+      requireAuth(context);
+      const callerUid = context.auth.uid;
+      const userRef = db.collection("users").doc(callerUid);
+      const userSnap = await userRef.get();
 
-    if (!userSnap.exists) {
-      throw new functions.https.HttpsError(
-        "permission-denied",
-        "Caller user document not found.",
-      );
-    }
-
-    const userData = userSnap.data() || {};
-    const role = userData.role;
-
-    if (role !== "officer" && role !== "admin") {
-      throw new functions.https.HttpsError(
-        "permission-denied",
-        `Officer or admin role required. Your role is '${role}'.`,
-      );
-    }
-
-    const targetUid = (data && data.targetUid) || "";
-    const decision = (data && data.decision) || "";
-    const note = (data && (data.note || data.reason)) || "";
-
-    if (!targetUid || !["approved", "rejected"].includes(decision)) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Provide targetUid and decision in [approved|rejected].",
-      );
-    }
-
-    const callerEmail = (context.auth.token && context.auth.token.email) || "";
-    const targetUserRef = db.collection("users").doc(targetUid);
-    const applicationRef = db.collection("applications").doc(targetUid);
-
-    let applicationData = null;
-
-    await db.runTransaction(async (txn) => {
-      const snap = await txn.get(targetUserRef);
-      if (!snap.exists) {
+      if (!userSnap.exists) {
         throw new functions.https.HttpsError(
-          "not-found",
-          "User document not found.",
-        );
-      }
-      const data = snap.data() || {};
-      const status = data.status || "pending_email_verification";
-      if (status !== "pending_approval") {
-        throw new functions.https.HttpsError(
-          "failed-precondition",
-          `User status must be pending_approval. Got: ${status}`,
+          "permission-denied",
+          "Caller user document not found.",
         );
       }
 
-      if (decision === "approved") {
-        const applicationSnap = await txn.get(applicationRef);
-        if (applicationSnap.exists) {
-          applicationData = {
-            id: applicationSnap.id,
-            ...(applicationSnap.data() || {}),
-          };
-        } else {
-          logger.warn(
-            `[officerDecideAccount] No application document found for uid ${targetUid}. Skipping clearance document generation.`,
+      const userData = userSnap.data() || {};
+      const role = userData.role;
+
+      if (role !== "officer" && role !== "admin") {
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          `Officer or admin role required. Your role is '${role}'.`,
+        );
+      }
+
+      const targetUid = (data && data.targetUid) || "";
+      const decision = (data && data.decision) || "";
+      const note = (data && (data.note || data.reason)) || "";
+
+      if (!targetUid || !["approved", "rejected"].includes(decision)) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          "Provide targetUid and decision in [approved|rejected].",
+        );
+      }
+
+      const callerEmail =
+        (context.auth.token && context.auth.token.email) || "";
+      const targetUserRef = db.collection("users").doc(targetUid);
+      const applicationRef = db.collection("applications").doc(targetUid);
+
+      let applicationData = null;
+
+      await db.runTransaction(async (txn) => {
+        const snap = await txn.get(targetUserRef);
+        if (!snap.exists) {
+          throw new functions.https.HttpsError(
+            "not-found",
+            "User document not found.",
+          );
+        }
+        const data = snap.data() || {};
+        const status = data.status || "pending_email_verification";
+        if (status !== "pending_approval") {
+          throw new functions.https.HttpsError(
+            "failed-precondition",
+            `User status must be pending_approval. Got: ${status}`,
+          );
+        }
+
+        if (decision === "approved") {
+          const applicationSnap = await txn.get(applicationRef);
+          if (applicationSnap.exists) {
+            applicationData = {
+              id: applicationSnap.id,
+              ...(applicationSnap.data() || {}),
+            };
+          } else {
+            logger.warn(
+              `[officerDecideAccount] No application document found for uid ${targetUid}. Skipping clearance document generation.`,
+            );
+          }
+        }
+
+        const updates = {
+          status: decision,
+          updatedAt: FieldValue.serverTimestamp(),
+          decidedBy: callerEmail || callerUid,
+        };
+        if (note && typeof note === "string" && note.length <= 1000) {
+          updates.decisionNote = note;
+        }
+        txn.update(targetUserRef, updates);
+      });
+
+      if (decision === "approved" && applicationData) {
+        try {
+          const documentUrl = await generateClearanceDocument(
+            targetUid,
+            applicationData,
+          );
+          await applicationRef.update({
+            clearanceDocumentUrl: documentUrl,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          logger.error(
+            "[officerDecideAccount] generateClearanceDocument error:",
+            e,
+          );
+          await applicationRef.set(
+            {
+              clearanceDocumentError:
+                e.message || "Failed to generate document",
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true },
           );
         }
       }
 
-      const updates = {
-        status: decision,
-        updatedAt: FieldValue.serverTimestamp(),
-        decidedBy: callerEmail || callerUid,
-      };
-      if (note && typeof note === "string" && note.length <= 1000) {
-        updates.decisionNote = note;
+      return { ok: true, uid: targetUid, status: decision };
+    } catch (error) {
+      logger.error("[officerDecideAccount] Unexpected error", error);
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
       }
-      txn.update(targetUserRef, updates);
-    });
-
-    if (decision === "approved" && applicationData) {
-      try {
-        const documentUrl = await generateClearanceDocument(
-          targetUid,
-          applicationData,
-        );
-        await applicationRef.update({
-          clearanceDocumentUrl: documentUrl,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
-        logger.error(
-          "[officerDecideAccount] generateClearanceDocument error:",
-          e,
-        );
-        await applicationRef.set(
-          {
-            clearanceDocumentError: e.message || "Failed to generate document",
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true },
-        );
-      }
-    }
-
-    return { ok: true, uid: targetUid, status: decision };
-  } catch (error) {
-    logger.error("[officerDecideAccount] Unexpected error", error);
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    throw new functions.https.HttpsError(
-      "internal",
-      error?.message || "Failed to process officer decision.",
-    );
-  }
-});
-
-exports.logOfficerActivity = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  try {
-    requireAuth(context);
-    await ensureOfficerOrAdmin(context);
-
-    const uid = context.auth.uid;
-    const rawTitle = data && typeof data.title === "string" ? data.title : "";
-    const rawDescription =
-      data && typeof data.description === "string" ? data.description : "";
-
-    const title = rawTitle.trim();
-    if (!title) {
       throw new functions.https.HttpsError(
-        "invalid-argument",
-        "title is required",
+        "internal",
+        error?.message || "Failed to process officer decision.",
       );
     }
+  });
 
-    const description = rawDescription.trim() || "No additional details";
-    const type =
-      data && typeof data.type === "string" && data.type.trim()
-        ? data.type.trim()
-        : "activity";
-    const status =
-      data && typeof data.status === "string" && data.status.trim()
-        ? data.status.trim()
-        : null;
-    const iconData =
-      data && typeof data.iconData === "string" && data.iconData.trim()
-        ? data.iconData.trim()
-        : null;
-
-    const activityDoc = {
-      userId: uid,
-      title,
-      description,
-      type,
-      date: FieldValue.serverTimestamp(),
-      createdAt: FieldValue.serverTimestamp(),
-    };
-
-    if (status) activityDoc.status = status;
-    if (iconData) activityDoc.iconData = iconData;
-
-    const metadata = data && typeof data.metadata === "object" ? data.metadata : null;
-    if (metadata && metadata !== null) {
-      const sanitized = {};
-      Object.keys(metadata).forEach((key) => {
-        const value = metadata[key];
-        if (
-          value === null ||
-          typeof value === "string" ||
-          typeof value === "number" ||
-          typeof value === "boolean"
-        ) {
-          sanitized[key] = value;
-        }
-      });
-      if (Object.keys(sanitized).length > 0) {
-        activityDoc.metadata = sanitized;
-      }
-    }
-
-    const activityRef = db.collection("officer_activities").doc();
-    await activityRef.set(activityDoc, { merge: false });
-
+exports.logOfficerActivity = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
     try {
-      await db
-        .collection("users")
-        .doc(uid)
-        .collection("activity_logs")
-        .doc(activityRef.id)
-        .set(activityDoc, { merge: false });
-    } catch (fallbackError) {
-      logger.warn(
-        "[logOfficerActivity] Failed to write fallback activity log",
-        fallbackError,
-      );
-    }
+      requireAuth(context);
+      await ensureOfficerOrAdmin(context);
 
-    return { success: true, id: activityRef.id };
-  } catch (error) {
-    logger.error("[logOfficerActivity] Unexpected error", error);
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
-    }
-    throw new functions.https.HttpsError(
-      "internal",
-      error?.message || "Failed to log officer activity.",
-    );
-  }
-});
+      const uid = context.auth.uid;
+      const rawTitle = data && typeof data.title === "string" ? data.title : "";
+      const rawDescription =
+        data && typeof data.description === "string" ? data.description : "";
 
-exports.getOfficerActivities = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  try {
-    requireAuth(context);
-    await ensureOfficerOrAdmin(context);
+      const title = rawTitle.trim();
+      if (!title) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          "title is required",
+        );
+      }
 
-    const uid = context.auth.uid;
-    const rawLimit = data && typeof data.limit !== "undefined" ? Number(data.limit) : 10;
-    const limit = Number.isFinite(rawLimit)
-      ? Math.min(Math.max(Math.floor(rawLimit), 1), 50)
-      : 10;
+      const description = rawDescription.trim() || "No additional details";
+      const type =
+        data && typeof data.type === "string" && data.type.trim()
+          ? data.type.trim()
+          : "activity";
+      const status =
+        data && typeof data.status === "string" && data.status.trim()
+          ? data.status.trim()
+          : null;
+      const iconData =
+        data && typeof data.iconData === "string" && data.iconData.trim()
+          ? data.iconData.trim()
+          : null;
 
-    const buildQuery = (ref) =>
-      ref.where("userId", "==", uid).orderBy("date", "desc").limit(limit);
-
-    const serializeDoc = (doc) => {
-      const payload = doc.data() || {};
-      const result = {
-        id: doc.id,
-        ...payload,
+      const activityDoc = {
+        userId: uid,
+        title,
+        description,
+        type,
+        date: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       };
 
-      if (payload.date instanceof Timestamp) {
-        result.date = payload.date.toMillis();
+      if (status) activityDoc.status = status;
+      if (iconData) activityDoc.iconData = iconData;
+
+      const metadata =
+        data && typeof data.metadata === "object" ? data.metadata : null;
+      if (metadata && metadata !== null) {
+        const sanitized = {};
+        Object.keys(metadata).forEach((key) => {
+          const value = metadata[key];
+          if (
+            value === null ||
+            typeof value === "string" ||
+            typeof value === "number" ||
+            typeof value === "boolean"
+          ) {
+            sanitized[key] = value;
+          }
+        });
+        if (Object.keys(sanitized).length > 0) {
+          activityDoc.metadata = sanitized;
+        }
       }
-      if (payload.createdAt instanceof Timestamp) {
-        result.createdAt = payload.createdAt.toMillis();
+
+      const activityRef = db.collection("officer_activities").doc();
+      await activityRef.set(activityDoc, { merge: false });
+
+      try {
+        await db
+          .collection("users")
+          .doc(uid)
+          .collection("activity_logs")
+          .doc(activityRef.id)
+          .set(activityDoc, { merge: false });
+      } catch (fallbackError) {
+        logger.warn(
+          "[logOfficerActivity] Failed to write fallback activity log",
+          fallbackError,
+        );
       }
 
-      return result;
-    };
+      return { success: true, id: activityRef.id };
+    } catch (error) {
+      logger.error("[logOfficerActivity] Unexpected error", error);
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+      throw new functions.https.HttpsError(
+        "internal",
+        error?.message || "Failed to log officer activity.",
+      );
+    }
+  });
 
-    let snapshot = await buildQuery(db.collection("officer_activities")).get();
+exports.sendClearanceCertificate = functions
+  .region("asia-southeast1")
+  .runWith({
+    memory: "2GB",
+    timeoutSeconds: 540,
+    maxInstances: 100
+  })
+  .https.onCall(async (data, context) => {
+    try {
+      requireAuth(context);
+      await ensureOfficerOrAdmin(context);
 
-    if (snapshot.empty) {
-      snapshot = await buildQuery(
-        db.collection("users").doc(uid).collection("activity_logs"),
+      const applicationId =
+        data && typeof data.applicationId === "string"
+          ? data.applicationId.trim()
+          : "";
+      if (!applicationId) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          "applicationId is required.",
+        );
+      }
+
+      const applicationRef = db.collection("applications").doc(applicationId);
+      const applicationSnap = await applicationRef.get();
+      if (!applicationSnap.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          `Application ${applicationId} not found.`,
+        );
+      }
+
+      const application = {
+        id: applicationSnap.id,
+        ...(applicationSnap.data() || {}),
+      };
+
+      const status = (application.status || "").toString().toLowerCase();
+      if (status !== "approved") {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Application must be approved before sending eClearance.",
+        );
+      }
+
+      const agentUid = (application.agentUid || "").toString();
+      if (!agentUid) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Application is missing agent information.",
+        );
+      }
+
+      const officerUid = context.auth.uid;
+      const officerDoc = await db.collection("users").doc(officerUid).get();
+      const officerData = officerDoc.exists ? officerDoc.data() || {} : {};
+
+      const providedOfficerName =
+        data && typeof data.officerName === "string"
+          ? data.officerName.trim()
+          : "";
+      const providedOfficerCorporate =
+        data && typeof data.officerCorporateName === "string"
+          ? data.officerCorporateName.trim()
+          : "";
+
+      const officerName =
+        providedOfficerName ||
+        officerData.fullName ||
+        officerData.name ||
+        context.auth.token?.name ||
+        context.auth.token?.email ||
+        "Immigration Officer";
+
+      const officerCorporate =
+        providedOfficerCorporate ||
+        officerData.corporateName ||
+        officerData.organization ||
+        officerName;
+
+      const clearanceCode =
+        (application.clearanceCode && application.clearanceCode.trim()) ||
+        generateClearanceCodeValue(application.id, application.type);
+
+      const pdfApplication = {
+        ...application,
+        clearanceResultSignedBy: officerName,
+        clearanceResultSignedByCorporate: officerCorporate,
+        clearanceCode,
+      };
+
+      let downloadUrl;
+      try {
+        downloadUrl = await generateClearanceDocument(
+          agentUid,
+          pdfApplication,
+          officerUid,
+        );
+        console.log("[sendClearanceCertificate] PDF generated successfully:", downloadUrl);
+      } catch (error) {
+        logger.error(
+          "[sendClearanceCertificate] generateClearanceDocument failed",
+          error,
+        );
+        console.error("[sendClearanceCertificate] PDF generation error details:", {
+          message: error.message,
+          stack: error.stack,
+          agentUid,
+          applicationId,
+        });
+        throw new functions.https.HttpsError(
+          "internal",
+          `PDF generation failed: ${error?.message || "Unknown error"}`,
+        );
+      }
+
+      const updateTimestamp = FieldValue.serverTimestamp();
+      console.log("[sendClearanceCertificate] Updating application document:", applicationId);
+
+      await applicationRef.update({
+        clearanceResultFile: downloadUrl,
+        clearanceResultGeneratedAt: updateTimestamp,
+        clearanceResultSentAt: updateTimestamp,
+        clearanceResultSignedBy: officerName,
+        clearanceResultSignedByCorporate: officerCorporate,
+        clearanceCode,
+        updatedAt: updateTimestamp,
+      });
+
+      console.log("[sendClearanceCertificate] Application document updated successfully");
+
+      const safeShipName = sanitizeTextNode(
+        application.shipName || application.vesselName || "your vessel",
+      );
+
+      try {
+        const notificationTimestamp = Timestamp.now();
+        await recordNotification(agentUid, {
+          title: "eClearance Available",
+          body: `Your clearance document for ${safeShipName} is ready to download.`,
+          timestamp: notificationTimestamp,
+          type: 1,
+          extra: {
+            applicationId,
+            clearanceCode,
+            status: "approved",
+            documentUrl: downloadUrl,
+          },
+        });
+      } catch (notifError) {
+        logger.warn(
+          "[sendClearanceCertificate] Failed to create agent notification",
+          notifError,
+        );
+      }
+
+      let emailSent = false;
+      try {
+        const agentSnapshot = await db.collection("users").doc(agentUid).get();
+        const agentData = agentSnapshot.exists ? agentSnapshot.data() || {} : {};
+        const preferences = agentData.notificationPreferences || null;
+
+        const fallbackEmail =
+          (application.agentEmail && application.agentEmail.trim()) ||
+          (agentData.email && agentData.email.trim()) ||
+          "";
+        const agentEmail = await resolveUserEmail(agentUid, fallbackEmail);
+
+        console.log("[sendClearanceCertificate] Email resolution:", {
+          agentUid,
+          fallbackEmail,
+          resolvedEmail: agentEmail,
+          preferences,
+        });
+
+        if (agentEmail && emailPreferenceAllowsApplicationUpdates(preferences)) {
+          const typeLabel =
+            typeof application.type === "string" &&
+            application.type.toLowerCase().includes("departure")
+              ? "Departure"
+              : "Arrival";
+
+          const globalSettings = await emailConfig.getGlobalSettings();
+          console.log("[sendClearanceCertificate] Global settings loaded");
+
+          const portalUrl =
+            typeof globalSettings.portalUrl === "string" &&
+            globalSettings.portalUrl.trim().length > 0
+              ? globalSettings.portalUrl.trim()
+              : "https://mclearanceisam.com";
+
+          const languageCandidates = [
+            application.language,
+            application.locale,
+            agentData.preferredLanguage,
+            agentData.language,
+            agentData.locale,
+          ].filter((value) => typeof value === "string" && value.trim().length);
+          const emailLanguage =
+            languageCandidates.length > 0
+              ? languageCandidates[0].trim().toLowerCase()
+              : "en";
+
+          const agentDisplayName =
+            sanitizeTextNode(
+              agentData.corporateName ||
+                agentData.fullName ||
+                agentData.name ||
+                agentData.username ||
+                application.agentName ||
+                agentEmail,
+            ) || "Agent";
+
+          const clearanceTemplate = {
+            subject: "eClearance Certificate for {shipName}",
+            html: `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>eClearance Certificate</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f4f6fb;font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+      <tr>
+        <td align="center" style="padding:24px;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:640px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 18px 45px rgba(37,99,235,0.18);">
+            <tr>
+              <td align="left" style="padding:32px 32px 24px 32px;background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);">
+                <h1 style="margin:0;font-size:24px;color:#ffffff;letter-spacing:0.5px;text-transform:uppercase;">M-Clearance iSam</h1>
+                <p style="margin:12px 0 0 0;font-size:14px;color:rgba(255,255,255,0.78);">Official Clearance Certificate</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px 32px 40px 32px;">
+                <p style="margin:0;font-size:16px;color:#374151;">Hello <strong>{name}</strong>,</p>
+                <p style="margin:16px 0 0 0;font-size:16px;color:#4b5563;line-height:1.6;">
+                  The <strong>{typeLabel}</strong> clearance for your vessel <strong>{shipName}</strong> has been completed. The official eClearance document is now available.
+                </p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:24px 0;background:#f3f4f6;border-radius:12px;">
+                  <tr>
+                    <td style="padding:20px 24px;">
+                      <p style="margin:0;font-size:14px;color:#6b7280;">Clearance Code</p>
+                      <p style="margin:6px 0 0 0;font-size:20px;font-weight:700;color:#1d4ed8;letter-spacing:0.08em;">{clearanceCode}</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0 24px 24px 24px;">
+                      <a href="{downloadUrl}" style="display:inline-block;padding:14px 22px;background-color:#2563eb;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;border-radius:10px;">Download eClearance</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0 0 16px 0;font-size:15px;color:#4b5563;line-height:1.6;">
+                  Signed by: <strong>{officerName}</strong><br />
+                  {officerCorporate}
+                </p>
+                <p style="margin:0 0 24px 0;font-size:15px;color:#4b5563;line-height:1.6;">
+                  You can also access this document anytime from your dashboard: <a href="{portalUrl}" style="color:#2563eb;">{portalUrl}</a>
+                </p>
+                <p style="margin:0;font-size:13px;color:#6b7280;">If you did not request this clearance or believe this email was sent in error, please contact our support team immediately.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`,
+            text: `Hello {name},\n\nYour {typeLabel} clearance for {shipName} is complete.\nClearance Code: {clearanceCode}\n\nDownload the eClearance document here: {downloadUrl}\n\nSigned by: {officerName} - {officerCorporate}\nPortal: {portalUrl}\n\nIf you did not request this clearance, please contact support immediately.\n\nRegards,\n{accountName}\nSupport: {supportEmail}`,
+            tags: [{ name: "notification", value: "clearanceCertificate" }],
+          };
+
+          console.log("[sendClearanceCertificate] Sending email to:", agentEmail);
+          await sendEmailFromTemplate({
+            templateName: "clearanceCertificate",
+            language: emailLanguage,
+            to: agentEmail,
+            replacements: {
+              name: agentDisplayName,
+              shipName: safeShipName,
+              typeLabel,
+              downloadUrl,
+              clearanceCode,
+              officerName: sanitizeTextNode(officerName),
+              officerCorporate: sanitizeTextNode(officerCorporate),
+              portalUrl,
+            },
+            includeSuperAdmin: true,
+            globalSettings,
+            templateSettings: clearanceTemplate,
+          });
+
+          emailSent = true;
+          console.log("[sendClearanceCertificate] Email sent successfully");
+        } else {
+          console.log("[sendClearanceCertificate] Email not sent - no valid email or preferences disabled");
+        }
+      } catch (emailError) {
+        logger.error(
+          "[sendClearanceCertificate] Failed to dispatch email",
+          emailError,
+        );
+        console.error("[sendClearanceCertificate] Email error details:", {
+          message: emailError.message,
+          stack: emailError.stack,
+          agentUid,
+        });
+        // Don't throw here - email failure shouldn't fail the whole operation
+      }
+
+      const responsePayload = {
+        ok: true,
+        applicationId,
+        downloadUrl,
+        clearanceCode,
+        signedBy: officerName,
+        signedByCorporate: officerCorporate,
+        emailSent,
+        sentAt: new Date().toISOString(),
+      };
+
+      logger.info(
+        "[sendClearanceCertificate] Completed callable",
+        responsePayload,
+      );
+
+      return responsePayload;
+    } catch (error) {
+      logger.error("[sendClearanceCertificate] Unexpected error", error);
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+      throw new functions.https.HttpsError(
+        "internal",
+        error?.message || "Failed to send clearance certificate.",
+      );
+    }
+  });
+
+exports.getOfficerActivities = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    try {
+      requireAuth(context);
+      await ensureOfficerOrAdmin(context);
+
+      const uid = context.auth.uid;
+      const rawLimit =
+        data && typeof data.limit !== "undefined" ? Number(data.limit) : 10;
+      const limit = Number.isFinite(rawLimit)
+        ? Math.min(Math.max(Math.floor(rawLimit), 1), 50)
+        : 10;
+
+      const buildQuery = (ref) =>
+        ref.where("userId", "==", uid).orderBy("date", "desc").limit(limit);
+
+      const serializeDoc = (doc) => {
+        const payload = doc.data() || {};
+        const result = {
+          id: doc.id,
+          ...payload,
+        };
+
+        if (payload.date instanceof Timestamp) {
+          result.date = payload.date.toMillis();
+        }
+        if (payload.createdAt instanceof Timestamp) {
+          result.createdAt = payload.createdAt.toMillis();
+        }
+
+        return result;
+      };
+
+      let snapshot = await buildQuery(
+        db.collection("officer_activities"),
       ).get();
-    }
 
-    return snapshot.docs.map(serializeDoc);
-  } catch (error) {
-    logger.error("[getOfficerActivities] Unexpected error", error);
-    if (error instanceof functions.https.HttpsError) {
-      throw error;
+      if (snapshot.empty) {
+        snapshot = await buildQuery(
+          db.collection("users").doc(uid).collection("activity_logs"),
+        ).get();
+      }
+
+      return snapshot.docs.map(serializeDoc);
+    } catch (error) {
+      logger.error("[getOfficerActivities] Unexpected error", error);
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+      throw new functions.https.HttpsError(
+        "internal",
+        error?.message || "Failed to load officer activities.",
+      );
     }
-    throw new functions.https.HttpsError(
-      "internal",
-      error?.message || "Failed to load officer activities.",
-    );
-  }
-});
+  });
 
 /**
  * - pendingArrival/pendingDeparture: applications awaiting review by type
  */
-exports.getOfficerDashboardStats = functions.region('asia-southeast1').https.onCall(
-  async (data, context) => {
+exports.getOfficerDashboardStats = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);
 
@@ -2136,13 +3225,13 @@ exports.getOfficerDashboardStats = functions.region('asia-southeast1').https.onC
       pendingArrival,
       pendingDeparture,
     };
-  },
-);
+  });
 /**
  * Get officer monthly statistics
  */
-exports.getOfficerMonthlyStats = functions.region('asia-southeast1').https.onCall(
-  async (data, context) => {
+exports.getOfficerMonthlyStats = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);
 
@@ -2156,8 +3245,7 @@ exports.getOfficerMonthlyStats = functions.region('asia-southeast1').https.onCal
       startInput && !Number.isNaN(startInput.getTime())
         ? startInput
         : new Date(now.getFullYear(), now.getMonth(), 1);
-    const end =
-      endInput && !Number.isNaN(endInput.getTime()) ? endInput : now;
+    const end = endInput && !Number.isNaN(endInput.getTime()) ? endInput : now;
 
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
@@ -2365,8 +3453,7 @@ exports.getOfficerMonthlyStats = functions.region('asia-southeast1').https.onCal
         applications: arrivalTotal + departureTotal,
       },
     };
-  },
-);
+  });
 
 /**
  * issueEmailVerificationCode (callable)
@@ -2374,9 +3461,12 @@ exports.getOfficerMonthlyStats = functions.region('asia-southeast1').https.onCal
  * Optionally integrate with email provider; for now we only store and return masked info.
  */
 exports.issueEmailVerificationCode = functions
-  .region('asia-southeast1')
+  .region("asia-southeast1")
   .https.onCall(async (data, context) => {
-    console.log("[issueEmailVerificationCode] Function started for uid:", context.auth.uid);
+    console.log(
+      "[issueEmailVerificationCode] Function started for uid:",
+      context.auth.uid,
+    );
     const startTime = Date.now();
     requireAuth(context);
     const uid = context.auth.uid;
@@ -2386,15 +3476,19 @@ exports.issueEmailVerificationCode = functions
     // Fetch dynamic configuration
     const globalSettings = await emailConfig.getGlobalSettings();
     const requestedLanguage =
-      typeof data?.language === 'string' && data.language.trim().length > 0
+      typeof data?.language === "string" && data.language.trim().length > 0
         ? data.language.trim().toLowerCase()
-        : 'en';
+        : "en";
     const templateSettings = await emailConfig.getTemplateSettings(
       "verification",
       requestedLanguage,
     );
     console.timeEnd("[issueEmailVerificationCode] Config fetch");
-    console.log("[issueEmailVerificationCode] Config fetched in", Date.now() - startTime, "ms");
+    console.log(
+      "[issueEmailVerificationCode] Config fetched in",
+      Date.now() - startTime,
+      "ms",
+    );
 
     console.time("[issueEmailVerificationCode] Transaction");
     // Optimized transaction: minimize reads, use server timestamps
@@ -2443,7 +3537,11 @@ exports.issueEmailVerificationCode = functions
         };
       });
       console.timeEnd("[issueEmailVerificationCode] Transaction");
-      console.log("[issueEmailVerificationCode] Transaction completed in", Date.now() - startTime, "ms");
+      console.log(
+        "[issueEmailVerificationCode] Transaction completed in",
+        Date.now() - startTime,
+        "ms",
+      );
       if (result && result.cooldown) {
         return {
           ok: false,
@@ -2458,78 +3556,89 @@ exports.issueEmailVerificationCode = functions
     }
 
     console.log("[issueEmailVerificationCode] uid:", uid, "code_issued");
-console.time("[issueEmailVerificationCode] User resolution");
-// Send email directly using Resend API
-const tokenEmail =
-  (context.auth && context.auth.token && context.auth.token.email) || "";
-const recipientEmail = await resolveUserEmail(uid, tokenEmail);
-const recipientName = await resolveUserName(uid, tokenEmail);
-console.timeEnd("[issueEmailVerificationCode] User resolution");
-console.log("[issueEmailVerificationCode] User resolved in", Date.now() - startTime, "ms");
+    console.time("[issueEmailVerificationCode] User resolution");
+    // Send email directly using Resend API
+    const tokenEmail =
+      (context.auth && context.auth.token && context.auth.token.email) || "";
+    const recipientEmail = await resolveUserEmail(uid, tokenEmail);
+    const recipientName = await resolveUserName(uid, tokenEmail);
+    console.timeEnd("[issueEmailVerificationCode] User resolution");
+    console.log(
+      "[issueEmailVerificationCode] User resolved in",
+      Date.now() - startTime,
+      "ms",
+    );
 
-if (!recipientEmail) {
-  console.warn(
-    "[issueEmailVerificationCode] Could not resolve recipient email for uid:",
-    uid,
-  );
-  return { ok: true, sent: false, reason: "noRecipientEmail" };
-}
+    if (!recipientEmail) {
+      console.warn(
+        "[issueEmailVerificationCode] Could not resolve recipient email for uid:",
+        uid,
+      );
+      return { ok: true, sent: false, reason: "noRecipientEmail" };
+    }
 
-console.time("[issueEmailVerificationCode] Email send");
-try {
-  // Initialize Resend client
-  const resend = new Resend(process.env.RESEND_API_KEY);
+    console.time("[issueEmailVerificationCode] Email send");
+    try {
+      // Initialize Resend client
+      const resend = new Resend(process.env.RESEND_API_KEY);
 
-  const safeAccountName =
-    globalSettings.accountName || globalSettings.fromName || 'M-Clearance';
-  const supportEmail =
-    globalSettings.supportEmail || globalSettings.from || 'support@mclearanceisam.com';
-  const expiresInMinutes = 10;
+      const safeAccountName =
+        globalSettings.accountName || globalSettings.fromName || "M-Clearance";
+      const supportEmail =
+        globalSettings.supportEmail ||
+        globalSettings.from ||
+        "support@mclearanceisam.com";
+      const expiresInMinutes = 10;
 
-  const subjectTemplate = templateSettings.subject || 'Your verification code';
-  const subject = subjectTemplate
-    .replace(/{name}/g, recipientName)
-    .replace(/{code}/g, code)
-    .replace(/{accountName}/g, safeAccountName)
-    .replace(/{supportEmail}/g, supportEmail)
-    .replace(/{language}/g, requestedLanguage);
+      const subjectTemplate =
+        templateSettings.subject || "Your verification code";
+      const subject = subjectTemplate
+        .replace(/{name}/g, recipientName)
+        .replace(/{code}/g, code)
+        .replace(/{accountName}/g, safeAccountName)
+        .replace(/{supportEmail}/g, supportEmail)
+        .replace(/{language}/g, requestedLanguage);
 
-  const htmlTemplate =
-    templateSettings.html ||
-    "<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.</p>";
-  const html = htmlTemplate
-    .replace(/{name}/g, recipientName)
-    .replace(/{code}/g, code)
-    .replace(/{accountName}/g, safeAccountName)
-    .replace(/{supportEmail}/g, supportEmail)
-    .replace(/{language}/g, requestedLanguage)
-    .replace(/{expiresInMinutes}/g, expiresInMinutes.toString());
+      const htmlTemplate =
+        templateSettings.html ||
+        "<p>Hello {name},</p><p>Your verification code is <b>{code}</b>.</p>";
+      const html = htmlTemplate
+        .replace(/{name}/g, recipientName)
+        .replace(/{code}/g, code)
+        .replace(/{accountName}/g, safeAccountName)
+        .replace(/{supportEmail}/g, supportEmail)
+        .replace(/{language}/g, requestedLanguage)
+        .replace(/{expiresInMinutes}/g, expiresInMinutes.toString());
 
-  const textTemplate =
-    templateSettings.text ||
-    "Hello {name},\nYour verification code is {code}.";
-  const text = textTemplate
-    .replace(/{name}/g, recipientName)
-    .replace(/{code}/g, code)
-    .replace(/{accountName}/g, safeAccountName)
-    .replace(/{supportEmail}/g, supportEmail)
-    .replace(/{language}/g, requestedLanguage)
-    .replace(/{expiresInMinutes}/g, expiresInMinutes.toString());
+      const textTemplate =
+        templateSettings.text ||
+        "Hello {name},\nYour verification code is {code}.";
+      const text = textTemplate
+        .replace(/{name}/g, recipientName)
+        .replace(/{code}/g, code)
+        .replace(/{accountName}/g, safeAccountName)
+        .replace(/{supportEmail}/g, supportEmail)
+        .replace(/{language}/g, requestedLanguage)
+        .replace(/{expiresInMinutes}/g, expiresInMinutes.toString());
 
-  // Prepare email data for Resend
-  const emailData = {
-    from: `${globalSettings.fromName} <${globalSettings.from}>`,
-    to: recipientEmail,
-    subject: subject,
-    html: html,
-    text: text,
-    reply_to: globalSettings.supportEmail || globalSettings.from,
-  };
+      // Prepare email data for Resend
+      const emailData = {
+        from: `${globalSettings.fromName} <${globalSettings.from}>`,
+        to: recipientEmail,
+        subject: subject,
+        html: html,
+        text: text,
+        reply_to: globalSettings.supportEmail || globalSettings.from,
+      };
 
-  // Send the email
-  const { data, error } = await resend.emails.send(emailData);
-  console.timeEnd("[issueEmailVerificationCode] Email send");
-  console.log("[issueEmailVerificationCode] Email sent in", Date.now() - startTime, "ms");
+      // Send the email
+      const { data, error } = await resend.emails.send(emailData);
+      console.timeEnd("[issueEmailVerificationCode] Email send");
+      console.log(
+        "[issueEmailVerificationCode] Email sent in",
+        Date.now() - startTime,
+        "ms",
+      );
 
       if (error) {
         console.error(
@@ -2548,7 +3657,11 @@ try {
         "[issueEmailVerificationCode] Email sent successfully:",
         data,
       );
-      console.log("[issueEmailVerificationCode] Total function time:", Date.now() - startTime, "ms");
+      console.log(
+        "[issueEmailVerificationCode] Total function time:",
+        Date.now() - startTime,
+        "ms",
+      );
       return { ok: true, sent: true, messageId: data?.id };
     } catch (e) {
       // If thrown by cooldown guard
@@ -2561,27 +3674,32 @@ try {
         return { ok: false, reason: "cooldown", retryAfterSec: remain };
       }
       console.error("[issueEmailVerificationCode] Failed to send email:", e);
-      console.log("[issueEmailVerificationCode] Total function time before error:", Date.now() - startTime, "ms");
+      console.log(
+        "[issueEmailVerificationCode] Total function time before error:",
+        Date.now() - startTime,
+        "ms",
+      );
       return { ok: true, sent: false, reason: "sendFailed", error: e.message };
     }
-  },
-);
+  });
 
 exports.sendPasswordResetEmailLink = functions
-  .region('asia-southeast1')
+  .region("asia-southeast1")
   .https.onCall(async (data, context) => {
     const rawEmail =
-      data && typeof data.email === 'string' ? data.email.trim() : '';
+      data && typeof data.email === "string" ? data.email.trim() : "";
     if (!rawEmail) {
       throw new functions.https.HttpsError(
-        'invalid-argument',
-        'Email is required.',
+        "invalid-argument",
+        "Email is required.",
       );
     }
 
     const email = rawEmail.toLowerCase();
     const requestedLanguage =
-      data && typeof data.language === 'string' && data.language.trim().length > 0
+      data &&
+      typeof data.language === "string" &&
+      data.language.trim().length > 0
         ? data.language.trim().toLowerCase()
         : null;
 
@@ -2589,17 +3707,20 @@ exports.sendPasswordResetEmailLink = functions
     try {
       userRecord = await admin.auth().getUserByEmail(email);
     } catch (error) {
-      if (error && error.code === 'auth/user-not-found') {
+      if (error && error.code === "auth/user-not-found") {
         console.warn(
-          '[sendPasswordResetEmailLink] No auth user found for email, returning success to avoid enumeration:',
+          "[sendPasswordResetEmailLink] No auth user found for email, returning success to avoid enumeration:",
           email,
         );
         return { ok: true };
       }
-      logger.error('[sendPasswordResetEmailLink] Failed to resolve user by email', error);
+      logger.error(
+        "[sendPasswordResetEmailLink] Failed to resolve user by email",
+        error,
+      );
       throw new functions.https.HttpsError(
-        'internal',
-        'Failed to process password reset request.',
+        "internal",
+        "Failed to process password reset request.",
       );
     }
 
@@ -2607,13 +3728,13 @@ exports.sendPasswordResetEmailLink = functions
     let userDocData = null;
     if (uid) {
       try {
-        const userSnap = await db.collection('users').doc(uid).get();
+        const userSnap = await db.collection("users").doc(uid).get();
         if (userSnap.exists) {
           userDocData = userSnap.data() || {};
         }
       } catch (fetchError) {
         console.warn(
-          '[sendPasswordResetEmailLink] Failed to fetch Firestore user document:',
+          "[sendPasswordResetEmailLink] Failed to fetch Firestore user document:",
           uid,
           fetchError,
         );
@@ -2622,24 +3743,24 @@ exports.sendPasswordResetEmailLink = functions
 
     const languageCandidates = [
       requestedLanguage,
-      userDocData && typeof userDocData.preferredLanguage === 'string'
+      userDocData && typeof userDocData.preferredLanguage === "string"
         ? userDocData.preferredLanguage
         : null,
-      userDocData && typeof userDocData.language === 'string'
+      userDocData && typeof userDocData.language === "string"
         ? userDocData.language
         : null,
-      userDocData && typeof userDocData.locale === 'string'
+      userDocData && typeof userDocData.locale === "string"
         ? userDocData.locale
         : null,
     ].filter(Boolean);
     const language =
       languageCandidates.length > 0
         ? languageCandidates[0].toLowerCase()
-        : 'en';
+        : "en";
 
     const globalSettings = await emailConfig.getGlobalSettings();
     const templateSettings = await emailConfig.getTemplateSettings(
-      'passwordReset',
+      "passwordReset",
       language,
     );
 
@@ -2653,46 +3774,49 @@ exports.sendPasswordResetEmailLink = functions
     try {
       resetLink = await admin.auth().generatePasswordResetLink(email);
     } catch (error) {
-      if (error && error.code === 'auth/user-not-found') {
+      if (error && error.code === "auth/user-not-found") {
         console.warn(
-          '[sendPasswordResetEmailLink] generatePasswordResetLink user-not-found for email:',
+          "[sendPasswordResetEmailLink] generatePasswordResetLink user-not-found for email:",
           email,
         );
         return { ok: true };
       }
       const errorDetail = redactError(error);
-      logger.error('[sendPasswordResetEmailLink] Failed to generate reset link', error);
+      logger.error(
+        "[sendPasswordResetEmailLink] Failed to generate reset link",
+        error,
+      );
       console.error(
-        '[sendPasswordResetEmailLink] Failure detail:',
+        "[sendPasswordResetEmailLink] Failure detail:",
         errorDetail,
       );
       throw new functions.https.HttpsError(
-        'internal',
-        'Could not generate password reset link.',
+        "internal",
+        "Could not generate password reset link.",
         errorDetail,
       );
     }
 
-    if (language && typeof language === 'string') {
-      const separator = resetLink.includes('?') ? '&' : '?';
+    if (language && typeof language === "string") {
+      const separator = resetLink.includes("?") ? "&" : "?";
       resetLink = `${resetLink}${separator}lang=${encodeURIComponent(language)}`;
     }
 
     const nameCandidates = [
-      userDocData && typeof userDocData.corporateName === 'string'
+      userDocData && typeof userDocData.corporateName === "string"
         ? userDocData.corporateName
         : null,
-      userDocData && typeof userDocData.fullName === 'string'
+      userDocData && typeof userDocData.fullName === "string"
         ? userDocData.fullName
         : null,
-      userDocData && typeof userDocData.username === 'string'
+      userDocData && typeof userDocData.username === "string"
         ? userDocData.username
         : null,
-      userDocData && typeof userDocData.name === 'string'
+      userDocData && typeof userDocData.name === "string"
         ? userDocData.name
         : null,
       userRecord.displayName,
-    ].filter((value) => typeof value === 'string' && value.trim().length > 0);
+    ].filter((value) => typeof value === "string" && value.trim().length > 0);
     const resolvedName =
       nameCandidates.length > 0
         ? nameCandidates[0].trim()
@@ -2700,7 +3824,7 @@ exports.sendPasswordResetEmailLink = functions
 
     try {
       await sendEmailFromTemplate({
-        templateName: 'passwordReset',
+        templateName: "passwordReset",
         language,
         to: email,
         replacements: {
@@ -2712,10 +3836,13 @@ exports.sendPasswordResetEmailLink = functions
         templateSettings,
       });
     } catch (error) {
-      logger.error('[sendPasswordResetEmailLink] Failed to dispatch email', error);
+      logger.error(
+        "[sendPasswordResetEmailLink] Failed to dispatch email",
+        error,
+      );
       throw new functions.https.HttpsError(
-        'internal',
-        'Failed to send password reset email.',
+        "internal",
+        "Failed to send password reset email.",
       );
     }
 
@@ -2732,316 +3859,327 @@ exports.sendPasswordResetEmailLink = functions
  * Initialize dashboard counters by counting existing documents.
  * Run this once after deployment to set up counters.
  */
-exports.initializeCounters = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  requireAuth(context);
-  await ensureOfficerOrAdmin(context);
+exports.initializeCounters = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    requireAuth(context);
+    await ensureOfficerOrAdmin(context);
 
-  console.log("[initializeCounters] Starting counter initialization");
+    console.log("[initializeCounters] Starting counter initialization");
 
-  const countersRef = db.collection("counters").doc("dashboard");
+    const countersRef = db.collection("counters").doc("dashboard");
 
-  // Count users
-  const pendingAccountsSnap = await db
-    .collection("users")
-    .where("status", "==", "pending_approval")
-    .select(admin.firestore.FieldPath.documentId())
-    .get();
-  const pendingAccounts = pendingAccountsSnap.size;
+    // Count users
+    const pendingAccountsSnap = await db
+      .collection("users")
+      .where("status", "==", "pending_approval")
+      .select(admin.firestore.FieldPath.documentId())
+      .get();
+    const pendingAccounts = pendingAccountsSnap.size;
 
-  // Count applications
-  const pendingArrivalSnap = await db
-    .collection("applications")
-    .where("type", "==", "arrival")
-    .where("status", "==", "waiting")
-    .select(admin.firestore.FieldPath.documentId())
-    .get();
-  const pendingArrival = pendingArrivalSnap.size;
+    // Count applications
+    const pendingArrivalSnap = await db
+      .collection("applications")
+      .where("type", "==", "arrival")
+      .where("status", "==", "waiting")
+      .select(admin.firestore.FieldPath.documentId())
+      .get();
+    const pendingArrival = pendingArrivalSnap.size;
 
-  const pendingDepartureSnap = await db
-    .collection("applications")
-    .where("type", "==", "departure")
-    .where("status", "==", "waiting")
-    .select(admin.firestore.FieldPath.documentId())
-    .get();
-  const pendingDeparture = pendingDepartureSnap.size;
+    const pendingDepartureSnap = await db
+      .collection("applications")
+      .where("type", "==", "departure")
+      .where("status", "==", "waiting")
+      .select(admin.firestore.FieldPath.documentId())
+      .get();
+    const pendingDeparture = pendingDepartureSnap.size;
 
-  await countersRef.set({
-    pendingAccounts,
-    pendingArrival,
-    pendingDeparture,
-    lastUpdated: FieldValue.serverTimestamp(),
+    await countersRef.set({
+      pendingAccounts,
+      pendingArrival,
+      pendingDeparture,
+      lastUpdated: FieldValue.serverTimestamp(),
+    });
+
+    console.log("[initializeCounters] Counters initialized:", {
+      pendingAccounts,
+      pendingArrival,
+      pendingDeparture,
+    });
+
+    return {
+      success: true,
+      counters: { pendingAccounts, pendingArrival, pendingDeparture },
+    };
   });
 
-  console.log("[initializeCounters] Counters initialized:", {
-    pendingAccounts,
-    pendingArrival,
-    pendingDeparture,
-  });
-
-  return {
-    success: true,
-    counters: { pendingAccounts, pendingArrival, pendingDeparture },
-  };
-});
-
-exports.verifyEmailCode = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  requireAuth(context);
-  const uid = context.auth.uid;
-  const submitted = data && data.code ? String(data.code) : "";
-  if (!/^\d{4}$/.test(submitted)) {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "Invalid code format.",
-    );
-  }
-
-  const userRef = db.collection("users").doc(uid);
-
-  // Fetch dynamic configuration
-  const globalSettings = await emailConfig.getGlobalSettings();
-
-  // Use transaction for atomic verification
-  await db.runTransaction(async (txn) => {
-    const snap = await txn.get(userRef);
-    if (!snap.exists) {
+exports.verifyEmailCode = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    requireAuth(context);
+    const uid = context.auth.uid;
+    const submitted = data && data.code ? String(data.code) : "";
+    if (!/^\d{4}$/.test(submitted)) {
       throw new functions.https.HttpsError(
-        "not-found",
-        "User document not found.",
+        "invalid-argument",
+        "Invalid code format.",
       );
     }
-    const doc = snap.data() || {};
-    const ver = doc.verification || {};
-    const code = ver.code || "";
-    const expiresAt = ver.expiresAt;
-    const attempts = Number(ver.attempts || 0);
 
-    if (!code) {
-      throw new functions.https.HttpsError(
-        "failed-precondition",
-        "No active verification code.",
-      );
-    }
-    if (attempts >= (globalSettings.maxAttempts || 5)) {
-      throw new functions.https.HttpsError(
-        "resource-exhausted",
-        "Too many attempts. Please request a new code later.",
-      );
-    }
-    if (expiresAt && typeof expiresAt.toMillis === "function") {
-      if (Timestamp.now().toMillis() > expiresAt.toMillis()) {
+    const userRef = db.collection("users").doc(uid);
+
+    // Fetch dynamic configuration
+    const globalSettings = await emailConfig.getGlobalSettings();
+
+    // Use transaction for atomic verification
+    await db.runTransaction(async (txn) => {
+      const snap = await txn.get(userRef);
+      if (!snap.exists) {
         throw new functions.https.HttpsError(
-          "deadline-exceeded",
-          "Code expired.",
+          "not-found",
+          "User document not found.",
         );
       }
-    }
-    if (code !== submitted) {
-      txn.update(userRef, { "verification.attempts": attempts + 1 });
-      throw new functions.https.HttpsError(
-        "permission-denied",
-        "Incorrect code.",
-      );
-    }
+      const doc = snap.data() || {};
+      const ver = doc.verification || {};
+      const code = ver.code || "";
+      const expiresAt = ver.expiresAt;
+      const attempts = Number(ver.attempts || 0);
 
-    // Mark Auth user as emailVerified = true (outside transaction for Auth API)
-    // Reflect in Firestore and transition status once
-    const updates = {
-      isEmailVerified: true,
-      updatedAt: FieldValue.serverTimestamp(),
-      verification: FieldValue.delete(),
-    };
-    const currentStatus = doc.status || "pending_email_verification";
-    if (currentStatus === "pending_email_verification") {
-      updates.status = "pending_documents";
-    }
-    txn.update(userRef, updates);
+      if (!code) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "No active verification code.",
+        );
+      }
+      if (attempts >= (globalSettings.maxAttempts || 5)) {
+        throw new functions.https.HttpsError(
+          "resource-exhausted",
+          "Too many attempts. Please request a new code later.",
+        );
+      }
+      if (expiresAt && typeof expiresAt.toMillis === "function") {
+        if (Timestamp.now().toMillis() > expiresAt.toMillis()) {
+          throw new functions.https.HttpsError(
+            "deadline-exceeded",
+            "Code expired.",
+          );
+        }
+      }
+      if (code !== submitted) {
+        txn.update(userRef, { "verification.attempts": attempts + 1 });
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          "Incorrect code.",
+        );
+      }
+
+      // Mark Auth user as emailVerified = true (outside transaction for Auth API)
+      // Reflect in Firestore and transition status once
+      const updates = {
+        isEmailVerified: true,
+        updatedAt: FieldValue.serverTimestamp(),
+        verification: FieldValue.delete(),
+      };
+      const currentStatus = doc.status || "pending_email_verification";
+      if (currentStatus === "pending_email_verification") {
+        updates.status = "pending_documents";
+      }
+      txn.update(userRef, updates);
+    });
+
+    // Update Auth after transaction succeeds
+    await admin.auth().updateUser(uid, { emailVerified: true });
+
+    return { ok: true };
   });
-
-  // Update Auth after transaction succeeds
-  await admin.auth().updateUser(uid, { emailVerified: true });
-
-  return { ok: true };
-});
 
 /**
  * testEmailSend (callable)
  * Test function to verify direct Resend integration
  * Sends a test email directly using Resend API
  */
-exports.testEmailSend = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  try {
-    console.log("[testEmailSend] Testing direct Resend integration...");
+exports.testEmailSend = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    try {
+      console.log("[testEmailSend] Testing direct Resend integration...");
 
-    // Get configuration
-    const globalSettings = await emailConfig.getGlobalSettings();
-    const templateSettings =
-      await emailConfig.getTemplateSettings("verification");
+      // Get configuration
+      const globalSettings = await emailConfig.getGlobalSettings();
+      const templateSettings =
+        await emailConfig.getTemplateSettings("verification");
 
-    console.log(
-      "[testEmailSend] Global settings:",
-      JSON.stringify(globalSettings, null, 2),
-    );
-    console.log(
-      "[testEmailSend] Template settings:",
-      JSON.stringify(templateSettings, null, 2),
-    );
+      console.log(
+        "[testEmailSend] Global settings:",
+        JSON.stringify(globalSettings, null, 2),
+      );
+      console.log(
+        "[testEmailSend] Template settings:",
+        JSON.stringify(templateSettings, null, 2),
+      );
 
-    // Initialize Resend client
-    const resend = new Resend(process.env.RESEND_API_KEY);
+      // Initialize Resend client
+      const resend = new Resend(process.env.RESEND_API_KEY);
 
-    // Test email parameters - use provided data or defaults
-    const testRecipient = (data && data.email) || "mclearanceisam@gmail.com";
-    const testName = (data && data.name) || "Test User";
+      // Test email parameters - use provided data or defaults
+      const testRecipient = (data && data.email) || "mclearanceisam@gmail.com";
+      const testName = (data && data.name) || "Test User";
 
-    const subject =
-      templateSettings.subject || "Test Email - Direct Resend Integration";
-    const html = (
-      templateSettings.html ||
-      "<p>Hello {name},</p><p>This is a test email sent using Resend API.</p><p>Regards,<br/>{accountName}</p>"
-    )
-      .replace(/{name}/g, testName)
-      .replace(/{accountName}/g, globalSettings.accountName);
-    const text = (
-      templateSettings.text ||
-      "Hello {name},\n\nThis is a test email sent using Resend API.\n\nRegards,\n{accountName}"
-    )
-      .replace(/{name}/g, testName)
-      .replace(/{accountName}/g, globalSettings.accountName);
+      const subject =
+        templateSettings.subject || "Test Email - Direct Resend Integration";
+      const html = (
+        templateSettings.html ||
+        "<p>Hello {name},</p><p>This is a test email sent using Resend API.</p><p>Regards,<br/>{accountName}</p>"
+      )
+        .replace(/{name}/g, testName)
+        .replace(/{accountName}/g, globalSettings.accountName);
+      const text = (
+        templateSettings.text ||
+        "Hello {name},\n\nThis is a test email sent using Resend API.\n\nRegards,\n{accountName}"
+      )
+        .replace(/{name}/g, testName)
+        .replace(/{accountName}/g, globalSettings.accountName);
 
-    // Prepare email data for Resend
-    const emailData = {
-      from: `${globalSettings.fromName} <${globalSettings.from}>`,
-      to: testRecipient,
-      subject: subject,
-      html: html,
-      text: text,
-      reply_to: globalSettings.supportEmail || globalSettings.from,
-    };
+      // Prepare email data for Resend
+      const emailData = {
+        from: `${globalSettings.fromName} <${globalSettings.from}>`,
+        to: testRecipient,
+        subject: subject,
+        html: html,
+        text: text,
+        reply_to: globalSettings.supportEmail || globalSettings.from,
+      };
 
-    console.log("[testEmailSend] Sending email to:", testRecipient);
-    console.log("[testEmailSend] From:", emailData.from);
-    console.log("[testEmailSend] Subject:", emailData.subject);
+      console.log("[testEmailSend] Sending email to:", testRecipient);
+      console.log("[testEmailSend] From:", emailData.from);
+      console.log("[testEmailSend] Subject:", emailData.subject);
 
-    // Send the email
-    const { data: emailDataResponse, error } =
-      await resend.emails.send(emailData);
+      // Send the email
+      const { data: emailDataResponse, error } =
+        await resend.emails.send(emailData);
 
-    if (error) {
-      console.error("[testEmailSend] Failed to send email:", error);
+      if (error) {
+        console.error("[testEmailSend] Failed to send email:", error);
+        return {
+          success: false,
+          error: error.message,
+          recipient: testRecipient,
+          message: "Test email sending failed",
+        };
+      }
+
+      console.log(
+        "[testEmailSend] Email sent successfully:",
+        emailDataResponse,
+      );
+
+      return {
+        success: true,
+        messageId: emailDataResponse?.id,
+        recipient: testRecipient,
+        templateUsed: !!templateSettings.html,
+        templateSubject: templateSettings.subject,
+        message:
+          "Test email sent successfully via direct Resend integration with HTML templates",
+      };
+    } catch (error) {
+      console.error("[testEmailSend] Error:", error);
       return {
         success: false,
         error: error.message,
-        recipient: testRecipient,
         message: "Test email sending failed",
       };
     }
-
-    console.log("[testEmailSend] Email sent successfully:", emailDataResponse);
-
-    return {
-      success: true,
-      messageId: emailDataResponse?.id,
-      recipient: testRecipient,
-      templateUsed: !!templateSettings.html,
-      templateSubject: templateSettings.subject,
-      message:
-        "Test email sent successfully via direct Resend integration with HTML templates",
-    };
-  } catch (error) {
-    console.error("[testEmailSend] Error:", error);
-    return {
-      success: false,
-      error: error.message,
-      message: "Test email sending failed",
-    };
-  }
-});
+  });
 
 /**
  * generateHistoryPDF (callable)
  * Generates a PDF document for application history details with M-Clearance ISam logo.
  */
-exports.generateHistoryPDF = functions.region('asia-southeast1').https.onCall(async (data, context) => {
-  requireAuth(context);
-  const uid = context.auth.uid;
-  const applicationId = data?.applicationId;
+exports.generateHistoryPDF = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    requireAuth(context);
+    const uid = context.auth.uid;
+    const applicationId = data?.applicationId;
 
-  if (!applicationId) {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "Application ID is required.",
-    );
-  }
+    if (!applicationId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Application ID is required.",
+      );
+    }
 
-  try {
-    console.log(
-      "[generateHistoryPDF] Starting PDF generation for application:",
-      applicationId,
-    );
-
-    // Get application data
-    const applicationRef = db.collection("applications").doc(applicationId);
-    const applicationSnap = await applicationRef.get();
-
-    if (!applicationSnap.exists) {
-      console.error(
-        "[generateHistoryPDF] Application not found:",
+    try {
+      console.log(
+        "[generateHistoryPDF] Starting PDF generation for application:",
         applicationId,
       );
-      throw new functions.https.HttpsError(
-        "not-found",
-        "Application not found.",
+
+      // Get application data
+      const applicationRef = db.collection("applications").doc(applicationId);
+      const applicationSnap = await applicationRef.get();
+
+      if (!applicationSnap.exists) {
+        console.error(
+          "[generateHistoryPDF] Application not found:",
+          applicationId,
+        );
+        throw new functions.https.HttpsError(
+          "not-found",
+          "Application not found.",
+        );
+      }
+
+      const application = {
+        id: applicationSnap.id,
+        ...(applicationSnap.data() || {}),
+      };
+      console.log(
+        "[generateHistoryPDF] Retrieved application data for:",
+        applicationId,
       );
-    }
 
-    const application = {
-      id: applicationSnap.id,
-      ...(applicationSnap.data() || {}),
-    };
-    console.log(
-      "[generateHistoryPDF] Retrieved application data for:",
-      applicationId,
-    );
+      // Ownership check is handled by Firestore rules
 
-    // Ownership check is handled by Firestore rules
+      // Generate PDF
+      console.log("[generateHistoryPDF] Calling generateClearanceDocument...");
+      const pdfUrl = await generateClearanceDocument(uid, application, null);
 
-    // Generate PDF
-    console.log("[generateHistoryPDF] Calling generateClearanceDocument...");
-    const pdfUrl = await generateClearanceDocument(uid, application);
-
-    console.log(
-      "[generateHistoryPDF] PDF generated successfully for application:",
-      applicationId,
-      "URL:",
-      pdfUrl,
-    );
-    return { success: true, pdfUrl };
-  } catch (error) {
-    console.error(
-      "[generateHistoryPDF] Error generating PDF for application:",
-      applicationId,
-      error,
-    );
-
-    // Provide more specific error messages
-    if (error.code === "not-found") {
-      throw error;
-    } else if (error.code === "permission-denied") {
-      throw error;
-    } else {
-      // Log the full error for debugging
-      console.error("[generateHistoryPDF] Full error details:", {
-        message: error.message,
-        stack: error.stack,
-        code: error.code,
-      });
-      throw new functions.https.HttpsError(
-        "internal",
-        `Failed to generate PDF: ${error.message}`,
+      console.log(
+        "[generateHistoryPDF] PDF generated successfully for application:",
+        applicationId,
+        "URL:",
+        pdfUrl,
       );
+      return { success: true, pdfUrl };
+    } catch (error) {
+      console.error(
+        "[generateHistoryPDF] Error generating PDF for application:",
+        applicationId,
+        error,
+      );
+
+      // Provide more specific error messages
+      if (error.code === "not-found") {
+        throw error;
+      } else if (error.code === "permission-denied") {
+        throw error;
+      } else {
+        // Log the full error for debugging
+        console.error("[generateHistoryPDF] Full error details:", {
+          message: error.message,
+          stack: error.stack,
+          code: error.code,
+        });
+        throw new functions.https.HttpsError(
+          "internal",
+          `Failed to generate PDF: ${error.message}`,
+        );
+      }
     }
-  }
-});
+  });
 
 /**
  * Applications triggers
@@ -3049,8 +4187,9 @@ exports.generateHistoryPDF = functions.region('asia-southeast1').https.onCall(as
  * - Update counters on create
  * - Notify user on status decision transitions (approved/declined)
  */
-exports.onApplicationCreate = functions.region('asia-southeast1').firestore
-  .document("applications/{appId}")
+exports.onApplicationCreate = functions
+  .region("asia-southeast1")
+  .firestore.document("applications/{appId}")
   .onCreate(async (snap, context) => {
     const data = snap.data() || {};
     const updates = {};
@@ -3072,8 +4211,9 @@ exports.onApplicationCreate = functions.region('asia-southeast1').firestore
     );
   });
 
-exports.onApplicationUpdate = functions.region('asia-southeast1').firestore
-  .document("applications/{appId}")
+exports.onApplicationUpdate = functions
+  .region("asia-southeast1")
+  .firestore.document("applications/{appId}")
   .onUpdate(async (change, context) => {
     try {
       const before = change.before.data() || {};
@@ -3216,9 +4356,7 @@ exports.onApplicationUpdate = functions.region('asia-southeast1').firestore
           body: `${corporateName || "Applicant"} - ${shipName}${
             applicationDate ? ` (${applicationDate})` : ""
           } has been ${
-            status === "revision"
-              ? "marked for revision"
-              : status
+            status === "revision" ? "marked for revision" : status
           }.`,
           type: 0,
           timestamp,
@@ -3332,7 +4470,7 @@ exports.onApplicationUpdate = functions.region('asia-southeast1').firestore
         const emailLanguage =
           languageCandidates.length > 0
             ? languageCandidates[0].trim().toLowerCase()
-            : 'en';
+            : "en";
 
         const agentNameCandidates = [
           corporateName,
@@ -3562,8 +4700,9 @@ async function generateMonthlyReportPDF(uid, stats) {
   }
 }
 
-exports.generateMonthlyReport = functions.region('asia-southeast1').https.onCall(
-  async (data, context) => {
+exports.generateMonthlyReport = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);
 
@@ -3613,8 +4752,7 @@ exports.generateMonthlyReport = functions.region('asia-southeast1').https.onCall
         "Failed to generate monthly report.",
       );
     }
-  },
-);
+  });
 
 /**
  * Updates the status of a user account.
@@ -3622,8 +4760,9 @@ exports.generateMonthlyReport = functions.region('asia-southeast1').https.onCall
  * @param {object} context - The context object containing authentication information.
  * @returns {object} - An object indicating the success of the operation.
  */
-exports.updateUserAccountStatus = functions.region('asia-southeast1').https.onCall(
-  async (data, context) => {
+exports.updateUserAccountStatus = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
     requireAuth(context);
     await ensureOfficerOrAdmin(context);
 
@@ -3668,5 +4807,138 @@ exports.updateUserAccountStatus = functions.region('asia-southeast1').https.onCa
         "Failed to update user account status.",
       );
     }
-  },
-);
+  });
+
+/**
+ * resolveShortUrlHTTP (HTTP endpoint)
+ * Resolves a short URL ID to the original long URL for web dashboard
+ */
+exports.createShortUrl = functions
+  .region("asia-southeast1")
+  .https.onCall(async (data, context) => {
+    const longUrl = data?.longUrl;
+
+    if (!longUrl || typeof longUrl !== "string") {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "longUrl must be provided as a string.",
+      );
+    }
+
+    try {
+      // Generate a simple short ID based on timestamp and random number
+      const timestamp = Date.now().toString(36);
+      const random = Math.random().toString(36).substring(2, 8);
+      const shortId = `${timestamp}${random}`;
+
+      // Store the mapping in Firestore for later retrieval
+      const shortUrlRef = db.collection('shortUrls').doc(shortId);
+      await shortUrlRef.set({
+        originalUrl: longUrl,
+        shortId: shortId,
+        createdAt: FieldValue.serverTimestamp(),
+        clickCount: 0,
+      });
+
+      // Return the short URL format
+      return {
+        shortUrl: `https://mclearanceisam.com/s/${shortId}`,
+        shortId: shortId,
+      };
+    } catch (error) {
+      console.error('[createShortUrl] Failed to create short URL:', error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to create short URL.",
+      );
+    }
+  });
+
+exports.resolveShortUrlHTTP = functions
+  .region("asia-southeast1")
+  .https.onRequest(async (req, res) => {
+    console.log("[resolveShortUrlHTTP] Request received:", {
+      method: req.method,
+      url: req.url,
+      query: req.query,
+      body: req.body,
+      headers: req.headers
+    });
+
+    // Enable CORS - set headers first before any other processing
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.set('Access-Control-Max-Age', '3600');
+
+    if (req.method === 'OPTIONS') {
+      console.log("[resolveShortUrlHTTP] CORS preflight request");
+      res.status(204).send('');
+      return;
+    }
+
+    try {
+      const shortId = req.query.id || req.body?.shortId;
+      console.log("[resolveShortUrlHTTP] Extracted shortId:", shortId);
+
+      if (!shortId || typeof shortId !== "string") {
+        console.log("[resolveShortUrlHTTP] Invalid shortId:", shortId, "Type:", typeof shortId);
+        res.status(400).json({
+          error: "INVALID_ARGUMENT",
+          message: "shortId must be provided as a string."
+        });
+        return;
+      }
+
+      console.log("[resolveShortUrlHTTP] Looking up short URL:", shortId, "Length:", shortId.length);
+
+      const shortUrlRef = db.collection("shortUrls").doc(shortId);
+      const shortUrlSnap = await shortUrlRef.get();
+
+      if (!shortUrlSnap.exists) {
+        console.log("[resolveShortUrlHTTP] Short URL not found:", shortId);
+        res.status(404).json({
+          error: "NOT_FOUND",
+          message: "Short URL not found or expired."
+        });
+        return;
+      }
+
+      const shortUrlData = shortUrlSnap.data();
+      console.log("[resolveShortUrlHTTP] Found short URL data:", Object.keys(shortUrlData));
+      const originalUrl = shortUrlData.originalUrl;
+      console.log("[resolveShortUrlHTTP] Original URL exists:", !!originalUrl);
+
+      if (!originalUrl) {
+        console.log("[resolveShortUrlHTTP] No original URL found for:", shortId, "Data keys:", Object.keys(shortUrlData));
+        res.status(404).json({
+          error: "NOT_FOUND",
+          message: "Original URL not found."
+        });
+        return;
+      }
+
+      console.log("[resolveShortUrlHTTP] Found original URL, updating click count for:", shortId);
+
+      // Update click count
+      await shortUrlRef.update({
+        clickCount: FieldValue.increment(1),
+        lastAccessed: FieldValue.serverTimestamp(),
+      });
+
+      console.log("[resolveShortUrlHTTP] Successfully resolved URL for:", shortId, "Original URL:", originalUrl.substring(0, 100) + "...");
+
+      res.status(200).json({
+        success: true,
+        originalUrl,
+        shortId,
+        clickCount: (shortUrlData.clickCount || 0) + 1,
+      });
+    } catch (error) {
+      console.error("[resolveShortUrl] Error:", error);
+      res.status(500).json({
+        error: "INTERNAL",
+        message: "Failed to resolve short URL."
+      });
+    }
+  });

@@ -47,6 +47,38 @@
       "html": "<p>Hello {name},</p><p>We regret to inform you that your application requires additional information.</p><p>Please check the {accountName} portal for details and resubmit.</p><p>Regards,<br />{accountName} Team</p>",
       "text": "Hello {name},\n\nYour application requires additional information before we can continue. Please review the remarks in the {accountName} portal.\n\nRegards, {accountName} Team",
       "tags": ["application_rejection"]
+    },
+    "twoFactorCode": {
+      "defaultLanguage": "en",
+      "tags": ["security", "twofactor"],
+      "languages": {
+        "en": {
+          "subject": "Your {accountName} security code",
+          "html": "<p>Hi {name},</p><p>Your security code for {accountName} is <strong style=\"font-size:24px;letter-spacing:4px;\">{code}</strong>.</p><p>The code expires in {expiresInMinutes} minutes.</p><p>Device: {deviceName}<br/>Time: {timestamp}</p><p>If this wasn't you, please secure your account immediately.</p><p>Regards,<br />{accountName} Support</p>",
+          "text": "Hi {name},\n\nYour security code for {accountName} is {code}. It expires in {expiresInMinutes} minutes.\nDevice: {deviceName}\nTime: {timestamp}\n\nIf this was not you, please secure your account immediately.\n\nRegards,\n{accountName} Support"
+        },
+        "id": {
+          "subject": "Kode keamanan {accountName}",
+          "html": "<p>Halo {name},</p><p>Kode keamanan Anda untuk {accountName} adalah <strong style=\"font-size:24px;letter-spacing:4px;\">{code}</strong>.</p><p>Kode akan kedaluwarsa dalam {expiresInMinutes} menit.</p><p>Perangkat: {deviceName}<br/>Waktu: {timestamp}</p><p>Jika ini bukan Anda, segera amankan akun Anda.</p><p>Salam,<br />Dukungan {accountName}</p>",
+          "text": "Halo {name},\n\nKode keamanan Anda untuk {accountName} adalah {code}. Kode kedaluwarsa dalam {expiresInMinutes} menit.\nPerangkat: {deviceName}\nWaktu: {timestamp}\n\nJika ini bukan Anda, segera amankan akun Anda.\n\nSalam,\nDukungan {accountName}"
+        }
+      }
+    },
+    "loginAlert": {
+      "defaultLanguage": "en",
+      "tags": ["security", "login-alert"],
+      "languages": {
+        "en": {
+          "subject": "New login on your {accountName} account",
+          "html": "<p>Hello {name},</p><p>A new login was detected on <strong>{device}</strong> ({trustLabel}).</p><p>Time: {timestamp}<br/>IP Address: {ipAddress}</p><p>If this was you, no action is needed. If not, please reset your password immediately.</p><p>Regards,<br/>{accountName} Support</p>",
+          "text": "Hello {name},\n\nA new login was detected on {device} ({trustLabel}).\nTime: {timestamp}\nIP Address: {ipAddress}\n\nIf this was you, no action is needed. If not, please reset your password immediately.\n\n{accountName} Support"
+        },
+        "id": {
+          "subject": "Masuk baru pada akun {accountName}",
+          "html": "<p>Halo {name},</p><p>Ada login baru pada <strong>{device}</strong> ({trustLabel}).</p><p>Waktu: {timestamp}<br/>Alamat IP: {ipAddress}</p><p>Jika ini adalah Anda, tidak ada tindakan yang diperlukan. Jika bukan, segera reset kata sandi Anda.</p><p>Salam,<br/>Dukungan {accountName}</p>",
+          "text": "Halo {name},\n\nAda login baru pada {device} ({trustLabel}).\nWaktu: {timestamp}\nAlamat IP: {ipAddress}\n\nJika ini Anda, tidak perlu tindakan. Jika bukan, segera reset kata sandi Anda.\n\nDukungan {accountName}"
+        }
+      }
     }
   }
 }

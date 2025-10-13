@@ -8,6 +8,7 @@ import '../views/screens/auth/register_screen.dart';
 import '../views/screens/auth/registration_pending_screen.dart';
 import '../views/screens/auth/splash_screen.dart';
 import '../views/screens/auth/upload_documents_screen.dart';
+import '../views/screens/auth/two_factor_screen.dart';
 import '../views/screens/officer/account_detail_screen.dart'
     deferred as account_detail;
 import '../views/screens/officer/account_verification_list_screen.dart'
@@ -63,6 +64,7 @@ class AppRoutes {
   static const String uploadDocuments = '/upload-documents';
   static const String registrationPending = '/registration-pending';
   static const String emailVerification = '/email-verification';
+  static const String twoFactor = '/two-factor';
 
   static const String userHome = '/user-home';
   static const String userNotification = '/user-notification';
@@ -119,6 +121,11 @@ class AppRoutes {
             userData: arguments['userData'],
             initialLanguage: arguments['initialLanguage'] ?? 'EN',
           ),
+        );
+      case twoFactor:
+        final arguments = args as TwoFactorScreenArgs;
+        return FadeRoute(
+          page: TwoFactorScreen(args: arguments),
         );
       case uploadDocuments:
         final arguments = args as Map<String, dynamic>? ?? {};

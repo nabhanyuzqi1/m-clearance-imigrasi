@@ -1,20 +1,25 @@
 import 'dart:async';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:m_clearance_imigrasi/app/services/cache_manager.dart';
-import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
-import 'package:m_clearance_imigrasi/app/services/network_utils.dart';
-import 'package:m_clearance_imigrasi/app/localization/app_strings.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../localization/app_strings.dart';
+import 'cache_manager.dart';
+import 'logging_service.dart';
+import 'network_utils.dart';
 
 class LocalizationService {
-  final FirebaseDatabase _database;
-  static const String _stringsPath = 'localization/strings';
-  late final CacheManager _cacheManager;
-  Future<void>? _cacheInitFuture;
-
-  LocalizationService({FirebaseDatabase? database})
-    : _database = database ?? FirebaseDatabase.instance {
+  LocalizationService({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance {
     _cacheInitFuture = _initializeCacheManager();
   }
+
+  final FirebaseFirestore _firestore;
+  static const String _collection = 'localization';
+  static const String _stringsDoc = 'strings';
+  static const String _metaDoc = 'meta';
+
+  late final CacheManager _cacheManager;
+  Future<void>? _cacheInitFuture;
 
   Future<void> _initializeCacheManager() async {
     _cacheManager = await CacheManager.getInstance();
@@ -25,40 +30,51 @@ class LocalizationService {
     await _cacheInitFuture;
   }
 
-  DatabaseReference get _stringsRef => _database.ref().child(_stringsPath);
+  DocumentReference<Map<String, dynamic>> get _stringsRef =>
+      _firestore.collection(_collection).doc(_stringsDoc);
 
-  /// Upload current app strings to RTDB
+  DocumentReference<Map<String, dynamic>> get _metaRef =>
+      _firestore.collection(_collection).doc(_metaDoc);
+
+  /// Upload current localization strings to Firestore.
   Future<bool> uploadCurrentStrings() async {
     try {
       LoggingService().debug(
-        '[LocalizationService] Attempting to upload current strings to RTDB path: $_stringsPath',
+        '[LocalizationService] Uploading localization strings to Firestore',
       );
 
-      final stringsData = {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final batch = _firestore.batch();
+
+      batch.set(_stringsRef, {
         'strings': AppStrings.localizedStrings,
-        'lastUpdated': DateTime.now().millisecondsSinceEpoch,
-        'version': '1.0.0', // Could be incremented for versioning
-      };
+        'lastUpdated': nowMs,
+        'version': '1.0.0',
+      }, SetOptions(merge: true));
 
-      await _stringsRef.set(stringsData);
-      LoggingService().debug(
-        '[LocalizationService] Successfully uploaded strings to RTDB',
-      );
+      batch.set(_metaRef, {
+        'lastUpdated': nowMs,
+        'version': '1.0.0',
+      }, SetOptions(merge: true));
 
-      // Clear cache to force refresh on next fetch
+      await batch.commit();
+
       await _ensureCacheManagerInitialized();
       await _cacheManager.clearLocalizationCache();
 
+      LoggingService().debug(
+        '[LocalizationService] Localization strings uploaded successfully',
+      );
       return true;
-    } catch (e) {
+    } catch (error, stackTrace) {
       LoggingService().error(
-        '[LocalizationService] Error uploading strings: $e',
+        '[LocalizationService] Error uploading localization strings: $error',
+        stackTrace,
       );
       return false;
     }
   }
 
-  /// Fetch strings with caching
   Future<Map<String, Map<String, Map<String, String>>>?>
   fetchStringsWithCaching({bool forceRefresh = false}) async {
     final startTime = DateTime.now();
@@ -68,141 +84,190 @@ class LocalizationService {
 
     await _ensureCacheManagerInitialized();
 
-    final shouldSkipCache = forceRefresh;
+    final cachedStrings = forceRefresh
+        ? null
+        : _cacheManager.getCachedLocalizationStrings();
 
-    if (!shouldSkipCache) {
-      final cachedData = _cacheManager.getCachedLocalizationStrings();
-      if (cachedData != null) {
-        try {
-          final strings = Map<String, Map<String, Map<String, String>>>.from(
-            cachedData,
-          );
-          final cacheTime = DateTime.now().difference(startTime);
-          LoggingService().debug(
-            '[LocalizationService] Cache hit - fetchStringsWithCaching took ${cacheTime.inMilliseconds}ms',
-          );
-          return strings;
-        } catch (e) {
-          LoggingService().warning(
-            '[LocalizationService] Cache data corrupted, fetching from server: $e',
-          );
-          await _cacheManager.clearLocalizationCache();
+    int? remoteTimestamp;
+    String? remoteVersion;
+
+    try {
+      final metaSnap = await NetworkUtils.withTimeout(
+        _metaRef.get(),
+        const Duration(seconds: 10),
+      );
+      if (metaSnap.exists) {
+        final data = metaSnap.data();
+        if (data != null) {
+          remoteTimestamp = _parseTimestampMs(data['lastUpdated']);
+          remoteVersion = data['version'] as String?;
         }
       }
-    } else {
-      LoggingService().debug(
-        '[LocalizationService] Skipping cache for fetchStringsWithCaching due to forceRefresh',
+    } catch (error) {
+      LoggingService().warning(
+        '[LocalizationService] Failed to fetch localization metadata: $error',
       );
-      await _cacheManager.clearLocalizationCache();
     }
 
-    // Fetch from server with retry logic
-    try {
-      final stringsData = await NetworkUtils.executeWithRetry(() async {
-        final serverStart = DateTime.now();
-        LoggingService().debug(
-          '[LocalizationService] Performing get() on RTDB path: $_stringsPath',
-        );
+    final cachedTimestamp = _cacheManager.getCachedLocalizationTimestamp();
+    final hasCache = cachedStrings != null;
+    final isUpToDate =
+        !forceRefresh &&
+        hasCache &&
+        remoteTimestamp != null &&
+        cachedTimestamp != null &&
+        cachedTimestamp >= remoteTimestamp;
 
-        final snapshot = await NetworkUtils.withTimeout(
+    if (isUpToDate) {
+      LoggingService().debug(
+        '[LocalizationService] Cached localization strings are up to date',
+      );
+      return cachedStrings;
+    }
+
+    if (!forceRefresh && hasCache && remoteTimestamp == null) {
+      LoggingService().warning(
+        '[LocalizationService] Unable to verify localization freshness, using cache',
+      );
+      return cachedStrings;
+    }
+
+    try {
+      final snapshot = await NetworkUtils.executeWithRetry(() async {
+        return await NetworkUtils.withTimeout(
           _stringsRef.get(),
           const Duration(seconds: 10),
         );
-
-        final serverTime = DateTime.now().difference(serverStart);
-        LoggingService().debug(
-          '[LocalizationService] Server fetch took ${serverTime.inMilliseconds}ms',
-        );
-        LoggingService().debug(
-          '[LocalizationService] Snapshot exists: ${snapshot.exists}',
-        );
-
-        if (!snapshot.exists || snapshot.value == null) {
-          throw NetworkException(
-            'Localization strings not found in RTDB',
-            isRetryable: false,
-          );
-        }
-
-        final data = Map<String, dynamic>.from(snapshot.value as Map);
-        final strings = Map<String, Map<String, Map<String, String>>>.from(
-          data['strings'] as Map,
-        );
-
-        return strings;
       }, shouldRetry: NetworkUtils.isRetryableError);
 
-      // Cache the result unless explicitly skipped
-      if (!shouldSkipCache) {
-        await _cacheManager.cacheLocalizationStrings(stringsData);
+      if (!snapshot.exists) {
+        throw NetworkException(
+          'Localization strings not found in Firestore',
+          isRetryable: false,
+        );
       }
+
+      final data = snapshot.data() ?? const <String, dynamic>{};
+      final stringsRaw = data['strings'];
+      if (stringsRaw is! Map) {
+        throw const FormatException('Invalid localization payload.');
+      }
+
+      final strings = _normalizeStrings(stringsRaw);
+      final serverTimestamp =
+          _parseTimestampMs(data['lastUpdated']) ?? remoteTimestamp;
+      final version = (data['version'] as String?) ?? remoteVersion;
+
+      await _cacheManager.cacheLocalizationStrings(
+        strings,
+        lastUpdatedMs: serverTimestamp,
+        version: version,
+      );
 
       final totalTime = DateTime.now().difference(startTime);
       LoggingService().debug(
-        '[LocalizationService] fetchStringsWithCaching took ${totalTime.inMilliseconds}ms (with caching)',
+        '[LocalizationService] Fetched localization strings in ${totalTime.inMilliseconds}ms',
       );
-      return stringsData;
-    } catch (e) {
-      if (e is NetworkException) {
-        LoggingService().error(
-          '[LocalizationService] Network error in fetchStringsWithCaching: ${e.message}',
+      return strings;
+    } catch (error) {
+      LoggingService().error(
+        '[LocalizationService] Failed to fetch localization strings: $error',
+      );
+      if (cachedStrings != null) {
+        LoggingService().warning(
+          '[LocalizationService] Falling back to cached localization strings',
         );
-      } else {
-        LoggingService().error(
-          '[LocalizationService] Unexpected error in fetchStringsWithCaching: $e',
-        );
+        return cachedStrings;
       }
       return null;
     }
   }
 
-  /// Listen to localization strings changes
   Stream<Map<String, Map<String, Map<String, String>>>?> onStringsChanged() {
-    return _stringsRef.onValue.map((event) {
-      if (event.snapshot.exists && event.snapshot.value != null) {
-        try {
-          final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-          final strings = Map<String, Map<String, Map<String, String>>>.from(
-            data['strings'] as Map,
-          );
-
-          // Update cache when strings change
-          _ensureCacheManagerInitialized().then((_) {
-            _cacheManager.cacheLocalizationStrings(strings);
-          });
-
-          LoggingService().debug(
-            '[LocalizationService] Strings updated from RTDB',
-          );
-          return strings;
-        } catch (e) {
-          LoggingService().error(
-            '[LocalizationService] Error parsing strings from RTDB: $e',
-          );
-          return null;
-        }
+    return _stringsRef.snapshots().map((snapshot) {
+      if (!snapshot.exists) {
+        LoggingService().warning(
+          '[LocalizationService] Localization strings document missing',
+        );
+        return null;
       }
-      LoggingService().debug(
-        '[LocalizationService] No strings found in RTDB snapshot',
-      );
-      return null;
+      final data = snapshot.data();
+      if (data == null) return null;
+      final stringsRaw = data['strings'];
+      if (stringsRaw is! Map) return null;
+
+      final strings = _normalizeStrings(stringsRaw);
+      final lastUpdatedMs = _parseTimestampMs(data['lastUpdated']);
+      final version = data['version'] as String?;
+
+      _ensureCacheManagerInitialized().then((_) {
+        _cacheManager.cacheLocalizationStrings(
+          strings,
+          lastUpdatedMs: lastUpdatedMs,
+          version: version,
+        );
+      });
+
+      return strings;
     });
   }
 
-  /// Get last updated timestamp from RTDB
   Future<DateTime?> getLastUpdated() async {
     try {
-      final snapshot = await _stringsRef.child('lastUpdated').get();
-      if (snapshot.exists && snapshot.value != null) {
-        final timestamp = snapshot.value as int;
-        return DateTime.fromMillisecondsSinceEpoch(timestamp);
+      final snapshot = await _metaRef.get();
+      if (snapshot.exists) {
+        final data = snapshot.data();
+        if (data != null) {
+          final ms = _parseTimestampMs(data['lastUpdated']);
+          if (ms != null) {
+            return DateTime.fromMillisecondsSinceEpoch(ms);
+          }
+        }
       }
       return null;
-    } catch (e) {
+    } catch (error, stackTrace) {
       LoggingService().error(
-        '[LocalizationService] Error fetching last updated timestamp: $e',
+        '[LocalizationService] Failed to get localization lastUpdated: $error',
+        stackTrace,
       );
       return null;
     }
+  }
+
+  Map<String, Map<String, Map<String, String>>> _normalizeStrings(
+    Map<dynamic, dynamic> raw,
+  ) {
+    final transformed = <String, Map<String, Map<String, String>>>{};
+    raw.forEach((languageKey, languageValue) {
+      final screensDynamic = Map<String, dynamic>.from(
+        Map<dynamic, dynamic>.from(languageValue as Map),
+      );
+      final screenMap = <String, Map<String, String>>{};
+      screensDynamic.forEach((screenKey, screenValue) {
+        final stringsDynamic = Map<String, dynamic>.from(
+          Map<dynamic, dynamic>.from(screenValue as Map),
+        );
+        final stringMap = stringsDynamic.map(
+          (key, value) => MapEntry(key, value.toString()),
+        );
+        screenMap[screenKey] = stringMap;
+      });
+      transformed[languageKey as String] = screenMap;
+    });
+    return transformed;
+  }
+
+  int? _parseTimestampMs(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    if (value is int) return value;
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      if (parsed != null) return parsed;
+      final date = DateTime.tryParse(value);
+      if (date != null) return date.millisecondsSinceEpoch;
+    }
+    return null;
   }
 }

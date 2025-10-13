@@ -1,6 +1,7 @@
 // lib/app/views/screens/officer/officer_report_screen.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/report_model.dart';
+import '../../../models/user_model.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/logging_service.dart';
@@ -27,12 +29,15 @@ class OfficerReportScreen extends StatefulWidget {
 }
 
 class _OfficerReportScreenState extends State<OfficerReportScreen> {
+  final AuthService _authService = AuthService();
   final FunctionsService _functionsService = FunctionsService();
   final ReportService _reportService = ReportService();
+  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
   bool _isGeneratingReport = false;
   bool _isLoadingStats = true;
   bool _isLoadingReports = true;
+  String? _officerDisplayName;
 
   OfficerStats? _stats;
   List<ReportModel> _reports = const [];
@@ -50,6 +55,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   @override
   void initState() {
     super.initState();
+    _loadOfficerProfile();
     _loadStats();
     _loadReports();
   }
@@ -92,6 +98,43 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _loadOfficerProfile() async {
+    try {
+      final authUser = _firebaseAuth.currentUser;
+      if (authUser == null) return;
+      final profile = await _authService.getUserData(authUser.uid);
+      final resolvedName = _resolveOfficerDisplayName(profile, authUser);
+      if (!mounted) return;
+      setState(() => _officerDisplayName = resolvedName);
+    } catch (error, stackTrace) {
+      LoggingService().warning(
+        'Failed to load officer profile for reports history',
+        error,
+        stackTrace,
+      );
+    }
+  }
+
+  String _resolveOfficerDisplayName(UserModel? profile, User? authUser) {
+    final candidates = <String?>[
+      profile?.fullName,
+      profile?.username,
+      profile?.corporateName,
+      authUser?.displayName,
+      profile?.email,
+      authUser?.email,
+    ];
+
+    for (final candidate in candidates) {
+      final value = candidate?.trim() ?? '';
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    return authUser?.uid ?? '';
   }
 
   Future<Map<String, dynamic>> _buildFallbackStats(DateTimeRange range) async {
@@ -354,7 +397,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     }
 
     try {
-      final fileData = await AuthService().downloadFileData(pdfUrl);
+      final fileData = await _authService.downloadFileData(pdfUrl);
 
       if (!mounted) {
         await _openReportExternally(pdfUrl);
@@ -540,7 +583,16 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
             ? null
             : _showCreateReportSheet,
         icon: _isGeneratingReport
-            ? const BouncingDotsLoader()
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    colorScheme.onPrimary,
+                  ),
+                ),
+              )
             : const Icon(Icons.summarize_outlined),
         label: Text(_tr('create_new_report')),
       ),
@@ -868,6 +920,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
               report: report,
               onTap: () => _downloadReport(report),
               tr: _tr,
+              createdByLabel: _officerDisplayName ?? report.createdBy,
             ),
           ),
       ],
@@ -1263,11 +1316,13 @@ class _ReportListTile extends StatelessWidget {
     required this.report,
     required this.onTap,
     required this.tr,
+    required this.createdByLabel,
   });
 
   final ReportModel report;
   final VoidCallback onTap;
   final String Function(String) tr;
+  final String createdByLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1305,7 +1360,7 @@ class _ReportListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: AppTheme.spacing4),
                   Text(
-                    '${tr('created_by')} ${report.createdBy}',
+                    '${tr('created_by')} $createdByLabel',
                     style: textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),

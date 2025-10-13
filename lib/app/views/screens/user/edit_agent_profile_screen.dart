@@ -402,19 +402,6 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
             backgroundColor: Theme.of(context).colorScheme.surface,
             foregroundColor: Theme.of(context).colorScheme.onSurface,
             elevation: 0,
-            actions: [
-              IconButton(
-                onPressed: _isLoading ? null : _saveProfile,
-                icon: _isLoading
-                    ? const BouncingDotsLoader()
-                    : Icon(
-                        Icons.save,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: iconSize,
-                      ),
-                tooltip: _tr(context, 'save_changes'),
-              ),
-            ],
           ),
           body: SingleChildScrollView(
             padding: EdgeInsets.symmetric(

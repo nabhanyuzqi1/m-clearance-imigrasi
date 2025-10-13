@@ -20,5 +20,16 @@
         "updatedAt": 1730376000000
       }
     }
+  },
+  "localization": {
+    "strings": {
+      "EN": {},
+      "ID": {}
+    },
+    "lastUpdated": 0,
+    "version": "1.0.0"
+  },
+  "support": {
+    "contactEmail": "mclearanceisam@gmail.com"
   }
 }

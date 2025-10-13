@@ -423,15 +423,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         backgroundColor: colorScheme.surface,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: _isLoading ? null : _saveProfile,
-            icon: _isLoading
-                ? const BouncingDotsLoader()
-                : Icon(Icons.save, color: colorScheme.primary, size: iconSize),
-            tooltip: _tr('save_changes'),
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: BouncingDotsLoader())

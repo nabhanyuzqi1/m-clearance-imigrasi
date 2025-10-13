@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Deletion Request - M-Clearance ISam</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        h3 {
+            color: #34495e;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        p {
+            margin-bottom: 15px;
+        }
+        .highlight {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+        }
+        .steps {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .step {
+            margin-bottom: 15px;
+            padding-left: 25px;
+            position: relative;
+        }
+        .step:before {
+            content: counter(step-counter);
+            counter-increment: step-counter;
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #3498db;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .steps {
+            counter-reset: step-counter;
+        }
+        .contact-info {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 30px;
+        }
+        .data-retention {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .language-toggle {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .language-toggle button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+            font-size: 16px;
+        }
+        .language-toggle button:hover {
+            background: #2980b9;
+        }
+        .language-toggle button.active {
+            background: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="language-toggle">
+            <button onclick="showEnglish()" id="enBtn" class="active">English</button>
+            <button onclick="showIndonesian()" id="idBtn">Bahasa Indonesia</button>
+        </div>
+
+        <div id="english-content">
+            <h1>Account Deletion Request</h1>
+            <p><strong>M-Clearance ISAM</strong> respects your right to control your personal data. This page explains how to request deletion of your account and associated data.</p>
+
+            <div class="highlight">
+                <strong>Important:</strong> Account deletion is permanent and cannot be undone. All your data will be permanently removed from our systems.
+            </div>
+
+            <h2>How to Request Account Deletion</h2>
+
+            <div class="steps">
+                <div class="step">
+                    <strong>Contact our support team</strong> at <a href="mailto:support@mclearanceisam.com">support@mclearanceisam.com</a> with the subject line "Account Deletion Request"
+                </div>
+                <div class="step">
+                    <strong>Include the following information:</strong>
+                    <ul>
+                        <li>Your full name</li>
+                        <li>Your registered email address</li>
+                        <li>Your account username (if different from email)</li>
+                        <li>Reason for deletion (optional)</li>
+                    </ul>
+                </div>
+                <div class="step">
+                    <strong>Verify your identity</strong> - Our team may ask you to confirm your identity through additional verification steps
+                </div>
+                <div class="step">
+                    <strong>Wait for confirmation</strong> - We will process your request within 30 days and send you confirmation once completed
+                </div>
+            </div>
+
+            <h2>What Data Will Be Deleted</h2>
+            <p>When you request account deletion, we will permanently delete:</p>
+            <ul>
+                <li>Your account profile and personal information</li>
+                <li>All clearance applications and associated documents</li>
+                <li>Uploaded files and images</li>
+                <li>Application history and logs</li>
+                <li>Notification preferences</li>
+                <li>Any cached data on our servers</li>
+            </ul>
+
+            <div class="data-retention">
+                <h3>Data Retention Notice</h3>
+                <p>Some data may be retained for legal compliance purposes:</p>
+                <ul>
+                    <li><strong>Audit logs:</strong> Retained for 7 years for regulatory compliance</li>
+                    <li><strong>Legal documents:</strong> Retained according to statutory requirements</li>
+                    <li><strong>Anonymous analytics:</strong> Retained indefinitely in aggregated form</li>
+                </ul>
+                <p>Retained data will be anonymized and cannot be linked back to you personally.</p>
+            </div>
+
+            <h2>Alternative Options</h2>
+            <p>If you don't want to delete your entire account, you can:</p>
+            <ul>
+                <li><strong>Deactivate notifications:</strong> Turn off push notifications in app settings</li>
+                <li><strong>Clear app data:</strong> Clear local app data on your device</li>
+                <li><strong>Update privacy settings:</strong> Modify your data sharing preferences</li>
+            </ul>
+
+            <h2>Contact Information</h2>
+            <div class="contact-info">
+                <p><strong>Data Protection Officer</strong><br>
+                M-Clearance ISAM<br>
+                Email: <strong><a href="mailto:support@mclearanceisam.com">support@mclearanceisam.com</a></strong><br>
+                Subject: "Account Deletion Request"</p>
+
+                <p><strong>Response Time:</strong> We will acknowledge your request within 5 business days and complete the deletion within 30 days.</p>
+
+                <p><strong>Emergency Contact:</strong> For urgent security concerns, contact us immediately.</p>
+            </div>
+        </div>
+
+        <div id="indonesian-content" style="display: none;">
+            <h1>Permintaan Penghapusan Akun</h1>
+            <p><strong>M-Clearance ISAM</strong> menghormati hak Anda untuk mengontrol data pribadi Anda. Halaman ini menjelaskan cara meminta penghapusan akun dan data terkait.</p>
+
+            <div class="highlight">
+                <strong>Penting:</strong> Penghapusan akun bersifat permanen dan tidak dapat dibatalkan. Semua data Anda akan dihapus secara permanen dari sistem kami.
+            </div>
+
+            <h2>Cara Meminta Penghapusan Akun</h2>
+
+            <div class="steps">
+                <div class="step">
+                    <strong>Hubungi tim dukungan kami</strong> di <a href="mailto:support@mclearanceisam.com">support@mclearanceisam.com</a> dengan subject "Account Deletion Request"
+                </div>
+                <div class="step">
+                    <strong>Sertakan informasi berikut:</strong>
+                    <ul>
+                        <li>Nama lengkap Anda</li>
+                        <li>Alamat email terdaftar</li>
+                        <li>Username akun Anda (jika berbeda dari email)</li>
+                        <li>Alasan penghapusan (opsional)</li>
+                    </ul>
+                </div>
+                <div class="step">
+                    <strong>Verifikasi identitas Anda</strong> - Tim kami mungkin meminta Anda mengkonfirmasi identitas melalui langkah verifikasi tambahan
+                </div>
+                <div class="step">
+                    <strong>Tunggu konfirmasi</strong> - Kami akan memproses permintaan Anda dalam waktu 30 hari dan mengirim konfirmasi setelah selesai
+                </div>
+            </div>
+
+            <h2>Data Apa yang Akan Dihapus</h2>
+            <p>Ketika Anda meminta penghapusan akun, kami akan menghapus secara permanen:</p>
+            <ul>
+                <li>Profil akun dan informasi pribadi Anda</li>
+                <li>Semua aplikasi clearance dan dokumen terkait</li>
+                <li>File dan gambar yang diunggah</li>
+                <li>Riwayat aplikasi dan log</li>
+                <li>Preferensi notifikasi</li>
+                <li>Data cache apa pun di server kami</li>
+            </ul>
+
+            <div class="data-retention">
+                <h3>Pemberitahuan Retensi Data</h3>
+                <p>Beberapa data mungkin dipertahankan untuk kepatuhan hukum:</p>
+                <ul>
+                    <li><strong>Log audit:</strong> Dipertahankan selama 7 tahun untuk kepatuhan regulasi</li>
+                    <li><strong>Dokumen hukum:</strong> Dipertahankan sesuai persyaratan statutori</li>
+                    <li><strong>Analytics anonim:</strong> Dipertahankan tanpa batas waktu dalam bentuk agregat</li>
+                </ul>
+                <p>Data yang dipertahankan akan dianonimkan dan tidak dapat dikaitkan kembali kepada Anda secara pribadi.</p>
+            </div>
+
+            <h2>Opsi Alternatif</h2>
+            <p>Jika Anda tidak ingin menghapus seluruh akun, Anda dapat:</p>
+            <ul>
+                <li><strong>Nonaktifkan notifikasi:</strong> Matikan notifikasi push di pengaturan aplikasi</li>
+                <li><strong>Hapus data aplikasi:</strong> Hapus data aplikasi lokal di perangkat Anda</li>
+                <li><strong>Perbarui pengaturan privasi:</strong> Ubah preferensi berbagi data Anda</li>
+            </ul>
+
+            <h2>Informasi Kontak</h2>
+            <div class="contact-info">
+                <p><strong>Petugas Perlindungan Data</strong><br>
+                M-Clearance ISAM<br>
+                Email: <strong><a href="mailto:support@mclearanceisam.com">support@mclearanceisam.com</a></strong><br>
+                Subject: "Account Deletion Request"</p>
+
+                <p><strong>Waktu Respons:</strong> Kami akan mengakui permintaan Anda dalam waktu 5 hari kerja dan menyelesaikan penghapusan dalam waktu 30 hari.</p>
+
+                <p><strong>Kontak Darurat:</strong> Untuk masalah keamanan yang mendesak, hubungi kami segera.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showEnglish() {
+            document.getElementById('english-content').style.display = 'block';
+            document.getElementById('indonesian-content').style.display = 'none';
+            document.getElementById('enBtn').classList.add('active');
+            document.getElementById('idBtn').classList.remove('active');
+        }
+
+        function showIndonesian() {
+            document.getElementById('english-content').style.display = 'none';
+            document.getElementById('indonesian-content').style.display = 'block';
+            document.getElementById('enBtn').classList.remove('active');
+            document.getElementById('idBtn').classList.add('active');
+        }
+    </script>
+</body>
+</html>
