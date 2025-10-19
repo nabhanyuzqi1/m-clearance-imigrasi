@@ -62,7 +62,9 @@
       "login": "Login",
       "email_already_in_use": "The email address is already in use by another account.",
       "weak_password": "The password provided is too weak.",
-      "registration_error": "An unexpected error occurred during registration."
+      "registration_error": "An unexpected error occurred during registration.",
+      "nationality_hint": "Enter your nationality",
+      "nationality_req": "Nationality is required"
     },
     "confirmation": {
       "title": "Email Verification",
@@ -88,7 +90,7 @@
       "ktp_title": "Identity Card",
       "ktp_subtitle": "Only accept .jpg .pdf",
       "submit": "Submit",
-      "upload_success": "uploaded successfully (simulation).",
+      "upload_success": "uploaded successfully.",
       "upload_all_docs": "Please upload both documents.",
       "change": "Change",
       "upload": "Upload",
@@ -445,7 +447,9 @@
       "debug_error": "DEBUG: Error in _performSubmission",
       "debug_error_type": "DEBUG: Error type",
       "debug_firebase_code": "DEBUG: Firebase error code",
-      "debug_firebase_message": "DEBUG: Firebase error message"
+      "debug_firebase_message": "DEBUG: Firebase error message",
+      "other_location": "Other Location",
+      "enter_location": "Enter location name"
     },
     "submissionSent": {
       "title": "Verifying Documents",
@@ -555,7 +559,8 @@
       "no_notifications": "No notifications yet",
       "no_notifications_desc": "When you have notifications, they will appear here",
       "delete_success": "Notification deleted",
-      "unread": "Unread"
+      "unread": "Unread",
+      "application_not_found": "Unable to open this application. It may have been removed."
     },
     "notificationSettings": {
       "title": "Notification Settings",
@@ -768,7 +773,27 @@
       "location_not_provided": "Not provided",
       "submitted_at_label": "Submitted At",
       "reviewed_by_label": "Reviewed By",
-      "officer_notes_label": "Officer Notes"
+      "officer_notes_label": "Officer Notes",
+      "clearance_section_title": "Digital Clearance",
+      "clearance_not_sent": "Clearance PDF has not been sent.",
+      "clearance_sent_at": "Sent At",
+      "clearance_code_label": "Clearance Code",
+      "clearance_generate_hint": "Generate and send the official clearance PDF to the agent.",
+      "clearance_sent_hint": "You can resend if updated information is required.",
+      "send_e_clearance": "Send eClearance",
+      "resend_e_clearance": "Re-send eClearance",
+      "download_clearance": "Download eClearance",
+      "processing_clearance": "Sending eClearance...",
+      "clearance_sent_success": "eClearance has been sent to the agent.",
+      "processing_short_link": "Generating short link...",
+      "generate_short_link": "Generate Short Link",
+      "short_link_label": "Short Link",
+      "short_link_copied": "Short link copied to clipboard",
+      "short_link_failed": "Failed to generate short link",
+      "generate_clearance": "Generate eClearance",
+      "clearance_generated_success": "eClearance generated successfully for preview.",
+      "generate_clearance_first": "Generate the eClearance before sending it to the agent.",
+      "processing_generate_clearance": "Generating eClearance..."
     },
     "officerReport": {
       "title": "Officer Report",
@@ -857,7 +882,8 @@
       "submission_needs_review_title": "Submission Needs Review",
       "submission_needs_review_body": "KM. Egon has submitted an arrival application that needs your review.",
       "system_notice_title": "System Notice",
-      "system_notice_body": "A scheduled system update will occur tonight at 02:00 WIB."
+      "system_notice_body": "A scheduled system update will occur tonight at 02:00 WIB.",
+      "application_not_found": "Unable to open this submission. It may have been removed."
     },
     "officerSettings": {
       "title": "Settings",
@@ -948,7 +974,9 @@
       "login": "Masuk",
       "email_already_in_use": "Alamat email sudah digunakan oleh akun lain.",
       "weak_password": "Kata sandi yang diberikan terlalu lemah.",
-      "registration_error": "Terjadi kesalahan tak terduga saat pendaftaran."
+      "registration_error": "Terjadi kesalahan tak terduga saat pendaftaran.",
+      "nationality_hint": "Masukkan kebangsaan Anda",
+      "nationality_req": "Kebangsaan wajib diisi"
     },
     "confirmation": {
       "title": "Verifikasi Email",
@@ -974,7 +1002,7 @@
       "ktp_title": "Kartu Tanda Penduduk",
       "ktp_subtitle": "Hanya menerima .jpg .pdf",
       "submit": "Kirim",
-      "upload_success": "berhasil diunggah (simulasi).",
+      "upload_success": "berhasil diunggah.",
       "upload_all_docs": "Mohon unggah kedua dokumen.",
       "change": "Ganti",
       "upload": "Unggah",
@@ -1335,7 +1363,9 @@
       "debug_error": "DEBUG: Error di _performSubmission",
       "debug_error_type": "DEBUG: Tipe error",
       "debug_firebase_code": "DEBUG: Kode error Firebase",
-      "debug_firebase_message": "DEBUG: Pesan error Firebase"
+      "debug_firebase_message": "DEBUG: Pesan error Firebase",
+      "other_location": "Lokasi Lainnya",
+      "enter_location": "Masukkan nama lokasi"
     },
     "submissionSent": {
       "title": "Verifikasi Berkas",
@@ -1445,7 +1475,8 @@
       "no_notifications": "Belum ada notifikasi",
       "no_notifications_desc": "Ketika Anda memiliki notifikasi, mereka akan muncul di sini",
       "delete_success": "Notifikasi dihapus",
-      "unread": "Belum dibaca"
+      "unread": "Belum dibaca",
+      "application_not_found": "Tidak dapat membuka pengajuan ini. Mungkin telah dihapus."
     },
     "notificationSettings": {
       "title": "Pengaturan Notifikasi",
@@ -1652,7 +1683,27 @@
       "location_not_provided": "Lokasi tidak tersedia",
       "submitted_at_label": "Dikirim Pada",
       "reviewed_by_label": "Ditinjau Oleh",
-      "officer_notes_label": "Catatan Petugas"
+      "officer_notes_label": "Catatan Petugas",
+      "clearance_section_title": "Clearance Digital",
+      "clearance_not_sent": "Dokumen clearance belum dikirim.",
+      "clearance_sent_at": "Dikirim Pada",
+      "clearance_code_label": "Kode Clearance",
+      "clearance_generate_hint": "Buat dan kirim PDF clearance resmi kepada agen.",
+      "clearance_sent_hint": "Anda dapat mengirim ulang jika ada pembaruan data.",
+      "send_e_clearance": "Kirim eClearance",
+      "resend_e_clearance": "Kirim Ulang eClearance",
+      "download_clearance": "Unduh eClearance",
+      "processing_clearance": "Mengirim eClearance...",
+      "clearance_sent_success": "eClearance berhasil dikirim ke agen.",
+      "processing_short_link": "Membuat tautan pendek...",
+      "generate_short_link": "Buat Tautan Pendek",
+      "short_link_label": "Tautan Pendek",
+      "short_link_copied": "Tautan pendek disalin ke clipboard",
+      "short_link_failed": "Gagal membuat tautan pendek",
+      "generate_clearance": "Buat eClearance",
+      "clearance_generated_success": "eClearance berhasil dibuat untuk ditinjau.",
+      "generate_clearance_first": "Harap buat eClearance sebelum mengirimkannya ke agen.",
+      "processing_generate_clearance": "Sedang membuat eClearance..."
     },
     "officerReport": {
       "title": "Laporan Petugas",
@@ -1741,7 +1792,8 @@
       "submission_needs_review_title": "Pengajuan Perlu Diperiksa",
       "submission_needs_review_body": "KM. Egon telah mengirimkan pengajuan kedatangan yang perlu Anda periksa.",
       "system_notice_title": "Pemberitahuan Sistem",
-      "system_notice_body": "Pembaruan sistem terjadwal akan dilakukan malam ini pukul 02:00 WIB."
+      "system_notice_body": "Pembaruan sistem terjadwal akan dilakukan malam ini pukul 02:00 WIB.",
+      "application_not_found": "Tidak dapat membuka pengajuan ini. Mungkin telah dihapus."
     },
     "officerSettings": {
       "title": "Pengaturan",

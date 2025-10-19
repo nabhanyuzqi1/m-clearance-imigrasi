@@ -29,6 +29,27 @@
     "lastUpdated": 0,
     "version": "1.0.0"
   },
+  "lookups": {
+    "flags": [
+      "Bahamas",
+      "Indonesia",
+      "Liberia",
+      "Malaysia",
+      "Marshall Islands",
+      "Panama",
+      "Singapore"
+    ],
+    "ports": [
+      "Balikpapan",
+      "Belawan",
+      "Bitung",
+      "Makassar",
+      "Merauke",
+      "Sorong",
+      "Tanjung Perak",
+      "Tanjung Priok"
+    ]
+  },
   "support": {
     "contactEmail": "mclearanceisam@gmail.com"
   }

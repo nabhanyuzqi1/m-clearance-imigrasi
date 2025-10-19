@@ -6,9 +6,7 @@ import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
 import '../../../services/logging_service.dart';
-import '../../../services/auth_service.dart';
 import '../../widgets/custom_app_bar.dart';
-import 'document_view_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ClearanceResultScreen extends StatelessWidget {
@@ -34,13 +32,12 @@ class ClearanceResultScreen extends StatelessWidget {
     final submittedAtText = DateFormat(
       'dd MMM yyyy HH:mm',
     ).format(createdAtLocal);
-    final certificateGeneratedAtLocal =
-        application.clearanceResultGeneratedAt?.toLocal();
+    final certificateGeneratedAtLocal = application.clearanceResultGeneratedAt
+        ?.toLocal();
     final certificateGeneratedAtText = certificateGeneratedAtLocal != null
         ? DateFormat('dd MMM yyyy HH:mm').format(certificateGeneratedAtLocal)
         : null;
-    final clearanceSentAtLocal =
-        application.clearanceResultSentAt?.toLocal();
+    final clearanceSentAtLocal = application.clearanceResultSentAt?.toLocal();
     final clearanceSentAtText = clearanceSentAtLocal != null
         ? DateFormat('dd MMM yyyy HH:mm').format(clearanceSentAtLocal)
         : null;
@@ -443,11 +440,7 @@ class ClearanceResultScreen extends StatelessWidget {
                     // Notes
                     if (application.notes != null &&
                         application.notes!.isNotEmpty)
-                      _buildDetailRow(
-                        context,
-                        tr('notes'),
-                        application.notes!,
-                      )
+                      _buildDetailRow(context, tr('notes'), application.notes!)
                     else
                       _buildDetailRow(context, tr('notes'), tr('no_notes')),
 
@@ -853,6 +846,7 @@ class ClearanceResultScreen extends StatelessWidget {
   }
 
   Widget _buildFileCard(String label, String? fileUrl, BuildContext context) {
+    final theme = Theme.of(context);
     final resolvedFileUrl = fileUrl ?? '';
     final hasFile = resolvedFileUrl.isNotEmpty;
     final filename = hasFile ? _extractFilename(resolvedFileUrl) : '';
@@ -861,11 +855,11 @@ class ClearanceResultScreen extends StatelessWidget {
     return Container(
       margin: EdgeInsets.only(bottom: AppTheme.spacing12),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.greyColor.withAlpha(25),
+            color: theme.colorScheme.shadow.withAlpha(25),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -878,9 +872,9 @@ class ClearanceResultScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: hasFile
                 ? (isPdf
-                      ? AppTheme.errorColor.withAlpha(25)
-                      : AppTheme.primaryColor.withAlpha(25))
-                : AppTheme.greyShade200,
+                      ? theme.colorScheme.error.withAlpha(25)
+                      : theme.colorScheme.primary.withAlpha(25))
+                : theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
           ),
           child: Icon(
@@ -888,8 +882,8 @@ class ClearanceResultScreen extends StatelessWidget {
                 ? (isPdf ? Icons.picture_as_pdf : Icons.image)
                 : Icons.insert_drive_file,
             color: hasFile
-                ? (isPdf ? AppTheme.errorColor : AppTheme.primaryColor)
-                : AppTheme.greyShade500,
+                ? (isPdf ? theme.colorScheme.error : theme.colorScheme.primary)
+                : theme.colorScheme.onSurfaceVariant,
             size: 20,
           ),
         ),
@@ -897,7 +891,7 @@ class ClearanceResultScreen extends StatelessWidget {
           label,
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: AppTheme.onSurface,
+            color: theme.colorScheme.onSurface,
             fontFamily: 'Poppins',
             fontSize: AppTheme.fontSizeBody1,
           ),
@@ -909,7 +903,7 @@ class ClearanceResultScreen extends StatelessWidget {
                 : 'submissionDetail.file_status_missing',
           ),
           style: TextStyle(
-            color: AppTheme.subtitleColor,
+            color: theme.colorScheme.onSurfaceVariant,
             fontFamily: 'Poppins',
             fontSize: AppTheme.fontSizeBody2,
           ),
@@ -921,8 +915,10 @@ class ClearanceResultScreen extends StatelessWidget {
                   if (kIsWeb) {
                     final uri = Uri.tryParse(resolvedFileUrl);
                     if (uri != null) {
-                      final launched =
-                          await launchUrl(uri, webOnlyWindowName: '_blank');
+                      final launched = await launchUrl(
+                        uri,
+                        webOnlyWindowName: '_blank',
+                      );
                       if (!launched) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -944,33 +940,14 @@ class ClearanceResultScreen extends StatelessWidget {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        l10n.get('clearanceForm.download_start'),
-                      ),
-                    ),
-                  );
-
-                  try {
-                    final authService = AuthService();
-                    final fileData = await authService.downloadFileData(
-                      resolvedFileUrl,
+                  final uri = Uri.tryParse(resolvedFileUrl);
+                  if (uri != null &&
+                      (uri.scheme == 'http' || uri.scheme == 'https')) {
+                    final launched = await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
                     );
-
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-                    if (fileData != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => DocumentViewScreen(
-                            fileData: fileData,
-                            fileName: filename,
-                          ),
-                        ),
-                      );
-                    } else {
+                    if (!launched && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -979,20 +956,18 @@ class ClearanceResultScreen extends StatelessWidget {
                         ),
                       );
                     }
-                  } catch (e) {
-                    LoggingService().error('Error downloading file: $e');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          l10n.get('clearanceForm.download_failed'),
-                        ),
-                      ),
-                    );
+                    return;
                   }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.get('clearanceForm.download_failed')),
+                    ),
+                  );
                 },
                 icon: Icon(
                   Icons.visibility,
-                  color: AppTheme.primaryColor,
+                  color: theme.colorScheme.primary,
                   size: 24,
                 ),
               )
@@ -1008,15 +983,19 @@ class ClearanceResultScreen extends StatelessWidget {
   ) {
     final widgets = <Widget>[];
 
-    final hasCertificate =
-        application.clearanceResultFile != null &&
-            application.clearanceResultFile!.isNotEmpty;
+    final certificateDownloadUrl = (application.shortLink != null &&
+            application.shortLink!.trim().isNotEmpty)
+        ? application.shortLink!.trim()
+        : (application.clearanceResultFile ?? '').trim();
+    final certificateAvailable =
+        certificateDownloadUrl.isNotEmpty &&
+        application.clearanceResultSentAt != null;
 
-    if (hasCertificate) {
+    if (certificateAvailable) {
       widgets.add(
         _buildFileCard(
           tr('clearance_certificate'),
-          application.clearanceResultFile,
+          certificateDownloadUrl,
           context,
         ),
       );
@@ -1091,11 +1070,7 @@ class ClearanceResultScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.info_outline,
-            color: colorScheme.error,
-            size: 24,
-          ),
+          Icon(Icons.info_outline, color: colorScheme.error, size: 24),
           SizedBox(width: AppTheme.spacing12),
           Expanded(
             child: Column(

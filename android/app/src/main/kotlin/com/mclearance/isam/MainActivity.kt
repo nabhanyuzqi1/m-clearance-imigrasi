@@ -64,8 +64,12 @@ class MainActivity : FlutterActivity() {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }
 
-    val pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-    val pendingIntent = PendingIntent.getActivity(context, 0, intent, pendingIntentFlags)
+    val basePendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    } else {
+      PendingIntent.FLAG_UPDATE_CURRENT
+    }
+    val pendingIntent = PendingIntent.getActivity(context, 0, intent, basePendingIntentFlags)
 
     val builder = NotificationCompat.Builder(context, notificationChannelId)
       .setSmallIcon(R.mipmap.launcher_icon)
@@ -97,21 +101,32 @@ class MainActivity : FlutterActivity() {
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && bubblesAllowed) {
       val icon = IconCompat.createWithResource(context, R.mipmap.launcher_icon)
-      val bubbleIntent = PendingIntent.getActivity(context, 1, intent, pendingIntentFlags)
-      val bubbleMetadata = NotificationCompat.BubbleMetadata.Builder(bubbleIntent, icon)
-        .setDesiredHeight(400)
-        .setAutoExpandBubble(true)
-        .setSuppressNotification(false)
-        .build()
-      val person = Person.Builder().setName(context.getString(R.string.app_name)).build()
-      builder.setBubbleMetadata(bubbleMetadata)
-      builder.setStyle(
-        NotificationCompat.MessagingStyle(person).addMessage(
-          body,
-          System.currentTimeMillis(),
-          person,
-        ),
-      )
+      val bubbleFlags = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ->
+          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        else -> PendingIntent.FLAG_UPDATE_CURRENT
+      }
+      val bubbleIntent = PendingIntent.getActivity(context, 1, intent, bubbleFlags)
+      try {
+        val bubbleMetadata = NotificationCompat.BubbleMetadata.Builder(bubbleIntent, icon)
+          .setDesiredHeight(400)
+          .setAutoExpandBubble(true)
+          .setSuppressNotification(false)
+          .build()
+        val person = Person.Builder().setName(context.getString(R.string.app_name)).build()
+        builder.setBubbleMetadata(bubbleMetadata)
+        builder.setStyle(
+          NotificationCompat.MessagingStyle(person).addMessage(
+            body,
+            System.currentTimeMillis(),
+            person,
+          ),
+        )
+      } catch (exception: RuntimeException) {
+        builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
+      }
     } else {
       builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
     }
@@ -139,11 +154,14 @@ class MainActivity : FlutterActivity() {
       .setAutoCancel(true)
       .setOnlyAlertOnce(true)
       .setSilent(true)
+      .setShowWhen(false)
+      .setOngoing(true)
 
     if (safeBadge == 0) {
       notificationManager.cancel(badgeNotificationId)
     } else {
       notificationManager.notify(badgeNotificationId, builder.build())
+      notificationManager.cancel(badgeNotificationId)
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -8,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:shimmer/shimmer.dart' as shimmer;
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import '../../../config/theme.dart';
@@ -55,23 +57,14 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   final _wnaCrewController = TextEditingController();
 
   String? _selectedFlag;
-  final List<String> _countryFlags = [
-    "Indonesia",
-    "Singapura",
-    "Malaysia",
-    "Panama",
-    "Liberia",
-    "Thailand",
-    "Vietnam",
-    "Filipina",
-    "Tiongkok",
-    "Jepang",
-    "Korea Selatan",
-    "India",
-    "Amerika Serikat",
-  ];
   String? _selectedLocation;
-  final List<String> _locations = ["Bagendang", "Pulang Pisau"];
+  static const String _otherLocationKey = 'Other Location';
+  List<String> _countryFlags = [];
+  final List<String> _locations = [_otherLocationKey];
+  final TextEditingController _otherLocationController =
+      TextEditingController();
+  StreamSubscription<DatabaseEvent>? _flagsSubscription;
+  StreamSubscription<DatabaseEvent>? _portsSubscription;
 
   // File data storage
   Uint8List? _portClearanceFileData;
@@ -84,6 +77,15 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   final ImagePicker _picker = ImagePicker();
 
   bool _isSubmitting = false;
+  bool get _isCustomLocation {
+    if (_selectedLocation == null || _selectedLocation!.isEmpty) {
+      return false;
+    }
+    if (_selectedLocation == _otherLocationKey) {
+      return true;
+    }
+    return !_locations.contains(_selectedLocation);
+  }
 
   // Cached translations to prevent rebuilds
   late String _formInstruction;
@@ -109,6 +111,134 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     _saving = _tr('saving');
   }
 
+  void _loadDynamicLookups() {
+    final flagsRef = FirebaseDatabase.instance.ref('lookups/flags');
+    final portsRef = FirebaseDatabase.instance.ref('lookups/ports');
+
+    _flagsSubscription = flagsRef.onValue.listen(
+      (event) {
+        final remote = _extractStringList(event.snapshot.value);
+        if (!mounted) return;
+        if (remote.isEmpty) {
+          LoggingService().warning(
+            'Flag lookup snapshot returned empty; keeping existing values',
+          );
+          return;
+        }
+        setState(() {
+          final nextFlags = List<String>.from(remote);
+          if (_selectedFlag != null && _selectedFlag!.trim().isNotEmpty) {
+            if (!nextFlags.contains(_selectedFlag)) {
+              nextFlags.add(_selectedFlag!);
+            }
+          }
+          nextFlags.sort();
+          _countryFlags = nextFlags;
+          if (_selectedFlag == null && _countryFlags.isNotEmpty) {
+            _selectedFlag = _countryFlags.first;
+          }
+        });
+      },
+      onError: (error) {
+        LoggingService().error('Failed loading flag list from RTDB', error);
+      },
+    );
+
+    _portsSubscription = portsRef.onValue.listen(
+      (event) {
+        final remote = _extractStringList(event.snapshot.value);
+        if (!mounted) return;
+        if (remote.isEmpty) {
+          LoggingService().warning(
+            'Port lookup snapshot returned empty; keeping existing values',
+          );
+          return;
+        }
+        final nextLocations = List<String>.from(remote);
+        if (!nextLocations.contains(_otherLocationKey)) {
+          nextLocations.add(_otherLocationKey);
+        }
+        if (_locationsEquals(nextLocations, _locations)) {
+          if (_isCustomLocation &&
+              _otherLocationController.text.trim().isEmpty &&
+              _selectedLocation != _otherLocationKey &&
+              _selectedLocation != null) {
+            setState(() {
+              _otherLocationController.text = _selectedLocation!.trim();
+              _selectedLocation = _otherLocationKey;
+            });
+          }
+          return;
+        }
+        setState(() {
+          _locations
+            ..clear()
+            ..addAll(nextLocations);
+          if (_isCustomLocation) {
+            if (_selectedLocation != _otherLocationKey &&
+                _selectedLocation != null &&
+                _otherLocationController.text.trim().isEmpty) {
+              _otherLocationController.text = _selectedLocation!.trim();
+              _selectedLocation = _otherLocationKey;
+            }
+            return;
+          }
+          if (_selectedLocation != null &&
+              !_locations.contains(_selectedLocation)) {
+            _otherLocationController.text = _selectedLocation!.trim();
+            _selectedLocation = _otherLocationKey;
+          } else if ((_selectedLocation == null ||
+                  _selectedLocation!.isEmpty) &&
+              remote.isNotEmpty) {
+            _selectedLocation = remote.first;
+          }
+        });
+      },
+      onError: (error) {
+        LoggingService().error('Failed loading port list from RTDB', error);
+      },
+    );
+  }
+
+  List<String> _extractStringList(Object? value) {
+    final results = <String>{};
+    if (value is List) {
+      for (final entry in value) {
+        if (entry is String && entry.trim().isNotEmpty) {
+          results.add(entry.trim());
+        }
+      }
+    } else if (value is Map) {
+      for (final entry in value.values) {
+        if (entry is String && entry.trim().isNotEmpty) {
+          results.add(entry.trim());
+        }
+      }
+    } else if (value is String && value.trim().isNotEmpty) {
+      results.add(value.trim());
+    }
+    final list = results.toList()..sort();
+    return list;
+  }
+
+  bool _locationsEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  String? _resolvedLocation() {
+    if (_isCustomLocation) {
+      final manual = _otherLocationController.text.trim();
+      return manual.isNotEmpty ? manual : null;
+    }
+    return _selectedLocation;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -118,15 +248,24 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       final app = widget.existingApplication!;
       LoggingService().debug('Loading existing application: ${app.id}');
       _shipNameController.text = app.shipName;
-      _selectedFlag = _countryFlags.contains(app.flag)
-          ? app.flag
-          : _countryFlags.first;
-      _agentNameController.text = app.agentName;
       _portController.text = app.port ?? '';
       _dateController.text = app.date ?? '';
       _wniCrewController.text = app.wniCrew ?? '';
       _wnaCrewController.text = app.wnaCrew ?? '';
-      _selectedLocation = app.location ?? _locations.first;
+      _agentNameController.text = app.agentName;
+
+      if (app.flag.isNotEmpty) {
+        _selectedFlag = app.flag;
+      }
+
+      final existingLocation = app.location?.trim();
+      if (existingLocation != null && existingLocation.isNotEmpty) {
+        _selectedLocation = existingLocation;
+        if (!_locations.contains(existingLocation)) {
+          _otherLocationController.text = existingLocation;
+        }
+      }
+
       // For existing applications, preserve remote references
       _portClearanceFileName = _friendlyFileName(app.portClearanceFile);
       _portClearanceFileUrl = app.portClearanceFile;
@@ -138,10 +277,13 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     } else {
       LoggingService().debug('Creating new application form');
       _agentNameController.text = widget.agentName;
-      _selectedLocation = _locations.first;
-      _selectedFlag = _countryFlags.first;
+      _selectedLocation = null;
+      _selectedFlag = null;
+      _otherLocationController.clear();
       _dateController.text = DateFormat('dd MMMM yyyy').format(DateTime.now());
     }
+
+    _loadDynamicLookups();
   }
 
   @override
@@ -159,6 +301,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     _dateController.dispose();
     _wniCrewController.dispose();
     _wnaCrewController.dispose();
+    _otherLocationController.dispose();
+    _flagsSubscription?.cancel();
+    _portsSubscription?.cancel();
     super.dispose();
   }
 
@@ -538,15 +683,33 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
     LoggingService().info('Submit application button pressed');
 
+    final applicationType = widget.existingApplication?.type ?? widget.type;
+    final requiresPortClearance =
+        applicationType == ApplicationType.kedatangan;
+
+    final existingPortFiles =
+        widget.existingApplication?.portClearanceFiles ?? const [];
+    final hasStoredPortFile =
+        (_portClearanceFileUrl != null && _portClearanceFileUrl!.trim().isNotEmpty) ||
+        existingPortFiles.any((url) => url.trim().isNotEmpty);
     final hasPortClearance =
-        _portClearanceFileData != null || _portClearanceFileName != null;
+        _portClearanceFileData != null ||
+        (_portClearanceFileName != null &&
+            _portClearanceFileName!.trim().isNotEmpty) ||
+        hasStoredPortFile;
     final hasCrewList =
         _pendingCrewListFiles.isNotEmpty || _existingCrewListFiles.isNotEmpty;
     final hasNotification =
-        _notificationLetterFileData != null ||
-        _notificationLetterFileName != null;
+        (_notificationLetterFileData != null &&
+            _notificationLetterFileName != null) ||
+        (_notificationLetterFileUrl != null &&
+            _notificationLetterFileUrl!.trim().isNotEmpty) ||
+        ((widget.existingApplication?.notificationLetterFiles ?? const [])
+            .any((url) => url.trim().isNotEmpty));
 
-    if (!hasPortClearance || !hasCrewList || !hasNotification) {
+    if ((requiresPortClearance && !hasPortClearance) ||
+        !hasCrewList ||
+        !hasNotification) {
       LoggingService().warning(
         'Missing required documents, redirecting to upload step',
       );
@@ -761,11 +924,11 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       final application = ClearanceApplication(
         id: widget.existingApplication?.id ?? '',
         shipName: _shipNameController.text.trim(),
-        flag: _selectedFlag ?? _tr('indonesia'),
+        flag: _selectedFlag?.trim() ?? '',
         agentName: _agentNameController.text,
         agentUid: '', // Will be set by the service
         type: widget.type,
-        location: _selectedLocation,
+        location: _resolvedLocation(),
         port: _portController.text.trim().isEmpty
             ? null
             : _portController.text.trim(),
@@ -1052,8 +1215,11 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               SizedBox(height: screenWidth * 0.02),
               DropdownButtonFormField<String>(
                 key: const ValueKey('flag_selector'),
-                // ignore: deprecated_member_use
-                value: _selectedFlag,
+                initialValue: _countryFlags.contains(_selectedFlag)
+                    ? _selectedFlag
+                    : (_selectedFlag != null && _selectedFlag!.trim().isNotEmpty
+                          ? _selectedFlag
+                          : null),
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -1063,15 +1229,24 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     context,
                   ).colorScheme.surfaceContainerHighest,
                 ),
-                items: _countryFlags.map((String country) {
-                  return DropdownMenuItem<String>(
-                    value: country,
-                    child: Text(
-                      country,
-                      style: TextStyle(fontSize: screenWidth * 0.035),
-                    ),
-                  );
-                }).toList(),
+                items: () {
+                  final flags = List<String>.from(_countryFlags);
+                  if (_selectedFlag != null &&
+                      _selectedFlag!.trim().isNotEmpty &&
+                      !flags.contains(_selectedFlag)) {
+                    flags.add(_selectedFlag!);
+                  }
+                  flags.sort();
+                  return flags.map((String country) {
+                    return DropdownMenuItem<String>(
+                      value: country,
+                      child: Text(
+                        country,
+                        style: TextStyle(fontSize: screenWidth * 0.035),
+                      ),
+                    );
+                  }).toList();
+                }(),
                 onChanged: (newValue) {
                   if (newValue == null) return;
                   setState(() {
@@ -1099,7 +1274,18 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               SizedBox(height: screenWidth * 0.02),
               DropdownButtonFormField<String>(
                 key: const ValueKey('location_selector'),
-                initialValue: _selectedLocation,
+                initialValue: () {
+                  if (_selectedLocation == null || _selectedLocation!.isEmpty) {
+                    return null;
+                  }
+                  final locations = List<String>.from(_locations);
+                  if (!locations.contains(_otherLocationKey)) {
+                    locations.add(_otherLocationKey);
+                  }
+                  return locations.contains(_selectedLocation)
+                      ? _selectedLocation
+                      : _otherLocationKey;
+                }(),
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -1109,23 +1295,63 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     context,
                   ).colorScheme.surfaceContainerHighest,
                 ),
-                items: _locations.map((String location) {
-                  return DropdownMenuItem<String>(
-                    value: location,
-                    child: Text(
-                      location,
-                      style: TextStyle(fontSize: screenWidth * 0.035),
-                    ),
-                  );
-                }).toList(),
+                items: () {
+                  final locations = List<String>.from(_locations);
+                  if (!locations.contains(_otherLocationKey)) {
+                    locations.add(_otherLocationKey);
+                  }
+                  return locations.map((String location) {
+                    return DropdownMenuItem<String>(
+                      value: location,
+                      child: Text(
+                        location == _otherLocationKey
+                            ? _tr('other_location')
+                            : location,
+                        style: TextStyle(fontSize: screenWidth * 0.035),
+                      ),
+                    );
+                  }).toList();
+                }(),
                 onChanged: (newValue) {
+                  if (newValue == null) return;
                   setState(() {
                     _selectedLocation = newValue;
+                    if (newValue != _otherLocationKey) {
+                      _otherLocationController.clear();
+                    }
                   });
                 },
-                validator: (value) =>
-                    value == null ? _tr('select_location') : null,
+                validator: (value) => value == null
+                    ? _tr('select_location')
+                    : (value == _otherLocationKey &&
+                              _otherLocationController.text.trim().isEmpty
+                          ? _tr('enter_location')
+                          : null),
               ),
+              if (_isCustomLocation) ...[
+                SizedBox(height: screenWidth * 0.02),
+                TextFormField(
+                  controller: _otherLocationController,
+                  decoration: InputDecoration(
+                    labelText: _tr('other_location'),
+                    hintText: _tr('enter_location'),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                  ),
+                  validator: (value) {
+                    if (!_isCustomLocation) return null;
+                    if (value == null || value.trim().isEmpty) {
+                      return _tr('enter_location');
+                    }
+                    return null;
+                  },
+                ),
+              ],
             ],
           ),
         ),
@@ -1322,7 +1548,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                         ),
                         _buildDetailRow(
                           _tr('location'),
-                          _selectedLocation ?? '-',
+                          _resolvedLocation() ?? '-',
                         ),
                         _buildDetailRow(
                           _tr('date_label'),

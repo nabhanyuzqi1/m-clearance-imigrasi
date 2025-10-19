@@ -183,6 +183,7 @@ class FunctionsService {
     required String applicationId,
     String? officerName,
     String? officerCorporateName,
+    bool generateOnly = false,
   }) async {
     try {
       final callable = _functions.httpsCallable('sendClearanceCertificate');
@@ -193,13 +194,14 @@ class FunctionsService {
         if (officerCorporateName != null &&
             officerCorporateName.trim().isNotEmpty)
           'officerCorporateName': officerCorporateName.trim(),
+        if (generateOnly) 'generateOnly': true,
       };
       final result = await callable(payload);
 
       final data = Map<String, dynamic>.from(result.data ?? {});
 
       // If clearance was sent successfully, generate a short link
-      if (data['ok'] == true && data['downloadUrl'] != null) {
+      if (!generateOnly && data['ok'] == true && data['downloadUrl'] != null) {
         try {
           final shortUrl = await createShortUrl(data['downloadUrl']);
           data['shortLink'] = shortUrl;

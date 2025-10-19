@@ -1,11 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../../../localization/app_localizations.dart';
-import '../../../services/logging_service.dart';
+import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import '../../../config/theme.dart';
+import '../../../localization/app_localizations.dart';
+import '../../../models/clearance_application.dart';
 import '../../../models/notification_item.dart';
+import '../../../services/logging_service.dart';
 import '../../../services/notification_service.dart';
-import '../../widgets/custom_app_bar.dart';
 import '../../widgets/bouncing_dots_loader.dart';
+import '../../widgets/custom_app_bar.dart';
 
 class OfficerNotificationScreen extends StatefulWidget {
   final String initialLanguage;
@@ -19,6 +22,8 @@ class OfficerNotificationScreen extends StatefulWidget {
 
 class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
   final NotificationService _notificationService = NotificationService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  bool _isNavigating = false;
 
   String _tr(String key) =>
       AppLocalizations.of(context).get('officerNotifications.$key');
@@ -68,6 +73,95 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
         ).showSnackBar(SnackBar(content: Text(_tr('mark_single_read_failed'))));
       }
     }
+  }
+
+  Future<void> _handleNotificationTap(NotificationItem notification) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      if (!notification.isRead) {
+        await _markAsRead(notification.id);
+      }
+      final metadata = notification.metadata;
+      if (metadata.isEmpty) {
+        return;
+      }
+      final targetUid = metadata['targetUid']?.toString();
+      if (targetUid != null && targetUid.isNotEmpty) {
+        _navigateToAccountDetail(targetUid);
+        return;
+      }
+      final applicationId = metadata['applicationId']?.toString();
+      if (applicationId != null && applicationId.isNotEmpty) {
+        await _navigateToSubmission(applicationId);
+      }
+    } catch (e, stackTrace) {
+      LoggingService().error('Failed handling officer notification tap', e, stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('mark_single_read_failed'))),
+        );
+      }
+    } finally {
+      _isNavigating = false;
+    }
+  }
+
+  void _navigateToAccountDetail(String uid) {
+    if (!mounted) return;
+    Navigator.pushNamed(
+      context,
+      AppRoutes.accountDetail,
+      arguments: {'uid': uid},
+    );
+  }
+
+  Future<void> _navigateToSubmission(String applicationId) async {
+    if (!mounted) return;
+    await _showLoadingDialog();
+    ClearanceApplication? application;
+    try {
+      final doc = await _firestore.collection('applications').doc(applicationId).get();
+      if (doc.exists) {
+        application = ClearanceApplication.fromFirestore(doc);
+      }
+    } catch (e, stackTrace) {
+      LoggingService().error('Failed to fetch application $applicationId', e, stackTrace);
+    } finally {
+      if (mounted) {
+        final navigator = Navigator.of(context, rootNavigator: true);
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
+      }
+    }
+
+    if (application == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('application_not_found'))),
+        );
+      }
+      return;
+    }
+
+    Navigator.pushNamed(
+      context,
+      AppRoutes.submissionDetail,
+      arguments: {
+        'application': application,
+        'adminName': '',
+      },
+    );
+  }
+
+  Future<void> _showLoadingDialog() async {
+    if (!mounted) return;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
   }
 
   @override
@@ -199,11 +293,7 @@ class _OfficerNotificationScreenState extends State<OfficerNotificationScreen> {
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                   ),
                   child: InkWell(
-                    onTap: () {
-                      if (!notification.isRead) {
-                        _markAsRead(notification.id);
-                      }
-                    },
+                    onTap: () => _handleNotificationTap(notification),
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                     child: Padding(
                       padding: EdgeInsets.all(AppTheme.spacing16),

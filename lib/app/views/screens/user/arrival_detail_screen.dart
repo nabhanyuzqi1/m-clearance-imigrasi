@@ -440,8 +440,12 @@ class ArrivalDetailScreen extends StatelessWidget {
     Color cardColor,
   ) {
     final l10n = AppLocalizations.of(context);
-    final certificateUrl = application.clearanceResultFile ?? '';
-    final hasCertificate = certificateUrl.isNotEmpty;
+    final certificateUrl = application.shortLink != null &&
+            application.shortLink!.trim().isNotEmpty
+        ? application.shortLink!.trim()
+        : (application.clearanceResultFile ?? '').trim();
+    final certificateAvailable = certificateUrl.isNotEmpty &&
+        application.clearanceResultSentAt != null;
     final subtitleKey = application.type == ApplicationType.kedatangan
         ? 'clearanceResult.approved_subtitle_arrival'
         : 'clearanceResult.approved_subtitle_departure';
@@ -505,7 +509,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                 colorScheme,
               ),
             ),
-          if (!hasCertificate)
+          if (!certificateAvailable)
             Padding(
               padding: EdgeInsets.only(top: AppTheme.spacing12),
               child: Text(
@@ -523,10 +527,16 @@ class ArrivalDetailScreen extends StatelessWidget {
             type: CustomButtonType.elevated,
             backgroundColor: colorScheme.primary,
             onPressed:
-                hasCertificate ? () => _openDocument(context, certificateUrl) : null,
+                certificateAvailable
+                    ? () => _openDocument(
+                          context,
+                          certificateUrl,
+                          preferExternal: true,
+                        )
+                    : null,
             isFullWidth: true,
           ),
-          if (!hasCertificate)
+          if (!certificateAvailable)
             Padding(
               padding: EdgeInsets.only(top: AppTheme.spacing8),
               child: Text(
@@ -674,21 +684,47 @@ class ArrivalDetailScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _openDocument(BuildContext context, String fileUrl) async {
+  Future<void> _openDocument(
+    BuildContext context,
+    String fileUrl, {
+    bool preferExternal = false,
+  }) async {
     final l10n = AppLocalizations.of(context);
+    final trimmedUrl = fileUrl.trim();
+    final uri = Uri.tryParse(trimmedUrl);
+    final openExternally =
+        preferExternal && _shouldOpenExternally(trimmedUrl);
+
+    Future<void> showFailure() async {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
+      );
+    }
+
     if (kIsWeb) {
-      final uri = Uri.tryParse(fileUrl);
-      if (uri != null) {
+      if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
         final launched = await launchUrl(uri, webOnlyWindowName: '_blank');
         if (!launched) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
-          );
+          await showFailure();
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
+        await showFailure();
+      }
+      return;
+    }
+
+    if (openExternally) {
+      if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+        final launched = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
         );
+        if (!launched) {
+          await showFailure();
+        }
+      } else {
+        await showFailure();
       }
       return;
     }
@@ -699,12 +735,16 @@ class ArrivalDetailScreen extends StatelessWidget {
 
     try {
       final authService = AuthService();
-      final fileData = await authService.downloadFileData(fileUrl);
+      final fileData = await authService.downloadFileData(trimmedUrl);
+
+      if (!context.mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       if (fileData != null) {
-        final fileName = getFileNameFromUrl(fileUrl);
+        final fileName = getFileNameFromUrl(trimmedUrl);
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -713,16 +753,25 @@ class ArrivalDetailScreen extends StatelessWidget {
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
-        );
+        await showFailure();
       }
     } catch (e) {
       LoggingService().error('Error downloading file: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
-      );
+      await showFailure();
     }
+  }
+
+  bool _shouldOpenExternally(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return false;
+    }
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') {
+      return false;
+    }
+    final host = uri.host.toLowerCase();
+    return host.contains('mclearanceisam.com');
   }
 
   Color _getStatusColor(BuildContext context, ApplicationStatus status) {

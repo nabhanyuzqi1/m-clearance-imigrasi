@@ -214,15 +214,21 @@ class ApplicationRepository {
     required String appId,
     required String officerName,
     required String officerCorporateName,
+    bool generateOnly = false,
   }) async {
     final officerService = OfficerService();
 
     try {
-      LoggingService().info('Initiating sendClearanceCertificate for $appId');
+      LoggingService().info(
+        generateOnly
+            ? 'Generating clearance document for preview: $appId'
+            : 'Initiating sendClearanceCertificate for $appId',
+      );
       final callableResult = await _functionsService.sendClearanceCertificate(
         applicationId: appId,
         officerName: officerName,
         officerCorporateName: officerCorporateName,
+        generateOnly: generateOnly,
       );
 
       final docRef = _db.collection('applications').doc(appId);
@@ -251,7 +257,7 @@ class ApplicationRepository {
       }
 
       // If a short link was generated, update the application document with it
-      if (callableResult['shortLink'] != null) {
+      if (!generateOnly && callableResult['shortLink'] != null) {
         try {
           await docRef.update({
             'shortLink': callableResult['shortLink'],
@@ -276,20 +282,26 @@ class ApplicationRepository {
       }
 
       final shipName = updatedApplication?.shipName ?? '';
-      final activityDescription = shipName.isNotEmpty
-          ? 'eClearance sent for $shipName ($appId)'
-          : 'eClearance sent for application $appId';
+      final activityDescription = generateOnly
+          ? (shipName.isNotEmpty
+              ? 'eClearance generated for review: $shipName ($appId)'
+              : 'eClearance generated for review: $appId')
+          : (shipName.isNotEmpty
+              ? 'eClearance sent for $shipName ($appId)'
+              : 'eClearance sent for application $appId');
 
       await officerService.logActivity(
         title: shipName.isNotEmpty ? shipName : 'eClearance',
         description: activityDescription,
         type: 'applicationReview',
-        status: 'clearanceSent',
-        iconData: 'qr_code',
+        status: generateOnly ? 'clearanceGenerated' : 'clearanceSent',
+        iconData: generateOnly ? 'description' : 'qr_code',
       );
 
       LoggingService().info(
-        'sendClearanceCertificate callable completed for $appId',
+        generateOnly
+            ? 'Clearance document generated for preview via callable for $appId'
+            : 'sendClearanceCertificate callable completed for $appId',
         callableResult,
       );
 
@@ -302,6 +314,19 @@ class ApplicationRepository {
       );
       rethrow;
     }
+  }
+
+  Future<ClearanceApplication> generateClearanceCertificate({
+    required String appId,
+    required String officerName,
+    required String officerCorporateName,
+  }) {
+    return sendClearanceCertificate(
+      appId: appId,
+      officerName: officerName,
+      officerCorporateName: officerCorporateName,
+      generateOnly: true,
+    );
   }
 
   Future<void> updateApplication(

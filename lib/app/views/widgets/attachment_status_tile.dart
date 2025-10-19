@@ -35,15 +35,21 @@ class AttachmentStatusTile extends StatelessWidget {
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color backgroundColor = isDark
+        ? colorScheme.surfaceContainerHighest
+        : colorScheme.surface;
+    final Color borderColor = colorScheme.outlineVariant;
+    final Color titleColor = colorScheme.onSurface;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6.0),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        border: Border.all(color: colorScheme.outlineVariant),
-        boxShadow: theme.brightness == Brightness.light
+        border: Border.all(color: borderColor),
+        boxShadow: !isDark
             ? [
                 BoxShadow(
                   color: colorScheme.shadow.withAlpha(20),
@@ -73,6 +79,7 @@ class AttachmentStatusTile extends StatelessWidget {
                   label,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: titleColor,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -91,9 +98,7 @@ class AttachmentStatusTile extends StatelessWidget {
                   description,
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontSize: AppTheme.fontSizeSmall,
-                    color: theme.textTheme.bodySmall?.color?.withValues(
-                      alpha: 0.7,
-                    ),
+                    color: titleColor.withValues(alpha: 0.7),
                   ),
                 ),
               ],

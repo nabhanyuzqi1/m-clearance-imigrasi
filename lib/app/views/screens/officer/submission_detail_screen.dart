@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
@@ -8,7 +9,6 @@ import '../../../localization/app_localizations.dart';
 import '../../../models/clearance_application.dart';
 import '../../../repositories/application_repository.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/functions_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../utils/file_utils.dart';
 import '../../widgets/attachment_status_tile.dart';
@@ -134,6 +134,21 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
 
   Future<void> _handleSendClearance() async {
     if (_isProcessingAction) return;
+    final hasCertificate =
+        _application.clearanceResultFile != null &&
+        _application.clearanceResultFile!.isNotEmpty;
+    if (!hasCertificate) {
+      final warnL10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            warnL10n.get('submissionDetail.generate_clearance_first'),
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
     final l10n = AppLocalizations.of(context);
 
     setState(() {
@@ -190,31 +205,42 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     }
   }
 
-  Future<void> _generateShortLink() async {
+  Future<void> _handleGenerateClearance() async {
     if (_isProcessingAction) return;
+    final l10n = AppLocalizations.of(context);
 
     setState(() {
       _isProcessingAction = true;
-      _processingMessageKey = 'processing_short_link';
+      _processingMessageKey = 'processing_generate_clearance';
     });
 
     try {
-      final functionsService = FunctionsService();
-      final shortLink = await functionsService.generateClearanceShortLink(
-        appId,
+      final officerCorporateName =
+          await _fetchOfficerCorporateName() ?? widget.adminName;
+      final updatedApplication =
+          await repo.generateClearanceCertificate(
+        appId: appId,
+        officerName: widget.adminName,
+        officerCorporateName: officerCorporateName,
       );
 
       if (!mounted) return;
       setState(() {
+        _application = updatedApplication;
         _isProcessingAction = false;
         _processingMessageKey = null;
       });
 
-      // Show dialog with the short link
-      await _showShortLinkDialog(shortLink);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.get('submissionDetail.clearance_generated_success'),
+          ),
+        ),
+      );
     } catch (e, stackTrace) {
       LoggingService().error(
-        'Failed generating short link for application $appId',
+        'Failed generating clearance document for application $appId',
         e,
         stackTrace,
       );
@@ -225,7 +251,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to generate short link'),
+          content: Text(l10n.get('submissionDetail.action_failed')),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -676,7 +702,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
           ],
           if (hasCertificate && _application.shortLink != null) ...[
             _buildShortLinkInfoRow(
-              'Short Link',
+              l10n.get('submissionDetail.short_link_label'),
               _application.shortLink!,
               colorScheme,
             ),
@@ -686,10 +712,9 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
             children: [
               Expanded(
                 child: CustomButton(
-                  text: buttonLabel,
-                  type: CustomButtonType.elevated,
-                  backgroundColor: colorScheme.primary,
-                  onPressed: _isProcessingAction ? null : _handleSendClearance,
+                  text: l10n.get('submissionDetail.generate_clearance'),
+                  type: CustomButtonType.outlined,
+                  onPressed: _isProcessingAction ? null : _handleGenerateClearance,
                   isFullWidth: true,
                 ),
               ),
@@ -705,6 +730,16 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                 ),
               ],
             ],
+          ),
+          SizedBox(height: AppTheme.spacing12),
+          CustomButton(
+            text: buttonLabel,
+            type: CustomButtonType.elevated,
+            backgroundColor: colorScheme.primary,
+            onPressed: (_isProcessingAction || !hasCertificate)
+                ? null
+                : _handleSendClearance,
+            isFullWidth: true,
           ),
         ],
       ),
@@ -754,6 +789,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     String shortLink,
     ColorScheme colorScheme,
   ) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.only(bottom: AppTheme.spacing8),
       child: Row(
@@ -790,9 +826,13 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                 IconButton(
                   icon: Icon(Icons.copy, size: 16, color: colorScheme.primary),
                   onPressed: () {
-                    // Copy short link to clipboard
+                    Clipboard.setData(ClipboardData(text: shortLink));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Short link copied to clipboard')),
+                      SnackBar(
+                        content: Text(
+                          l10n.get('submissionDetail.short_link_copied'),
+                        ),
+                      ),
                     );
                   },
                   padding: EdgeInsets.zero,

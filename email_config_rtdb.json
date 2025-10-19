@@ -48,6 +48,18 @@
       "text": "Hello {name},\n\nYour application requires additional information before we can continue. Please review the remarks in the {accountName} portal.\n\nRegards, {accountName} Team",
       "tags": ["application_rejection"]
     },
+    "accountApproved": {
+      "subject": "Account approved - {accountName}",
+      "html": "<p>Hello {name},</p><p>{statusSummary}</p><p>{actionText}</p><p>Regards,<br />{accountName} Team</p>",
+      "text": "Hello {name},\n\n{statusSummary}\n{actionText}\n\nRegards, {accountName} Team",
+      "tags": ["account_approval"]
+    },
+    "accountRejected": {
+      "subject": "Account update - {accountName}",
+      "html": "<p>Hello {name},</p><p>{statusSummary}</p><p>{actionText}</p><p>Regards,<br />{accountName} Team</p>",
+      "text": "Hello {name},\n\n{statusSummary}\n{actionText}\n\nRegards, {accountName} Team",
+      "tags": ["account_rejection"]
+    },
     "twoFactorCode": {
       "defaultLanguage": "en",
       "tags": ["security", "twofactor"],

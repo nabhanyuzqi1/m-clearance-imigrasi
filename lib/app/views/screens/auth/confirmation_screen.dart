@@ -52,10 +52,12 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       'ConfirmationScreen initialized with language: ${widget.initialLanguage}',
     );
     _selectedLanguage = widget.initialLanguage;
+    _focusNode.addListener(_handleFocusChange);
 
     // Otomatis fokus ke input PIN saat layar dimuat
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      FocusScope.of(context).requestFocus(_focusNode);
+      if (!mounted) return;
+      _ensureKeyboardVisible();
     });
 
     // Ensure user authenticated; if not, go to login
@@ -83,6 +85,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
   void dispose() {
     LoggingService().debug('Disposing ConfirmationScreen resources');
     _codeController.dispose();
+    _focusNode.removeListener(_handleFocusChange);
     _focusNode.dispose();
     _cooldownTimer?.cancel();
     super.dispose();
@@ -168,6 +171,26 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
             SnackBar(content: Text(msg), backgroundColor: AppTheme.errorColor),
           );
         });
+  }
+
+  void _handleFocusChange() {
+    if (_focusNode.hasFocus) {
+      Future.microtask(
+        () => SystemChannels.textInput.invokeMethod('TextInput.show'),
+      );
+    }
+  }
+
+  void _ensureKeyboardVisible() {
+    if (!mounted) {
+      return;
+    }
+    if (!_focusNode.hasFocus) {
+      FocusScope.of(context).requestFocus(_focusNode);
+    }
+    Future.microtask(
+      () => SystemChannels.textInput.invokeMethod('TextInput.show'),
+    );
   }
 
   Future<void> _resendCode({bool silent = false}) async {
@@ -350,7 +373,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
   // Widget kustom untuk input PIN 4 digit
   Widget _buildPinInput() {
     return GestureDetector(
-      onTap: () => _focusNode.requestFocus(),
+      onTap: _ensureKeyboardVisible,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -360,6 +383,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
             child: TextField(
               controller: _codeController,
               focusNode: _focusNode,
+              autofocus: true,
               keyboardType: TextInputType.number,
               maxLength: 4,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],

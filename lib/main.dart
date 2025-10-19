@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -23,11 +24,10 @@ import 'app/providers/theme_provider.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // If you're going to use other Firebase services in the background, such as Firestore,
-  // make sure you call `initializeApp` before using other Firebase services.
   await Firebase.initializeApp();
 
   debugPrint("Handling a background message: ${message.messageId}");
+  await NotificationService.handleBackgroundMessage(message);
 }
 
 void main() async {
@@ -106,24 +106,32 @@ void main() async {
           sound: true,
         );
     await notificationService.ensureInitialised();
-    await notificationService.getFCMToken();
+    await notificationService.syncFcmToken();
   } catch (e) {
     debugPrint('[Startup] Error handling notification permissions: $e');
     await notificationService.ensureInitialised();
   }
 
   // Preload critical assets for better startup performance
-  runApp(
-    MultiProvider(
-      providers: [
-        Provider<AuthService>(create: (_) => AuthService()),
-        ChangeNotifierProvider(create: (_) => LanguageProvider()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
-      ],
-      child: const MyApp(),
-    ),
-  );
+  runZonedGuarded(() {
+    runApp(
+      MultiProvider(
+        providers: [
+          Provider<AuthService>(create: (_) => AuthService()),
+          ChangeNotifierProvider(create: (_) => LanguageProvider()),
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
+          ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
+        ],
+        child: const MyApp(),
+      ),
+    );
+  }, (error, stack) {
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    } else {
+      debugPrint('[Startup] Unhandled error: $error');
+    }
+  });
 }
 
 class MyApp extends StatefulWidget {

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
+import '../../../models/clearance_application.dart';
 import '../../../models/notification_item.dart';
-import '../../../services/notification_service.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/notification_service.dart';
+import '../../../services/user_service.dart';
 import '../../widgets/bouncing_dots_loader.dart';
 import '../../widgets/custom_app_bar.dart';
 
@@ -17,6 +20,8 @@ class NotificationScreen extends StatefulWidget {
 
 class _NotificationScreenState extends State<NotificationScreen> {
   final NotificationService _notificationService = NotificationService();
+  final UserService _userService = UserService();
+  bool _isNavigating = false;
   String _tr(String key) =>
       AppLocalizations.of(context).get('notifications.$key');
 
@@ -87,6 +92,130 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ).showSnackBar(SnackBar(content: Text(_tr('mark_single_read_failed'))));
       }
     }
+  }
+
+  Future<void> _handleNotificationTap(NotificationItem notification) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      if (!notification.isRead) {
+        await _markAsRead(notification.id);
+      }
+      final metadata = notification.metadata;
+      if (metadata.isEmpty) {
+        return;
+      }
+      final applicationId = metadata['applicationId']?.toString();
+      if (applicationId != null && applicationId.isNotEmpty) {
+        await _navigateToApplication(applicationId, metadata);
+        return;
+      }
+      final status = metadata['status']?.toString();
+      if (status != null) {
+        await _navigateToAccountStatus(status);
+      }
+    } catch (e, stackTrace) {
+      LoggingService().error('Failed handling notification tap', e, stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('mark_single_read_failed'))),
+        );
+      }
+    } finally {
+      _isNavigating = false;
+    }
+  }
+
+  Future<void> _navigateToAccountStatus(String status) async {
+    if (!mounted) return;
+    switch (status) {
+      case 'pending_documents':
+        Navigator.pushNamed(
+          context,
+          AppRoutes.uploadDocuments,
+          arguments: {'initialLanguage': widget.initialLanguage},
+        );
+        break;
+      case 'pending_approval':
+        Navigator.pushNamed(
+          context,
+          AppRoutes.registrationPending,
+          arguments: {'initialLanguage': widget.initialLanguage},
+        );
+        break;
+      case 'approved':
+        Navigator.pushNamed(
+          context,
+          AppRoutes.userHome,
+          arguments: {'initialLanguage': widget.initialLanguage},
+        );
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _navigateToApplication(
+    String applicationId,
+    Map<String, dynamic> metadata,
+  ) async {
+    if (!mounted) return;
+    await _showLoadingDialog();
+    ClearanceApplication? application;
+    try {
+      application = await _userService.getApplicationById(applicationId);
+    } catch (e, stackTrace) {
+      LoggingService().error('Failed to fetch application $applicationId', e, stackTrace);
+    } finally {
+      if (mounted) {
+        final navigator = Navigator.of(context, rootNavigator: true);
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
+      }
+    }
+
+    if (application == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('application_not_found'))));
+      }
+      return;
+    }
+
+    final status = metadata['status']?.toString().toLowerCase();
+    if (status == 'revision') {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.clearanceForm,
+        arguments: {
+          'type': application.type,
+          'agentName': application.agentName,
+          'existingApplication': application,
+          'initialLanguage': widget.initialLanguage,
+        },
+      );
+      return;
+    }
+
+    Navigator.pushNamed(
+      context,
+      AppRoutes.clearanceResult,
+      arguments: {
+        'application': application,
+        'initialLanguage': widget.initialLanguage,
+      },
+    );
+  }
+
+  Future<void> _showLoadingDialog() async {
+    if (!mounted) return;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
   }
 
   @override
@@ -232,11 +361,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                   ),
                   child: InkWell(
-                    onTap: () {
-                      if (!notification.isRead) {
-                        _markAsRead(notification.id);
-                      }
-                    },
+                    onTap: () => _handleNotificationTap(notification),
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                     child: Padding(
                       padding: EdgeInsets.all(AppTheme.spacing16),

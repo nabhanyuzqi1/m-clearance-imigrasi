@@ -4,7 +4,10 @@ const { Resend } = require("resend");
 const { logger } = require("firebase-functions");
 const crypto = require("crypto");
 const fs = require("fs");
+const fsp = require("fs/promises");
+const os = require("os");
 const path = require("path");
+const sharp = require("sharp");
 
 // Initialize Admin SDK exactly once
 admin.initializeApp();
@@ -12,6 +15,121 @@ admin.initializeApp();
 // Use default Firestore database everywhere
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
+const messaging = admin.messaging();
+const DEFAULT_ANDROID_CHANNEL = "mclearance_updates";
+
+const SUPPORTED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
+const MAX_IMAGE_DIMENSION = 1600;
+const MIN_IMAGE_BYTES = 40 * 1024;
+
+async function optimizeProfileImage(object) {
+  const name = object.name;
+  const bucketName = object.bucket;
+  if (!name || !bucketName) {
+    return false;
+  }
+
+  const mime = (object.contentType || "").toLowerCase();
+  if (!SUPPORTED_IMAGE_TYPES.has(mime)) {
+    console.log(
+      "[optimizeProfileImage] Unsupported content type for",
+      name,
+      mime,
+    );
+    return false;
+  }
+
+  const bucket = admin.storage().bucket(bucketName);
+  const file = bucket.file(name);
+
+  const tempInputPath = path.join(
+    os.tmpdir(),
+    `profile-${Date.now()}-${path.basename(name).replace(/\s+/g, "_")}`,
+  );
+
+  try {
+    await file.download({ destination: tempInputPath });
+    const originalStats = await fsp.stat(tempInputPath);
+    if (originalStats.size < MIN_IMAGE_BYTES) {
+      console.log(
+        "[optimizeProfileImage] Skipping small image",
+        name,
+        originalStats.size,
+      );
+      await file.setMetadata({
+        metadata: {
+          ...(object.metadata || {}),
+          optimized: "true",
+        },
+      });
+      await fsp.unlink(tempInputPath).catch(() => {});
+      return true;
+    }
+
+    const originalBuffer = await fsp.readFile(tempInputPath);
+    let pipeline = sharp(tempInputPath, { failOnError: false }).rotate();
+    const meta = await pipeline.metadata();
+    pipeline = sharp(tempInputPath, { failOnError: false }).rotate();
+    if (
+      meta.width &&
+      meta.height &&
+      (meta.width > MAX_IMAGE_DIMENSION || meta.height > MAX_IMAGE_DIMENSION)
+    ) {
+      pipeline = pipeline.resize(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, {
+        fit: "inside",
+        withoutEnlargement: true,
+      });
+    }
+    const compressedBuffer = await pipeline
+      .jpeg({ quality: 75, mozjpeg: true })
+      .toBuffer();
+
+    const improvement =
+      originalBuffer.length === 0
+        ? 0
+        : (originalBuffer.length - compressedBuffer.length) /
+          originalBuffer.length;
+
+    if (improvement <= 0.05) {
+      await file.setMetadata({
+        metadata: {
+          ...(object.metadata || {}),
+          optimized: "true",
+        },
+      });
+      await fsp.unlink(tempInputPath).catch(() => {});
+      console.log(
+        "[optimizeProfileImage] Compression gain too small, metadata updated only",
+        name,
+      );
+      return true;
+    }
+
+    await file.save(compressedBuffer, {
+      metadata: {
+        contentType: "image/jpeg",
+        metadata: {
+          ...(object.metadata || {}),
+          optimized: "true",
+        },
+      },
+      resumable: false,
+    });
+
+    await fsp.unlink(tempInputPath).catch(() => {});
+    console.log("[optimizeProfileImage] Optimized profile image", name);
+    return true;
+  } catch (error) {
+    console.error("[optimizeProfileImage] Failed to optimize image", error);
+    await fsp.unlink(tempInputPath).catch(() => {});
+    return false;
+  }
+}
 
 // Helpers
 function requireAuth(context) {
@@ -106,7 +224,131 @@ async function recordNotification(uid, payload = {}) {
   };
 
   await notificationsRef.doc(notifId).set(notificationData, { merge: false });
+  const pushPayload = {
+    id: notifId,
+    title: notificationData.title,
+    body: notificationData.body,
+    type: notificationData.type,
+    extra:
+      payload.extra && typeof payload.extra === "object"
+        ? payload.extra
+        : undefined,
+  };
+  dispatchNotificationPush(uid, pushPayload).catch((error) => {
+    logger.error("[recordNotification] Failed to dispatch push", error);
+  });
   return notifId;
+}
+
+async function dispatchNotificationPush(uid, payload) {
+  try {
+    if (!uid || !payload) return false;
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      return false;
+    }
+
+    const userData = userSnap.data() || {};
+    const preferences = userData.notificationPreferences || {};
+
+    if (preferences.pushEnabled === false || preferences.muteAll === true) {
+      return false;
+    }
+
+    const rawTokens = Array.isArray(userData.messagingTokens)
+      ? userData.messagingTokens
+      : [];
+
+    const tokens = rawTokens
+      .filter((token) => typeof token === "string")
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+
+    if (tokens.length === 0) {
+      return false;
+    }
+
+    const title =
+      payload.title && typeof payload.title === "string"
+        ? payload.title
+        : "M-Clearance ISam";
+    const body =
+      payload.body && typeof payload.body === "string" ? payload.body : "";
+
+    const dataPayload = {
+      notificationId: payload.id ? String(payload.id) : "",
+      type: payload.type != null ? String(payload.type) : "0",
+    };
+    if (payload.extra) {
+      try {
+        dataPayload.metadata = JSON.stringify(payload.extra);
+      } catch (error) {
+        logger.warn(
+          "[dispatchNotificationPush] Failed serialising metadata",
+          error,
+        );
+      }
+    }
+
+    const playSound =
+      preferences.playSound !== false && preferences.muteAll !== true;
+
+    const message = {
+      tokens,
+      notification: {
+        title,
+        body,
+      },
+      data: dataPayload,
+      android: {
+        priority: "high",
+        notification: {
+          channelId: DEFAULT_ANDROID_CHANNEL,
+          sound: playSound ? "default" : undefined,
+        },
+      },
+      apns: {
+        headers: {
+          "apns-priority": "10",
+        },
+        payload: {
+          aps: {
+            sound: playSound ? "default" : undefined,
+          },
+        },
+      },
+    };
+
+    const response = await messaging.sendEachForMulticast(message);
+    const tokensToRemove = [];
+    response.responses.forEach((res, index) => {
+      if (!res.success) {
+        const errorCode = res.error?.code;
+        if (
+          errorCode === "messaging/registration-token-not-registered" ||
+          errorCode === "messaging/invalid-registration-token"
+        ) {
+          tokensToRemove.push(tokens[index]);
+        } else {
+          logger.warn("[dispatchNotificationPush] Push send failure", {
+            code: errorCode,
+            message: res.error?.message,
+          });
+        }
+      }
+    });
+    if (tokensToRemove.length > 0) {
+      await userRef.update({
+        messagingTokens: FieldValue.arrayRemove(...tokensToRemove),
+        messagingTokensUpdatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    return true;
+  } catch (error) {
+    logger.error("[dispatchNotificationPush] Unexpected error", error);
+    return false;
+  }
 }
 
 async function notifyRoles(roles, payload = {}, options = {}) {
@@ -903,6 +1145,59 @@ class EmailConfigService {
 
     const clearanceStatusText = `Hello {name},\n\nVessel: {shipName}\nClearance type: {type}\nStatus: {statusLabel}\n\n{statusSummary}\n{actionText}\n{notesText}\n\nBest regards,\n{accountName} Team\n{supportEmail}`;
 
+    const accountStatusHtml = `<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>{statusHeadline}</title>
+  <style>
+    body { margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Segoe UI', Arial, sans-serif; color: #1f2933; }
+    .wrapper { width: 100%; padding: 24px 0; }
+    .container { max-width: 560px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 16px 40px rgba(14, 165, 233, 0.15); }
+    .hero { background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); text-align: center; padding: 36px 24px; }
+    .hero h1 { margin: 0; font-size: 24px; letter-spacing: 0.4px; color: #ffffff; text-transform: uppercase; }
+    .content { padding: 36px 32px 44px 32px; }
+    .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; background: #f8fafc; }
+    .card h3 { margin: 0 0 12px 0; font-size: 18px; color: #0f172a; }
+    .card p { margin: 0; font-size: 15px; color: #334155; line-height: 1.6; }
+    .footer { border-top: 1px solid #e2e8f0; margin-top: 32px; padding-top: 24px; text-align: center; font-size: 13px; color: #64748b; }
+    .footer a { color: #2563eb; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class=\"wrapper\">
+    <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\">
+      <tr>
+        <td align=\"center\">
+          <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"container\">
+            <tr>
+              <td class=\"hero\">
+                <h1>{accountName}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td class=\"content\">
+                <div class=\"card\">
+                  <h3>{statusHeadline}</h3>
+                  <p>{statusSummary}</p>
+                  <p>{actionText}</p>
+                </div>
+                <div class=\"footer\">
+                  <p>Best regards,<br /><strong>{accountName} Team</strong><br /><a href=\"mailto:{supportEmail}\">{supportEmail}</a></p>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>`;
+
+    const accountStatusText = `Hello {name},\n\n{statusSummary}\n{actionText}\n\nBest regards,\n{accountName} Team\n{supportEmail}`;
+
     return {
       global: {
         apiKey: process.env.RESEND_API_KEY || "",
@@ -960,6 +1255,18 @@ class EmailConfigService {
           html: clearanceStatusHtml,
           text: clearanceStatusText,
           tags: ["application_rejection"],
+        },
+        accountApproved: {
+          subject: "Account approved - {accountName}",
+          html: accountStatusHtml,
+          text: accountStatusText,
+          tags: ["account_approval"],
+        },
+        accountRejected: {
+          subject: "Account update - {accountName}",
+          html: accountStatusHtml,
+          text: accountStatusText,
+          tags: ["account_rejection"],
         },
       },
     };
@@ -1240,6 +1547,23 @@ function emailPreferenceAllowsApplicationUpdates(preferences) {
   if (emailPref && typeof emailPref === "object") {
     if (emailPref.enabled === false) return false;
     if (emailPref.applicationUpdates === false) return false;
+  }
+
+  return true;
+}
+
+function emailPreferenceAllowsAccountUpdates(preferences) {
+  if (preferences === false) return false;
+  if (!preferences || typeof preferences !== "object") return true;
+
+  if (preferences.accountUpdatesEmail === false) return false;
+  if (preferences.accountUpdates === false) return false;
+
+  const emailPref = preferences.email;
+  if (emailPref === false) return false;
+  if (emailPref && typeof emailPref === "object") {
+    if (emailPref.enabled === false) return false;
+    if (emailPref.accountUpdates === false) return false;
   }
 
   return true;
@@ -1701,29 +2025,103 @@ exports.onUserDocUpdate = functions
         });
         console.log("[onUserDocUpdate] Created notification:", notifId);
 
-        const accountName =
-          after.corporateName ||
-          after.fullName ||
-          after.username ||
-          after.email ||
-          uid;
-        await notifyRoles(
-          ["officer", "admin"],
-          {
-            title:
-              statusType === "approved"
-                ? "Account verified"
-                : "Account rejected",
-            body: `Account ${accountName} has been ${statusType}.`,
-            timestamp,
-            type: 0,
-            extra: {
-              status: statusType,
-              targetUid: uid,
-            },
-          },
-          { skipUid: uid },
+        const preferences =
+          after.notificationPreferences ||
+          before.notificationPreferences ||
+          null;
+        const allowAccountEmail = emailPreferenceAllowsAccountUpdates(
+          preferences,
         );
+        const accountEmail = await resolveUserEmail(uid, email);
+        if (allowAccountEmail && accountEmail) {
+          try {
+            const globalSettings = await emailConfig.getGlobalSettings();
+            const portalUrl =
+              typeof globalSettings.portalUrl === "string" &&
+              globalSettings.portalUrl.trim().length > 0
+                ? globalSettings.portalUrl.trim()
+                : "https://mclearanceisam.com";
+            const supportEmail =
+              (globalSettings.supportEmail &&
+                globalSettings.supportEmail.trim()) ||
+              globalSettings.from ||
+              "support@mclearanceisam.com";
+
+            const languageCandidates = [
+              after.preferredLanguage,
+              after.language,
+              after.locale,
+              before.preferredLanguage,
+              before.language,
+              before.locale,
+            ]
+              .map((value) =>
+                typeof value === "string" && value.trim().length > 0
+                  ? value.trim().toLowerCase()
+                  : null,
+              )
+              .filter(Boolean);
+            const language =
+              languageCandidates.length > 0 ? languageCandidates[0] : "en";
+
+            const displayName =
+              after.fullName ||
+              after.corporateName ||
+              after.username ||
+              accountEmail;
+
+            const emailMeta =
+              statusType === "approved"
+                ? {
+                    templateName: "accountApproved",
+                    headline: "Account Approved",
+                    summary:
+                      "Your account has been approved. You can now access the portal.",
+                    action: `Sign in to the portal: ${portalUrl}.`,
+                  }
+                : {
+                    templateName: "accountRejected",
+                    headline: "Account Rejected",
+                    summary:
+                      "We were unable to approve your account at this time.",
+                    action:
+                      after.decisionNote &&
+                      typeof after.decisionNote === "string" &&
+                      after.decisionNote.trim().length > 0
+                        ? `Officer note: ${sanitizeTextNode(
+                            after.decisionNote,
+                          )}`
+                        : `Please contact us at ${supportEmail} for assistance.`,
+                  };
+
+            await sendEmailFromTemplate({
+              templateName: emailMeta.templateName,
+              language,
+              to: accountEmail,
+              replacements: {
+                name: displayName,
+                statusHeadline: emailMeta.headline,
+                statusSummary: emailMeta.summary,
+                actionText: emailMeta.action,
+              },
+              includeSuperAdmin: true,
+              globalSettings,
+              templateSettings: await emailConfig.getTemplateSettings(
+                emailMeta.templateName,
+                language,
+              ),
+            });
+            console.log(
+              "[onUserDocUpdate] Account status email dispatched for:",
+              uid,
+            );
+          } catch (emailError) {
+            console.error(
+              "[onUserDocUpdate] Failed to send account status email",
+              emailError,
+            );
+          }
+        }
       }
     } catch (error) {
       console.error("[onUserDocUpdate] Error:", error);
@@ -1737,6 +2135,127 @@ exports.onUserDocUpdate = functions
  * - Idempotent based on storagePath (gs://bucket/name) or file name
  * - Does NOT modify status; only appends to documents if not already present
  */
+exports.optimizeImageUpload = functions
+  .region("asia-southeast1")
+  .runWith({
+    memory: "2GB",
+    timeoutSeconds: 300,
+  })
+  .storage.object()
+  .onFinalize(async (object) => {
+    try {
+      const contentType = (object.contentType || "").toLowerCase();
+      const filePath = object.name;
+      if (!filePath || !object.bucket) {
+        return;
+      }
+
+      if (!SUPPORTED_IMAGE_TYPES.has(contentType)) {
+        return;
+      }
+
+      const metadata = object.metadata || {};
+      if (metadata.optimized === "true" || metadata.skipOptimize === "true") {
+        return;
+      }
+
+      if (filePath.toLowerCase().endsWith(".svg")) {
+        return;
+      }
+
+      const size = Number(object.size || 0);
+      if (size > 0 && size < MIN_IMAGE_BYTES) {
+        return;
+      }
+
+      const bucket = admin.storage().bucket(object.bucket);
+      const file = bucket.file(filePath);
+      const [originalBuffer] = await file.download();
+      if (!originalBuffer || originalBuffer.length === 0) {
+        return;
+      }
+
+      const normalizedType =
+        contentType === "image/jpg" ? "image/jpeg" : contentType;
+      const imageMetadata = await sharp(originalBuffer).metadata();
+      const shouldResize =
+        (imageMetadata.width && imageMetadata.width > MAX_IMAGE_DIMENSION) ||
+        (imageMetadata.height && imageMetadata.height > MAX_IMAGE_DIMENSION);
+
+      if (!shouldResize && originalBuffer.length <= MIN_IMAGE_BYTES) {
+        await file.setMetadata({
+          contentType: normalizedType,
+          metadata: {
+            ...metadata,
+            optimized: "true",
+            optimizedAt: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+
+      let transformer = sharp(originalBuffer).rotate();
+      if (shouldResize) {
+        transformer = transformer.resize({
+          width: MAX_IMAGE_DIMENSION,
+          height: MAX_IMAGE_DIMENSION,
+          fit: sharp.fit.inside,
+          withoutEnlargement: true,
+        });
+      }
+
+      if (normalizedType === "image/jpeg") {
+        transformer = transformer.jpeg({ quality: 80, mozjpeg: true });
+      } else if (normalizedType === "image/png") {
+        transformer = transformer.png({
+          compressionLevel: 9,
+          adaptiveFiltering: true,
+          palette: true,
+        });
+      } else if (normalizedType === "image/webp") {
+        transformer = transformer.webp({ quality: 80 });
+      }
+
+      const optimizedBuffer = await transformer.toBuffer();
+      const originalSize = originalBuffer.length;
+      const bytesSaved = originalSize - optimizedBuffer.length;
+
+      if (!shouldResize && bytesSaved <= 1024) {
+        await file.setMetadata({
+          contentType: normalizedType,
+          metadata: {
+            ...metadata,
+            optimized: "true",
+            optimizedAt: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+
+      await file.save(optimizedBuffer, {
+        metadata: {
+          contentType: normalizedType,
+          metadata: {
+            ...metadata,
+            optimized: "true",
+            optimizedAt: new Date().toISOString(),
+            originalSize: originalSize.toString(),
+            optimizedSize: optimizedBuffer.length.toString(),
+          },
+        },
+      });
+      console.log(
+        "[optimizeImageUpload] Optimized",
+        filePath,
+        "saved",
+        bytesSaved,
+        "bytes",
+      );
+    } catch (error) {
+      console.error("[optimizeImageUpload] Failed to optimize image", error);
+    }
+  });
+
 exports.onDocumentFinalize = functions
   .region("asia-southeast1")
   .runWith({
@@ -1757,6 +2276,23 @@ exports.onDocumentFinalize = functions
       }
 
       const parts = name.split("/");
+      const isProfileImage =
+        parts.length >= 3 && parts[0] === "users" &&
+        parts[2].startsWith("profile_image");
+
+      if (isProfileImage) {
+        if (object.metadata && object.metadata.optimized === "true") {
+          console.log(
+            "[onDocumentFinalize] Profile image already optimized, skipping",
+            name,
+          );
+          return;
+        }
+
+        await optimizeProfileImage(object);
+        return;
+      }
+
       let uid = null;
       let filename = parts[parts.length - 1] || "document";
 
@@ -1992,6 +2528,8 @@ async function generateClearanceDocument(uid, application, officerUid = null) {
       (application.clearanceCode && application.clearanceCode.trim()) ||
       generateClearanceCodeValue(rawApplicationId, application.type);
 
+    const officerQrPayload = downloadUrl;
+
     const asDate = (value) => {
       if (!value) return null;
       if (typeof value === "number") return new Date(value);
@@ -2089,13 +2627,29 @@ async function generateClearanceDocument(uid, application, officerUid = null) {
         ? officerCorporateClean
         : `${officerCorporateClean} - ${officerNameClean}`;
 
-    const agentQrPayload = `${uid}`;
-    const officerQrPayload = `OFFICER_${officerUid || 'SYSTEM'}`;
+    const agentEmailAddress = sanitizeTextNode(
+      application.agentEmail ||
+        application.email ||
+        application.agentContactEmail ||
+        application.contactEmail ||
+        application.agentUsername ||
+        ""
+    );
+
+    const agentQrPayload = JSON.stringify({
+      type: "agent_signature",
+      clearanceCode,
+      agentUid: uid,
+      corporateName: agentCorporateName,
+      fullName: agentPersonName,
+      email: agentEmailAddress || "N/A",
+      generatedAt: new Date(generatedMillis).toISOString(),
+    });
 
     const headerColumns = [
       {
-        width: 'auto',
-        alignment: 'left',
+        width: "auto",
+        alignment: "left",
         stack: [
           ...(immigrationLogo
             ? [
@@ -2107,40 +2661,29 @@ async function generateClearanceDocument(uid, application, officerUid = null) {
               ]
             : []),
           {
-            text: 'Directorate General of Immigration',
-            style: 'companyHeader',
+            text: "Directorate General of Immigration",
+            style: "companyHeader",
           },
           {
-            text: 'Republic of Indonesia',
-            style: 'companySubheader',
+            text: "Republic of Indonesia",
+            style: "companySubheader",
           },
         ],
       },
       {
-        width: '*',
-        alignment: 'right',
+        width: "*",
+        alignment: "right",
         stack: [
           {
-            width: 90,
-            stack: [
-              {
-                width: 85,
-                stack: [
-                  {
-                    qr: downloadUrl,
-                    fit: 85,
-                    alignment: 'right',
-                  },
-                  // Removed small logo from center top header - keeping only left logo
-                ],
-              },
-            ],
+            text: "Clearance Code",
+            style: "label",
+            alignment: "right",
+            margin: [0, 0, 0, 2],
           },
           {
             text: clearanceCode,
-            style: 'qrLabel',
-            alignment: 'right',
-            margin: [0, 6, 0, 0],
+            style: "qrLabel",
+            alignment: "right",
           },
         ],
       },
@@ -2272,7 +2815,7 @@ async function generateClearanceDocument(uid, application, officerUid = null) {
           margin: [0, 0, 0, 18],
         },
         {
-          text: "The embedded QR code links to the digitally signed certificate stored in the M-Clearance system. Presenting this certificate verifies the authenticity of the clearance decision for the vessel in question.",
+          text: "The QR codes below reference the digitally signed certificate stored in the M-Clearance system. Scanning them verifies the authenticity of this clearance decision.",
           style: "note",
           margin: [0, 0, 0, 24],
         },
@@ -2281,7 +2824,7 @@ async function generateClearanceDocument(uid, application, officerUid = null) {
             {
               width: "*",
               stack: [
-                { text: "Digital Signature Agen", style: "signatureLabel" },
+                { text: "Agent Digital Signature", style: "signatureLabel" },
                 {
                   stack: [
                     {
@@ -2292,19 +2835,33 @@ async function generateClearanceDocument(uid, application, officerUid = null) {
                   ],
                 },
                 {
-                  text: "Digital acknowledgement via M-Clearance",
+                  text: "Acknowledged via M-Clearance",
                   style: "signatureHint",
+                  margin: [0, 6, 0, 4],
+                },
+                {
+                  text: agentDisplayPair,
+                  style: "signatureQrLabel",
+                  margin: [0, 4, 0, 4],
                 },
                 { text: "", margin: [0, 12, 0, 0] },
                 { text: "______________________________", style: "signatureLine" },
                 { text: agentPersonName, style: "signatureName", margin: [0, 6, 0, 0] },
                 { text: agentCorporateName, style: "signatureCorp" },
+                ...(agentEmailAddress
+                  ? [
+                      {
+                        text: agentEmailAddress,
+                        style: "signatureCorp",
+                      },
+                    ]
+                  : []),
               ],
             },
             {
               width: "*",
               stack: [
-                { text: "Digital Signature Officer Imigrasi", style: "signatureLabel" },
+                { text: "Immigration Officer Digital Signature", style: "signatureLabel" },
                 {
                   stack: [
                     {
@@ -2315,12 +2872,23 @@ async function generateClearanceDocument(uid, application, officerUid = null) {
                   ],
                 },
                 {
-                  text: "Ditandatangani secara digital oleh Direktorat Jenderal Imigrasi",
+                  text: "Scan to verify this certificate directly in M-Clearance",
                   style: "signatureHint",
+                  margin: [0, 6, 0, 4],
+                },
+                {
+                  text: officerDisplayPair,
+                  style: "signatureQrLabel",
+                  margin: [0, 4, 0, 4],
                 },
                 { text: "", margin: [0, 12, 0, 0] },
                 { text: "______________________________", style: "signatureLine" },
                 { text: officerNameClean, style: "signatureName", margin: [0, 6, 0, 0] },
+                {
+                  text: "Digitally signed by the Directorate General of Immigration",
+                  style: "signatureHint",
+                  margin: [0, 4, 0, 2],
+                },
                 { text: officerCorporateClean, style: "signatureCorp" },
               ],
             },
@@ -2785,11 +3353,15 @@ exports.sendClearanceCertificate = functions
         data && typeof data.officerName === "string"
           ? data.officerName.trim()
           : "";
-      const providedOfficerCorporate =
-        data && typeof data.officerCorporateName === "string"
-          ? data.officerCorporateName.trim()
-          : "";
+  const providedOfficerCorporate =
+    data && typeof data.officerCorporateName === "string"
+      ? data.officerCorporateName.trim()
+      : "";
 
+  const generateOnly =
+    data && typeof data.generateOnly === "boolean"
+      ? data.generateOnly
+      : false;
       const officerName =
         providedOfficerName ||
         officerData.fullName ||
@@ -2815,45 +3387,92 @@ exports.sendClearanceCertificate = functions
         clearanceCode,
       };
 
-      let downloadUrl;
-      try {
-        downloadUrl = await generateClearanceDocument(
-          agentUid,
-          pdfApplication,
-          officerUid,
-        );
-        console.log("[sendClearanceCertificate] PDF generated successfully:", downloadUrl);
-      } catch (error) {
-        logger.error(
-          "[sendClearanceCertificate] generateClearanceDocument failed",
-          error,
-        );
-        console.error("[sendClearanceCertificate] PDF generation error details:", {
-          message: error.message,
-          stack: error.stack,
-          agentUid,
-          applicationId,
-        });
+      let downloadUrl = application.clearanceResultFile;
+      let documentGeneratedThisCall = false;
+      if (!downloadUrl || generateOnly) {
+        try {
+          downloadUrl = await generateClearanceDocument(
+            agentUid,
+            pdfApplication,
+            officerUid,
+          );
+          documentGeneratedThisCall = true;
+          console.log(
+            "[sendClearanceCertificate] PDF generated successfully:",
+            downloadUrl,
+          );
+        } catch (error) {
+          logger.error(
+            "[sendClearanceCertificate] generateClearanceDocument failed",
+            error,
+          );
+          console.error(
+            "[sendClearanceCertificate] PDF generation error details:",
+            {
+              message: error.message,
+              stack: error.stack,
+              agentUid,
+              applicationId,
+            },
+          );
+          throw new functions.https.HttpsError(
+            "internal",
+            `PDF generation failed: ${error?.message || "Unknown error"}`,
+          );
+        }
+      }
+
+      if (!downloadUrl) {
         throw new functions.https.HttpsError(
           "internal",
-          `PDF generation failed: ${error?.message || "Unknown error"}`,
+          "Unable to resolve clearance document URL.",
         );
       }
 
       const updateTimestamp = FieldValue.serverTimestamp();
-      console.log("[sendClearanceCertificate] Updating application document:", applicationId);
-
-      await applicationRef.update({
+      const updates = {
         clearanceResultFile: downloadUrl,
-        clearanceResultGeneratedAt: updateTimestamp,
-        clearanceResultSentAt: updateTimestamp,
         clearanceResultSignedBy: officerName,
         clearanceResultSignedByCorporate: officerCorporate,
         clearanceCode,
         updatedAt: updateTimestamp,
-      });
+      };
 
-      console.log("[sendClearanceCertificate] Application document updated successfully");
+      if (documentGeneratedThisCall || !application.clearanceResultGeneratedAt) {
+        updates.clearanceResultGeneratedAt = updateTimestamp;
+      }
+
+      if (!generateOnly) {
+        updates.clearanceResultSentAt = updateTimestamp;
+      }
+
+      console.log(
+        "[sendClearanceCertificate] Updating application document:",
+        applicationId,
+        { generateOnly, documentGeneratedThisCall },
+      );
+
+      await applicationRef.update(updates);
+
+      console.log(
+        "[sendClearanceCertificate] Application document updated successfully",
+      );
+
+      if (generateOnly) {
+        const previewResponse = {
+          ok: true,
+          applicationId,
+          downloadUrl,
+          clearanceCode,
+          generated: true,
+          sent: false,
+        };
+        logger.info(
+          "[sendClearanceCertificate] Generated clearance document (preview)",
+          previewResponse,
+        );
+        return previewResponse;
+      }
 
       const safeShipName = sanitizeTextNode(
         application.shipName || application.vesselName || "your vessel",
@@ -3823,18 +4442,18 @@ exports.sendPasswordResetEmailLink = functions
         : await resolveUserName(uid, email);
 
     try {
-      await sendEmailFromTemplate({
-        templateName: "passwordReset",
-        language,
-        to: email,
-        replacements: {
-          name: resolvedName,
-          resetLink,
-        },
-        includeSuperAdmin: true,
-        globalSettings,
-        templateSettings,
-      });
+    await sendEmailFromTemplate({
+      templateName: "passwordReset",
+      language,
+      to: email,
+      replacements: {
+        name: resolvedName,
+        resetLink,
+      },
+      includeSuperAdmin: false,
+      globalSettings,
+      templateSettings,
+    });
     } catch (error) {
       logger.error(
         "[sendPasswordResetEmailLink] Failed to dispatch email",
@@ -4209,6 +4828,44 @@ exports.onApplicationCreate = functions
       type,
       status,
     );
+
+    try {
+      const agentUid = data.agentUid || null;
+      const shipNameRaw =
+        data.shipName || data.vesselName || context.params.appId;
+      const shipName = sanitizeTextNode(shipNameRaw || "New application");
+      const normalizedType =
+        typeof type === "string" && type.length > 0
+          ? type.toLowerCase()
+          : "arrival";
+      const applicationDate =
+        data.date || data.arrivalDate || data.departureDate || null;
+      const timestamp = Timestamp.now();
+
+      await notifyRoles(
+        ["officer", "admin"],
+        {
+          title: "New application submitted",
+          body: `${shipName} (${normalizedType}) submitted for clearance review.`,
+          timestamp,
+          type: 0,
+          extra: {
+            applicationId: context.params.appId,
+            applicationType: normalizedType,
+            applicationDate: applicationDate || null,
+            status,
+            targetUid: agentUid,
+          },
+        },
+        agentUid ? { skipUid: agentUid } : {},
+      );
+      console.log("[onApplicationCreate] Officer notification created");
+    } catch (error) {
+      console.error(
+        "[onApplicationCreate] Failed to notify officers of new application",
+        error,
+      );
+    }
   });
 
 exports.onApplicationUpdate = functions
@@ -4251,6 +4908,42 @@ exports.onApplicationUpdate = functions
         before.status !== "declined" && after.status === "declined";
       const becameRevision =
         before.status !== "revision" && after.status === "revision";
+      const resubmittedByAgent =
+        before.status === "revision" && after.status === "waiting";
+
+      if (resubmittedByAgent) {
+        try {
+          const timestamp = Timestamp.now();
+          const shipName = sanitizeTextNode(
+            after.shipName || before.shipName || context.params.appId,
+          );
+          const typeLabel = (after.type || before.type || "arrival").toString();
+          await notifyRoles(
+            ["officer", "admin"],
+            {
+              title: "Application resubmitted",
+              body: `${shipName} (${typeLabel}) has been updated and resubmitted for review.`,
+              timestamp,
+              type: 0,
+              extra: {
+                applicationId: context.params.appId,
+                applicationType: typeLabel,
+                status: "resubmitted",
+                targetUid: userUid,
+              },
+            },
+            { skipUid: userUid },
+          );
+          console.log(
+            "[onApplicationUpdate] Officer notification created for resubmission",
+          );
+        } catch (error) {
+          console.error(
+            "[onApplicationUpdate] Failed to notify officers of resubmission",
+            error,
+          );
+        }
+      }
       if (!(becameApproved || becameDeclined || becameRevision)) return;
 
       const status = becameApproved
@@ -4348,29 +5041,6 @@ exports.onApplicationUpdate = functions
         },
       });
       console.log("[onApplicationUpdate] Notification created:", notifId);
-
-      await notifyRoles(
-        ["officer", "admin"],
-        {
-          title: "Application status changed",
-          body: `${corporateName || "Applicant"} - ${shipName}${
-            applicationDate ? ` (${applicationDate})` : ""
-          } has been ${
-            status === "revision" ? "marked for revision" : status
-          }.`,
-          type: 0,
-          timestamp,
-          extra: {
-            applicationId: context.params.appId,
-            status,
-            targetUid: userUid,
-            corporateName: corporateName || null,
-            shipName,
-            applicationDate: applicationDate || null,
-          },
-        },
-        { skipUid: userUid },
-      );
 
       try {
         const normalizedType =

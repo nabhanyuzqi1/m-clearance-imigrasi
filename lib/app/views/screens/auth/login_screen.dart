@@ -10,6 +10,7 @@ import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/notification_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../../providers/language_provider.dart';
@@ -71,6 +72,8 @@ class _LoginScreenState extends State<LoginScreen> {
           LoggingService().info(
             'Login successful for user: ${userModel.email}, status: ${userModel.status}',
           );
+          await NotificationService()
+              .startRealtimeListener(force: true);
           switch (userModel.status) {
             case 'approved':
               if (userModel.role == 'admin' || userModel.role == 'officer') {
@@ -207,6 +210,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
     final screenWidth = MediaQuery.of(context).size.width;
     final responsivePadding = AppTheme.responsivePadding(context);
 
@@ -309,30 +314,46 @@ class _LoginScreenState extends State<LoginScreen> {
                       MediaQuery.of(context).padding.top +
                       AppTheme.paddingSmall,
                   right: responsivePadding * 2,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _tr('change_language'),
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.surface,
-                          fontSize: AppTheme.fontSizeBody2,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: 'Poppins',
-                          shadows: [
-                            Shadow(
-                              offset: const Offset(1, 1),
-                              blurRadius: 2,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withAlpha(128),
-                            ),
-                          ],
-                        ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(
+                        alpha: isDarkMode ? 0.55 : 0.45,
                       ),
-                      const SizedBox(width: 8),
-                      _buildLanguageSwitcher(),
-                    ],
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusMedium,
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _tr('change_language'),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: AppTheme.fontSizeBody2,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Poppins',
+                            letterSpacing: 0.2,
+                            shadows: const [
+                              Shadow(
+                                offset: Offset(0, 1),
+                                blurRadius: 2,
+                                color: Colors.black54,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildLanguageSwitcher(),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -399,7 +420,9 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Center(
                 child: Image.asset(
-                  'assets/images/logo.png',
+                  Theme.of(context).brightness == Brightness.dark
+                      ? 'assets/images/isam_logo_white.png'
+                      : 'assets/images/logo.png',
                   height: AppTheme.fontSizeXXXXLarge * 3,
                   errorBuilder: (context, error, stackTrace) => Icon(
                     Icons.directions_boat,
@@ -499,8 +522,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLanguageSwitcher() {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+    final menuColor = isDarkMode
+        ? theme.colorScheme.surfaceContainerHighest
+        : theme.colorScheme.surface;
+
     return PopupMenuButton<String>(
-      icon: Icon(Icons.language, color: Theme.of(context).colorScheme.surface),
+      icon: Icon(Icons.language, color: Colors.white),
+      tooltip: _tr('change_language'),
       onSelected: (String newValue) {
         final languageProvider = Provider.of<LanguageProvider>(
           context,
@@ -509,10 +539,22 @@ class _LoginScreenState extends State<LoginScreen> {
         languageProvider.setLocale(Locale(newValue.toLowerCase()));
       },
       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        PopupMenuItem<String>(value: 'EN', child: Text(_tr('english'))),
-        PopupMenuItem<String>(value: 'ID', child: Text(_tr('indonesian'))),
+        PopupMenuItem<String>(
+          value: 'EN',
+          child: Text(
+            _tr('english'),
+            style: TextStyle(color: theme.colorScheme.onSurface),
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'ID',
+          child: Text(
+            _tr('indonesian'),
+            style: TextStyle(color: theme.colorScheme.onSurface),
+          ),
+        ),
       ],
-      color: Theme.of(context).colorScheme.surface,
+      color: menuColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       ),

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -24,9 +27,14 @@ class NotificationService {
       MethodChannel('com.android.imigrasi/notifications');
 
   bool _isInitialised = false;
+  StreamSubscription<String>? _tokenRefreshSubscription;
   NotificationPreferences? _cachedPreferences;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+      _realtimeSubscription;
+  final Set<String> _knownNotificationIds = <String>{};
+  bool _initialSnapshotProcessed = false;
 
-  static const AndroidNotificationChannel _defaultAndroidChannel =
+    static const AndroidNotificationChannel _defaultAndroidChannel =
       AndroidNotificationChannel(
     'mclearance_updates',
     'M-Clearance Updates',
@@ -37,8 +45,63 @@ class NotificationService {
     showBadge: true,
   );
 
+  static Future<void> handleBackgroundMessage(RemoteMessage message) async {
+    if (kIsWeb) {
+      return;
+    }
+    try {
+      final plugin = FlutterLocalNotificationsPlugin();
+      const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
+      const darwinSettings = DarwinInitializationSettings();
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: darwinSettings,
+      );
+      await plugin.initialize(initSettings);
+      await plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(_defaultAndroidChannel);
+      final notification = message.notification;
+      final title = notification?.title ?? message.data['title'] ?? 'M-Clearance';
+      final body = notification?.body ?? message.data['body'] ?? '';
+      final details = NotificationDetails(
+        android: AndroidNotificationDetails(
+          _defaultAndroidChannel.id,
+          _defaultAndroidChannel.name,
+          channelDescription: _defaultAndroidChannel.description,
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+        ),
+        iOS: const DarwinNotificationDetails(),
+      );
+      await plugin.show(
+        DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title,
+        body,
+        details,
+        payload: message.data.isEmpty ? null : jsonEncode(message.data),
+      );
+    } catch (error, stackTrace) {
+      LoggingService().warning(
+        'Failed handling background notification',
+        error,
+        stackTrace,
+      );
+    }
+  }
+
   Future<void> ensureInitialised() async {
     if (_isInitialised) return;
+
+    if (kIsWeb) {
+      LoggingService().debug(
+        'NotificationService initialisation skipped on web platform',
+      );
+      _isInitialised = true;
+      return;
+    }
 
     const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
     const darwinSettings = DarwinInitializationSettings();
@@ -59,7 +122,145 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_defaultAndroidChannel);
 
+    _tokenRefreshSubscription ??=
+        FirebaseMessaging.instance.onTokenRefresh.listen(
+      (token) async {
+        await _persistFcmToken(token);
+      },
+      onError: (error, stackTrace) {
+        LoggingService().warning(
+          'FCM token refresh listener error',
+          error,
+          stackTrace,
+        );
+      },
+    );
+
     _isInitialised = true;
+  }
+
+  Future<void> startRealtimeListener({bool force = false}) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      await stopRealtimeListener();
+      return;
+    }
+
+    if (_realtimeSubscription != null && !force) {
+      return;
+    }
+
+    await _realtimeSubscription?.cancel();
+    _knownNotificationIds.clear();
+    _initialSnapshotProcessed = false;
+
+    await ensureInitialised();
+
+    if (!kIsWeb) {
+      await requestPermissions();
+      await syncFcmToken();
+    }
+
+    final currentUid = user.uid;
+
+    _realtimeSubscription = _firestore
+        .collection('notifications')
+        .doc(user.uid)
+        .collection('items')
+        .orderBy('date', descending: true)
+        .limit(25)
+        .snapshots()
+        .listen(
+      (snapshot) async {
+        if (!_initialSnapshotProcessed) {
+          _knownNotificationIds
+              .addAll(snapshot.docs.map((doc) => doc.id));
+          _initialSnapshotProcessed = true;
+          return;
+        }
+
+        if (snapshot.docChanges.isEmpty) {
+          return;
+        }
+
+        final prefs = await getPreferences();
+        var deliveredNotification = false;
+
+        for (final change in snapshot.docChanges) {
+          final docId = change.doc.id;
+
+          if (change.type == DocumentChangeType.removed) {
+            _knownNotificationIds.remove(docId);
+            continue;
+          }
+
+          if (change.type != DocumentChangeType.added) {
+            continue;
+          }
+
+          if (_knownNotificationIds.contains(docId)) {
+            continue;
+          }
+          _knownNotificationIds.add(docId);
+
+          final item = NotificationItem.fromFirestore(change.doc);
+          if (item.userId != currentUid) {
+            LoggingService().warning(
+              'Discarding notification ${item.id} with mismatched userId ${item.userId}',
+            );
+            continue;
+          }
+          if (item.isRead) {
+            continue;
+          }
+          if (!prefs.pushEnabled || prefs.muteAll) {
+            continue;
+          }
+          if (kIsWeb) {
+            LoggingService().debug(
+              'Skipping local notification display on web (notification ${item.id})',
+            );
+            continue;
+          }
+          final payload = jsonEncode({
+            'notificationId': item.id,
+            'metadata': item.metadata,
+          });
+          final title =
+              item.title.isEmpty ? 'Notification' : item.title;
+          await _showLocalNotification(
+            title,
+            item.body,
+            payload,
+            preferences: prefs,
+          );
+          deliveredNotification = true;
+        }
+
+        if (deliveredNotification &&
+            !kIsWeb &&
+            prefs.pushEnabled &&
+            prefs.badgeEnabled &&
+            !prefs.muteAll) {
+          final unread = await _getUnreadCount();
+          await _updateAndroidBadge(unread);
+        }
+      },
+      onError: (error, stackTrace) {
+        LoggingService().error(
+          'Realtime notification listener error',
+          error,
+          stackTrace,
+        );
+      },
+    );
+  }
+
+  Future<void> stopRealtimeListener() async {
+    await _realtimeSubscription?.cancel();
+    _realtimeSubscription = null;
+    _knownNotificationIds.clear();
+    _initialSnapshotProcessed = false;
   }
 
   // Get user's notifications
@@ -114,7 +315,9 @@ class NotificationService {
 
       await notifRef.update({'isRead': true});
       final unread = await _getUnreadCount();
-      await _updateAndroidBadge(unread);
+      if (unread == 0) {
+        await _updateAndroidBadge(0);
+      }
       return true;
     } catch (e) {
       LoggingService().error('Error marking notification as read', e);
@@ -142,7 +345,9 @@ class NotificationService {
 
       await batch.commit();
       final unread = await _getUnreadCount();
-      await _updateAndroidBadge(unread);
+      if (unread == 0) {
+        await _updateAndroidBadge(0);
+      }
       return true;
     } catch (e) {
       LoggingService().error('Error marking all notifications as read', e);
@@ -162,7 +367,9 @@ class NotificationService {
           .collection('items')
           .add(notification.toFirestore());
       final unread = await _getUnreadCount();
-      await _updateAndroidBadge(unread);
+      if (unread == 0) {
+        await _updateAndroidBadge(0);
+      }
       return docRef.id;
     } catch (e) {
       LoggingService().error('Error creating notification', e);
@@ -186,7 +393,9 @@ class NotificationService {
       if (!snap.exists) return false;
       await notifRef.delete();
       final unread = await _getUnreadCount();
-      await _updateAndroidBadge(unread);
+      if (unread == 0) {
+        await _updateAndroidBadge(0);
+      }
       return true;
     } catch (e) {
       LoggingService().error('Error deleting notification', e);
@@ -261,6 +470,12 @@ class NotificationService {
   // Request notification permissions
   Future<NotificationSettings?> requestPermissions() async {
     try {
+      if (kIsWeb) {
+        LoggingService().debug(
+          'Skipping notification permission prompt on web platform',
+        );
+        return null;
+      }
       final settings = await FirebaseMessaging.instance.requestPermission(
         alert: true,
         badge: true,
@@ -277,6 +492,9 @@ class NotificationService {
   // Check notification permission status
   Future<NotificationSettings?> checkPermissionStatus() async {
     try {
+      if (kIsWeb) {
+        return null;
+      }
       final settings = await FirebaseMessaging.instance
           .getNotificationSettings();
       return settings;
@@ -292,6 +510,10 @@ class NotificationService {
   // Get FCM token
   Future<String?> getFCMToken() async {
     try {
+      if (kIsWeb) {
+        LoggingService().debug('Skipping FCM token retrieval on web');
+        return null;
+      }
       final token = await FirebaseMessaging.instance.getToken();
       LoggingService().info(
         'FCM Token retrieved: ${token != null ? 'Present' : 'Null'}',
@@ -303,8 +525,92 @@ class NotificationService {
     }
   }
 
+  Future<void> syncFcmToken() async {
+    if (kIsWeb) {
+      return;
+    }
+    final user = _auth.currentUser;
+    if (user == null) {
+      return;
+    }
+    try {
+      await ensureInitialised();
+      final token = await getFCMToken();
+      await _persistFcmToken(token);
+    } catch (e, stackTrace) {
+      LoggingService().warning(
+        'Failed syncing FCM token',
+        e,
+        stackTrace,
+      );
+    }
+  }
+
+  Future<void> clearFcmToken() async {
+    if (kIsWeb) {
+      return;
+    }
+    final user = _auth.currentUser;
+    if (user == null) {
+      await deleteFcmToken();
+      return;
+    }
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _firestore.collection('users').doc(user.uid).set(
+          {
+            'messagingTokens': FieldValue.arrayRemove([token]),
+            'messagingTokensUpdatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+    } catch (e, stackTrace) {
+      LoggingService().warning(
+        'Failed removing FCM token from Firestore',
+        e,
+        stackTrace,
+      );
+    } finally {
+      await deleteFcmToken();
+    }
+  }
+
+  Future<void> _persistFcmToken(String? token) async {
+    if (kIsWeb) {
+      return;
+    }
+    final resolvedToken = token ?? '';
+    if (resolvedToken.isEmpty) {
+      return;
+    }
+    final user = _auth.currentUser;
+    if (user == null) {
+      return;
+    }
+    try {
+      await _firestore.collection('users').doc(user.uid).set(
+        {
+          'messagingTokens': FieldValue.arrayUnion([resolvedToken]),
+          'messagingTokensUpdatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    } catch (e, stackTrace) {
+      LoggingService().warning(
+        'Failed persisting FCM token',
+        e,
+        stackTrace,
+      );
+    }
+  }
+
   Future<void> deleteFcmToken() async {
     try {
+      if (kIsWeb) {
+        return;
+      }
       await FirebaseMessaging.instance.deleteToken();
       LoggingService().info('FCM token deleted');
     } catch (e) {
@@ -405,6 +711,13 @@ class NotificationService {
     await ensureInitialised();
     final prefs = preferences ?? await getPreferences();
 
+    if (kIsWeb) {
+      LoggingService().debug(
+        'Suppressing local notification on web: $title',
+      );
+      return;
+    }
+
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       final unreadCount = prefs.badgeEnabled ? await _getUnreadCount() + 1 : 0;
       try {
@@ -430,6 +743,10 @@ class NotificationService {
     String? payload,
     NotificationPreferences prefs,
   ) async {
+    if (kIsWeb) {
+      return;
+    }
+    final badgeNumber = prefs.badgeEnabled ? await _getUnreadCount() : null;
     final androidDetails = AndroidNotificationDetails(
       _defaultAndroidChannel.id,
       _defaultAndroidChannel.name,
@@ -441,6 +758,7 @@ class NotificationService {
       channelShowBadge: prefs.badgeEnabled,
       icon: '@mipmap/launcher_icon',
       ticker: title,
+      number: badgeNumber,
     );
 
     const darwinDetails = DarwinNotificationDetails();

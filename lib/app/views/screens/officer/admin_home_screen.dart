@@ -121,6 +121,8 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
   final FunctionsService _functionsService = FunctionsService();
   final AuthService _authService = AuthService();
   final NotificationService _notificationService = NotificationService();
+  final OfficerService _officerService = OfficerService();
+  late final Stream<List<OfficerActivity>> _recentActivitiesStream;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _dashboardSubscription;
@@ -136,6 +138,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     super.initState();
     _fetchInitialStats();
     _listenToRealtimeCounters();
+    _recentActivitiesStream = _officerService.getOfficerActivities(limit: 3);
   }
 
   @override
@@ -289,6 +292,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                 : fallbackFullName;
 
             final displayPhotoUrl = userAccount?.photoURL ?? widget.photoURL;
+            final avatarSize = screenWidth * 0.16;
 
             LoggingService().info(
               'Admin Home Screen: photoURL = $displayPhotoUrl',
@@ -302,38 +306,52 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                   children: [
                     (displayPhotoUrl != null && displayPhotoUrl.isNotEmpty)
                         ? ClipOval(
-                            child: Image.network(
-                              displayPhotoUrl,
-                              width: screenWidth * 0.16,
-                              height: screenWidth * 0.16,
-                              fit: BoxFit.cover,
-                              errorBuilder:
-                                  (
-                                    BuildContext context,
-                                    Object error,
-                                    StackTrace? stackTrace,
-                                  ) {
-                                    LoggingService().error(
-                                      'Profile image load failed: $error',
-                                      error,
-                                      stackTrace,
-                                    );
-                                    return Image.asset(
-                                      'assets/images/logo.png',
-                                      width: screenWidth * 0.16,
-                                      height: screenWidth * 0.16,
-                                      fit: BoxFit.cover,
-                                    );
-                                  },
+                            child: SizedBox(
+                              width: avatarSize,
+                              height: avatarSize,
+                              child: Image.network(
+                                displayPhotoUrl,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (
+                                  context,
+                                  child,
+                                  loadingProgress,
+                                ) {
+                                  if (loadingProgress == null) return child;
+                                  return SkeletonLoader(
+                                    width: avatarSize,
+                                    height: avatarSize,
+                                    borderRadius: BorderRadius.circular(avatarSize),
+                                  );
+                                },
+                                errorBuilder:
+                                    (
+                                      BuildContext context,
+                                      Object error,
+                                      StackTrace? stackTrace,
+                                    ) {
+                                      LoggingService().error(
+                                        'Profile image load failed: $error',
+                                        error,
+                                        stackTrace,
+                                      );
+                                      return Image.asset(
+                                        'assets/images/logo.png',
+                                        width: avatarSize,
+                                        height: avatarSize,
+                                        fit: BoxFit.cover,
+                                      );
+                                    },
+                              ),
                             ),
                           )
                         : CircleAvatar(
-                            radius: screenWidth * 0.08,
+                            radius: avatarSize * 0.5,
                             backgroundColor:
                                 colorScheme.surfaceContainerHighest,
                             child: Icon(
                               Icons.person,
-                              size: screenWidth * 0.08,
+                              size: avatarSize * 0.5,
                               color: colorScheme.onSurfaceVariant,
                             ),
                           ),
@@ -440,7 +458,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                 Text(tr('recent_activities'), style: textTheme.titleLarge),
                 SizedBox(height: verticalSpacing),
                 StreamBuilder<List<OfficerActivity>>(
-                  stream: OfficerService().getOfficerActivities(limit: 3),
+                  stream: _recentActivitiesStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const SkeletonListLoader(itemCount: 3);

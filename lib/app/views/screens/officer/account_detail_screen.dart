@@ -15,6 +15,7 @@ import '../../widgets/custom_app_bar.dart';
 import '../../widgets/attachment_status_tile.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/bouncing_dots_loader.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AccountDetailScreen extends StatefulWidget {
   final String uid;
@@ -541,15 +542,35 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
 
   Future<void> _openDocumentUrl(String url) async {
     if (url.isEmpty) return;
+    final uri = Uri.tryParse(url);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (launched) {
+        return;
+      }
+    }
+
     final fileName = getFileNameFromUrl(url);
     if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            DocumentViewScreen(storagePath: url, fileName: fileName),
-      ),
-    );
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              DocumentViewScreen(storagePath: url, fileName: fileName),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).get('submissionDetail.failed_to_download_document')),
+        ),
+      );
+    }
   }
 
   Map<String, dynamic> _statusDescriptor(String status) {

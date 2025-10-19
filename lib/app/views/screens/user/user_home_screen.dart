@@ -255,19 +255,14 @@ class UserMenuScreen extends StatefulWidget {
 }
 
 class _UserMenuScreenState extends State<UserMenuScreen> {
-  late final TextEditingController _shortLinkController;
-  late final bool _isProcessingShortLink;
 
   @override
   void initState() {
     super.initState();
-    _shortLinkController = TextEditingController();
-    _isProcessingShortLink = false;
   }
 
   @override
   void dispose() {
-    _shortLinkController.dispose();
     super.dispose();
   }
 
@@ -279,6 +274,7 @@ class _UserMenuScreenState extends State<UserMenuScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.06;
     final verticalSpacing = screenWidth * 0.04;
+    final avatarSize = screenWidth * 0.16;
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -306,39 +302,53 @@ class _UserMenuScreenState extends State<UserMenuScreen> {
               children: [
                 widget.userAccount.profileImageUrl != null
                     ? ClipOval(
-                        child: Image.network(
-                          widget.userAccount.profileImageUrl!,
-                          width: screenWidth * 0.16,
-                          height: screenWidth * 0.16,
-                          fit: BoxFit.cover,
-                          errorBuilder:
-                              (
-                                BuildContext context,
-                                Object error,
-                                StackTrace? stackTrace,
-                              ) {
-                                LoggingService().error(
-                                  'Profile image load failed: $error',
-                                  error,
-                                  stackTrace,
-                                );
-                                return Image.asset(
-                                  'assets/images/logo.png',
-                                  width: screenWidth * 0.16,
-                                  height: screenWidth * 0.16,
-                                  fit: BoxFit.cover,
-                                );
-                              },
+                        child: SizedBox(
+                          width: avatarSize,
+                          height: avatarSize,
+                          child: Image.network(
+                            widget.userAccount.profileImageUrl!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (
+                              context,
+                              child,
+                              loadingProgress,
+                            ) {
+                              if (loadingProgress == null) return child;
+                              return SkeletonLoader(
+                                width: avatarSize,
+                                height: avatarSize,
+                                borderRadius: BorderRadius.circular(avatarSize),
+                              );
+                            },
+                            errorBuilder:
+                                (
+                                  BuildContext context,
+                                  Object error,
+                                  StackTrace? stackTrace,
+                                ) {
+                                  LoggingService().error(
+                                    'Profile image load failed: $error',
+                                    error,
+                                    stackTrace,
+                                  );
+                                  return Image.asset(
+                                    'assets/images/logo.png',
+                                    width: avatarSize,
+                                    height: avatarSize,
+                                    fit: BoxFit.cover,
+                                  );
+                                },
+                          ),
                         ),
                       )
                     : CircleAvatar(
-                        radius: screenWidth * 0.08,
+                        radius: avatarSize * 0.5,
                         backgroundColor: Theme.of(
                           context,
                         ).colorScheme.surfaceContainerHighest,
                         child: Icon(
                           Icons.person,
-                          size: screenWidth * 0.08,
+                          size: avatarSize * 0.5,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),

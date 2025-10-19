@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
 import 'package:m_clearance_imigrasi/app/models/security_settings.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
 import 'package:m_clearance_imigrasi/app/services/cache_manager.dart';
@@ -14,6 +15,7 @@ import 'package:m_clearance_imigrasi/app/services/security_service.dart';
 import 'package:m_clearance_imigrasi/app/utils/biometric_authenticator.dart';
 import 'package:m_clearance_imigrasi/app/utils/device_utils.dart';
 import 'package:m_clearance_imigrasi/app/utils/storage_reference_utils.dart';
+import 'package:m_clearance_imigrasi/app/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class UploadedDocumentDescriptor {
@@ -228,13 +230,16 @@ class AuthService {
           .createUserWithEmailAndPassword(email: email, password: password);
       final User? user = userCredential.user;
       if (user != null) {
+        final sanitizedNationality =
+            nationality.trim().isEmpty ? 'N/A' : nationality.trim();
+
         final newUser = UserModel(
           uid: user.uid,
           email: email,
-          corporateName: corporateName,
-          username: username,
-          fullName: fullName,
-          nationality: nationality,
+          corporateName: corporateName.trim(),
+          username: username.trim(),
+          fullName: fullName.trim(),
+          nationality: sanitizedNationality,
           role: 'user',
           status: 'pending_email_verification',
           isEmailVerified: false,
@@ -244,23 +249,44 @@ class AuthService {
           documents: [],
         );
 
-        try {
-          await _firestore
-              .collection('users')
-              .doc(user.uid)
-              .set(newUser.toFirestore());
-        } catch (firestoreError) {
-          LoggingService().error(
-            'Error writing user document during registration, rolling back auth user',
-            firestoreError,
-          );
-          await user.delete().catchError((deleteError) {
-            LoggingService().warning(
-              'Failed deleting auth user after Firestore write failure',
-              deleteError,
-            );
-          });
-          rethrow;
+        final userDocRef = _firestore.collection('users').doc(user.uid);
+        const maxAttempts = 3;
+        for (var attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            await userDocRef.set(newUser.toFirestore());
+            break;
+          } catch (firestoreError) {
+            if (attempt == maxAttempts - 1) {
+              LoggingService().error(
+                'Error writing user document during registration, rolling back auth user',
+                firestoreError,
+              );
+              await user.delete().catchError((deleteError) {
+                LoggingService().warning(
+                  'Failed deleting auth user after Firestore write failure',
+                  deleteError,
+                );
+              });
+              rethrow;
+            }
+            await Future.delayed(Duration(milliseconds: 200 * (attempt + 1)));
+          }
+        }
+
+        final snapshot = await userDocRef.get();
+        final data = snapshot.data();
+        if (!snapshot.exists || data == null) {
+          throw StateError('User document missing after registration');
+        }
+
+        final criticalFields = ['corporateName', 'username', 'fullName', 'email'];
+        final missing = criticalFields.where((field) {
+          final value = data[field];
+          return value is! String || value.trim().isEmpty;
+        }).toList();
+        if (missing.isNotEmpty) {
+          final missingList = missing.join(', ');
+          throw StateError('User document incomplete: missing $missingList');
         }
 
         FunctionsService()
@@ -270,6 +296,7 @@ class AuthService {
         });
 
         return newUser;
+
       }
       return null;
     } on FirebaseAuthException catch (e) {
@@ -595,7 +622,10 @@ class AuthService {
         }
 
         await docRef.update(updates);
-        final result = await getUserData(user.uid);
+        final result = await getUserData(user.uid, forceRefresh: true);
+        if (result != null) {
+          await _cacheManager.cacheUserData(result.toJson());
+        }
         LoggingService().debug(
           'updateEmailVerified: returning userModel with status ${result?.status}',
         );
@@ -816,6 +846,8 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    final notificationService = NotificationService();
+    await notificationService.clearFcmToken();
     await _firebaseAuth.signOut();
     await _ensureCacheManagerInitialized();
     final prefs = await SharedPreferences.getInstance();
@@ -823,6 +855,7 @@ class AuthService {
     await prefs.remove('officer_selected_index');
     // Clear cache on sign out
     await _cacheManager.clearUserDataCache();
+    await notificationService.stopRealtimeListener();
   }
 
   /// Clear user data cache (useful when user data is updated)
@@ -834,18 +867,29 @@ class AuthService {
   /// Download file data from Firebase Storage using download URL or storage path
   Future<Uint8List?> downloadFileData(String filePathOrUrl) async {
     try {
-      // Validate the input
       if (filePathOrUrl.isEmpty) {
         LoggingService().error('File path or URL is empty');
         return null;
       }
 
-      final normalized = filePathOrUrl.trim();
-      final ref = (normalized.startsWith('http://') ||
-              normalized.startsWith('https://') ||
-              normalized.startsWith('gs://'))
+      var normalized = filePathOrUrl.trim();
+      final resolvedUrl = await _resolveShortUrlIfNeeded(normalized);
+      if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+        normalized = resolvedUrl.trim();
+      }
+
+      final bool isHttpUrl =
+          normalized.startsWith('http://') || normalized.startsWith('https://');
+      final bool isStorageUrl = _looksLikeFirebaseStorageUrl(normalized);
+
+      if (isHttpUrl && !isStorageUrl) {
+        return await _downloadViaHttpUrl(normalized);
+      }
+
+      final Reference ref = isStorageUrl || normalized.startsWith('gs://')
           ? _storage.refFromURL(normalized)
           : _storage.ref().child(normalized);
+
       const int maxDownloadSize = 25 * 1024 * 1024; // Cap download to 25MB
       final data = await ref.getData(maxDownloadSize);
 
@@ -860,7 +904,6 @@ class AuthService {
         'Error downloading file data from $filePathOrUrl: $e',
       );
 
-      // Handle specific Firebase exceptions
       if (kIsWeb && e.toString().contains('FirebaseException')) {
         LoggingService().error('A web-specific Firebase error occurred: $e');
       } else if (e.toString().contains('ClientException') ||
@@ -870,6 +913,73 @@ class AuthService {
         );
       }
 
+      return null;
+    }
+  }
+
+  Future<String?> _resolveShortUrlIfNeeded(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    final bool isShortDomain =
+        uri.host.contains('mclearanceisam.com') || uri.host.contains('mclearanceisam.co');
+
+    if (uri.pathSegments.isEmpty) return null;
+    if (!isShortDomain || uri.pathSegments.first != 's') return null;
+
+    final shortId = uri.pathSegments.last;
+    if (shortId.isEmpty) return null;
+
+    try {
+      final doc =
+          await _firestore.collection('shortUrls').doc(shortId).get();
+      if (!doc.exists) {
+        LoggingService().warning('Short URL $shortId not found in Firestore');
+        return null;
+      }
+      final data = doc.data();
+      final originalUrl = data?['originalUrl'] as String?;
+      if (originalUrl == null || originalUrl.trim().isEmpty) {
+        LoggingService().warning(
+          'Short URL $shortId missing originalUrl mapping',
+        );
+        return null;
+      }
+      LoggingService().debug('Resolved short URL $shortId to storage URL');
+      return originalUrl;
+    } catch (e) {
+      LoggingService().error('Failed to resolve short URL $url', e);
+      return null;
+    }
+  }
+
+  bool _looksLikeFirebaseStorageUrl(String url) {
+    if (url.startsWith('gs://')) {
+      return true;
+    }
+    final lower = url.toLowerCase();
+    return lower.contains('firebasestorage.googleapis.com') ||
+        lower.contains('.storage.googleapis.com');
+  }
+
+  Future<Uint8List?> _downloadViaHttpUrl(String url) async {
+    try {
+      final uri = Uri.tryParse(url);
+      if (uri == null) {
+        LoggingService().error('Invalid URL for HTTP download: $url');
+        return null;
+      }
+
+      final response = await http.get(uri);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.bodyBytes;
+      }
+
+      LoggingService().error(
+        'HTTP download failed (${response.statusCode}) for $url',
+      );
+      return null;
+    } catch (e) {
+      LoggingService().error('HTTP download error for $url: $e');
       return null;
     }
   }
