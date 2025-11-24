@@ -3856,9 +3856,17 @@ exports.getOfficerMonthlyStats = functions
 
     const now = new Date();
     const startInput =
-      typeof data?.startDate === "string" ? new Date(data.startDate) : null;
+      typeof data?.startDate === "number"
+        ? new Date(data.startDate)
+        : typeof data?.startDate === "string"
+          ? new Date(data.startDate)
+          : null;
     const endInput =
-      typeof data?.endDate === "string" ? new Date(data.endDate) : null;
+      typeof data?.endDate === "number"
+        ? new Date(data.endDate)
+        : typeof data?.endDate === "string"
+          ? new Date(data.endDate)
+          : null;
 
     const start =
       startInput && !Number.isNaN(startInput.getTime())
@@ -3869,169 +3877,127 @@ exports.getOfficerMonthlyStats = functions
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
 
+    if (start > end) {
+      const tmp = new Date(start);
+      start.setTime(end.getTime());
+      end.setTime(tmp.getTime());
+    }
+
     const startTs = Timestamp.fromDate(start);
     const endTs = Timestamp.fromDate(end);
 
     const applicationsCol = db.collection("applications");
     const usersCol = db.collection("users");
 
-    async function countQuery(query, label) {
-      try {
-        const snapshot = await query
-          .select(admin.firestore.FieldPath.documentId())
-          .get();
-        logger.info(
-          `[getOfficerMonthlyStats] ${label} returned ${snapshot.size} docs`,
-        );
-        return snapshot.size;
-      } catch (error) {
-        logger.error(`[getOfficerMonthlyStats] ${label} query failed`, error);
-        return 0;
+    async function collectApplicationCounts() {
+      const counts = {
+        arrival: { pending: 0, approved: 0, declined: 0 },
+        departure: { pending: 0, approved: 0, declined: 0 },
+      };
+
+      const docs = new Map();
+
+      async function addSnapshot(query, label) {
+        try {
+          const snapshot = await query
+            .select("status", "type", "createdAt", "updatedAt")
+            .get();
+          logger.info(
+            `[getOfficerMonthlyStats] ${label} returned ${snapshot.size} docs`,
+          );
+          for (const doc of snapshot.docs) {
+            if (!docs.has(doc.id)) {
+              docs.set(doc.id, doc.data());
+            }
+          }
+        } catch (error) {
+          logger.error(`[getOfficerMonthlyStats] ${label} query failed`, error);
+        }
       }
+
+      // Include records created OR updated within the range.
+      await Promise.all([
+        addSnapshot(
+          applicationsCol
+            .where("createdAt", ">=", startTs)
+            .where("createdAt", "<=", endTs),
+          "applications_created_range",
+        ),
+        addSnapshot(
+          applicationsCol
+            .where("updatedAt", ">=", startTs)
+            .where("updatedAt", "<=", endTs),
+          "applications_updated_range",
+        ),
+      ]);
+
+      for (const data of docs.values()) {
+        const type = data.type === "departure" ? "departure" : "arrival";
+        const status = data.status;
+        const bucket = counts[type];
+
+        if (status === "approved") bucket.approved += 1;
+        else if (status === "declined") bucket.declined += 1;
+        else bucket.pending += 1;
+      }
+
+      return counts;
     }
 
-    const [
-      arrivalTotal,
-      arrivalPending,
-      arrivalApproved,
-      arrivalDeclined,
-      arrivalRevision,
-      arrivalProduced,
-      departureTotal,
-      departurePending,
-      departureApproved,
-      departureDeclined,
-      departureRevision,
-      departureProduced,
-      accountsTotal,
-      accountsPending,
-      accountsApproved,
-      accountsRejected,
-    ] = await Promise.all([
-      countQuery(
-        applicationsCol
-          .where("type", "==", "arrival")
-          .where("createdAt", ">=", startTs)
-          .where("createdAt", "<=", endTs),
-        "arrival_total",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "arrival")
-          .where("status", "==", "waiting")
-          .where("createdAt", ">=", startTs)
-          .where("createdAt", "<=", endTs),
-        "arrival_pending",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "arrival")
-          .where("status", "==", "approved")
-          .where("updatedAt", ">=", startTs)
-          .where("updatedAt", "<=", endTs),
-        "arrival_approved",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "arrival")
-          .where("status", "==", "declined")
-          .where("updatedAt", ">=", startTs)
-          .where("updatedAt", "<=", endTs),
-        "arrival_declined",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "arrival")
-          .where("status", "==", "revision")
-          .where("updatedAt", ">=", startTs)
-          .where("updatedAt", "<=", endTs),
-        "arrival_revision",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "arrival")
-          .where("clearanceResultGeneratedAt", ">=", startTs)
-          .where("clearanceResultGeneratedAt", "<=", endTs),
-        "arrival_produced",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "departure")
-          .where("createdAt", ">=", startTs)
-          .where("createdAt", "<=", endTs),
-        "departure_total",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "departure")
-          .where("status", "==", "waiting")
-          .where("createdAt", ">=", startTs)
-          .where("createdAt", "<=", endTs),
-        "departure_pending",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "departure")
-          .where("status", "==", "approved")
-          .where("updatedAt", ">=", startTs)
-          .where("updatedAt", "<=", endTs),
-        "departure_approved",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "departure")
-          .where("status", "==", "declined")
-          .where("updatedAt", ">=", startTs)
-          .where("updatedAt", "<=", endTs),
-        "departure_declined",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "departure")
-          .where("status", "==", "revision")
-          .where("updatedAt", ">=", startTs)
-          .where("updatedAt", "<=", endTs),
-        "departure_revision",
-      ),
-      countQuery(
-        applicationsCol
-          .where("type", "==", "departure")
-          .where("clearanceResultGeneratedAt", ">=", startTs)
-          .where("clearanceResultGeneratedAt", "<=", endTs),
-        "departure_produced",
-      ),
-      countQuery(
-        usersCol
-          .where("createdAt", ">=", startTs)
-          .where("createdAt", "<=", endTs),
-        "accounts_total",
-      ),
-      countQuery(
-        usersCol
-          .where("status", "==", "pending_approval")
-          .where("createdAt", ">=", startTs)
-          .where("createdAt", "<=", endTs),
-        "accounts_pending",
-      ),
-      countQuery(
-        usersCol
-          .where("status", "==", "approved")
-          .where("updatedAt", ">=", startTs)
-          .where("updatedAt", "<=", endTs),
-        "accounts_approved",
-      ),
-      countQuery(
-        usersCol
-          .where("status", "==", "rejected")
-          .where("updatedAt", ">=", startTs)
-          .where("updatedAt", "<=", endTs),
-        "accounts_rejected",
-      ),
-    ]);
+    async function collectAccountCounts() {
+      const counts = { pending: 0, approved: 0, declined: 0 };
+      const docs = new Map();
 
-    const arrivalProcessed = arrivalApproved + arrivalDeclined;
-    const departureProcessed = departureApproved + departureDeclined;
-    const accountsProcessed = accountsApproved + accountsRejected;
+      async function addSnapshot(query, label) {
+        try {
+          const snapshot = await query
+            .select("status", "createdAt", "updatedAt")
+            .get();
+          logger.info(
+            `[getOfficerMonthlyStats] ${label} returned ${snapshot.size} docs`,
+          );
+          for (const doc of snapshot.docs) {
+            if (!docs.has(doc.id)) {
+              docs.set(doc.id, doc.data());
+            }
+          }
+        } catch (error) {
+          logger.error(`[getOfficerMonthlyStats] ${label} query failed`, error);
+        }
+      }
+
+      await Promise.all([
+        addSnapshot(
+          usersCol.where("createdAt", ">=", startTs).where("createdAt", "<=", endTs),
+          "accounts_created_range",
+        ),
+        addSnapshot(
+          usersCol.where("updatedAt", ">=", startTs).where("updatedAt", "<=", endTs),
+          "accounts_updated_range",
+        ),
+      ]);
+
+      for (const data of docs.values()) {
+        const status = data.status;
+        if (status === "approved") counts.approved += 1;
+        else if (status === "rejected" || status === "declined") {
+          counts.declined += 1;
+        } else {
+          counts.pending += 1;
+        }
+      }
+
+      return counts;
+    }
+
+    const { arrival, departure } = await collectApplicationCounts();
+    const accounts = await collectAccountCounts();
+
+    const arrivalTotal = arrival.pending + arrival.approved + arrival.declined;
+    const departureTotal =
+      departure.pending + departure.approved + departure.declined;
+    const accountsTotal =
+      accounts.pending + accounts.approved + accounts.declined;
 
     return {
       range: {
@@ -4040,36 +4006,27 @@ exports.getOfficerMonthlyStats = functions
       },
       arrival: {
         total: arrivalTotal,
-        pending: arrivalPending,
-        approved: arrivalApproved,
-        declined: arrivalDeclined,
-        revision: arrivalRevision,
-        produced: arrivalProduced,
-        processed: arrivalProcessed,
+        pending: arrival.pending,
+        approved: arrival.approved,
+        declined: arrival.declined,
       },
       departure: {
         total: departureTotal,
-        pending: departurePending,
-        approved: departureApproved,
-        declined: departureDeclined,
-        revision: departureRevision,
-        produced: departureProduced,
-        processed: departureProcessed,
+        pending: departure.pending,
+        approved: departure.approved,
+        declined: departure.declined,
       },
       accounts: {
         total: accountsTotal,
-        pending: accountsPending,
-        approved: accountsApproved,
-        rejected: accountsRejected,
-        processed: accountsProcessed,
+        pending: accounts.pending,
+        approved: accounts.approved,
+        declined: accounts.declined,
       },
       totals: {
-        pending: arrivalPending + departurePending + accountsPending,
-        approved: arrivalApproved + departureApproved + accountsApproved,
-        rejected: arrivalDeclined + departureDeclined + accountsRejected,
-        revision: arrivalRevision + departureRevision,
-        produced: arrivalProduced + departureProduced,
-        applications: arrivalTotal + departureTotal,
+        pending: arrival.pending + departure.pending + accounts.pending,
+        approved: arrival.approved + departure.approved + accounts.approved,
+        declined: arrival.declined + departure.declined + accounts.declined,
+        total: arrivalTotal + departureTotal + accountsTotal,
       },
     };
   });

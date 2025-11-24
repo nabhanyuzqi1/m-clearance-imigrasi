@@ -7,7 +7,7 @@ import '../services/logging_service.dart';
 /// if decoding fails or the image is already within the [maxDimension].
 Future<Uint8List> minifyImageData(
   Uint8List data, {
-  int maxDimension = 1600,
+  int maxDimension = 2400,
   String? fileExtension,
 }) async {
   try {
@@ -27,7 +27,7 @@ Future<Uint8List> minifyImageData(
       image,
       width: isLandscape ? maxDimension : null,
       height: isLandscape ? null : maxDimension,
-      interpolation: img.Interpolation.average,
+      interpolation: img.Interpolation.linear,
     );
 
     final format = (fileExtension ?? 'jpg').toLowerCase();
@@ -37,7 +37,7 @@ Future<Uint8List> minifyImageData(
       case 'jpg':
       case 'jpeg':
       default:
-        return Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+        return Uint8List.fromList(img.encodeJpg(resized, quality: 92));
     }
   } catch (e) {
     LoggingService().error('Failed to minify image data', e);

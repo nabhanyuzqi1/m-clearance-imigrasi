@@ -1,4 +1,6 @@
 import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
@@ -93,19 +95,47 @@ class _DocumentViewScreenState extends State<DocumentViewScreen> {
   }
 
   Future<void> _downloadDocumentForMobile() async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = '${directory.path}/${widget.fileName ?? 'document'}';
-      final file = File(filePath);
-      await file.writeAsBytes(_documentData!);
+    final messenger = ScaffoldMessenger.of(context);
+    final resolvedFileName = _sanitizeFileName(widget.fileName ?? 'document');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Document downloaded to $filePath')),
+    try {
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Pilih lokasi penyimpanan',
+        fileName: resolvedFileName,
+        bytes: _documentData!,
+        // Use a permissive type so non-PDF/images can still be saved.
+        type: FileType.any,
+      );
+
+      if (savedPath == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Penyimpanan dibatalkan')),
+        );
+        return;
+      }
+
+      messenger.showSnackBar(
+        SnackBar(content: Text('Dokumen disimpan ke $savedPath')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error downloading document: $e')));
+      LoggingService().warning('FilePicker save failed, using local fallback', e);
+      try {
+        final directory = await getDownloadsDirectory() ??
+            await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/$resolvedFileName';
+        final file = File(filePath);
+        await file.writeAsBytes(_documentData!);
+
+        messenger.showSnackBar(
+          SnackBar(content: Text('Dokumen disimpan ke $filePath')),
+        );
+      } catch (fallbackError) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Error downloading document: $fallbackError'),
+          ),
+        );
+      }
     }
   }
 
@@ -116,6 +146,12 @@ class _DocumentViewScreenState extends State<DocumentViewScreen> {
       ..setAttribute('download', widget.fileName ?? 'document')
       ..click();
     html.Url.revokeObjectUrl(url);
+  }
+
+  String _sanitizeFileName(String raw) {
+    final trimmed = raw.trim();
+    final safe = trimmed.replaceAll(RegExp(r'[\\\\/:*?"<>|]'), '_');
+    return safe.isEmpty ? 'document' : safe;
   }
 
   @override

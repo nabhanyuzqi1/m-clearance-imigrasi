@@ -8,11 +8,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.core.view.WindowCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -20,6 +22,15 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
   private val notificationChannelId = "mclearance_updates"
   private val methodChannelName = "com.android.imigrasi/notifications"
+  private val systemUiChannelName = "com.android.imigrasi/system_ui"
+
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      window.isNavigationBarContrastEnforced = false
+    }
+  }
 
   override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
     super.configureFlutterEngine(flutterEngine)
@@ -40,6 +51,28 @@ class MainActivity : FlutterActivity() {
             val badge = (args?.get("badge") as? Int) ?: 0
             updateBadgeCount(badge)
             result.success(null)
+          }
+          else -> result.notImplemented()
+        }
+      }
+
+    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, systemUiChannelName)
+      .setMethodCallHandler { call, result ->
+        when (call.method) {
+          "setSystemBarsAppearance" -> {
+            val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any?>()
+            val lightStatus = args["lightStatusBars"] as? Boolean
+            val lightNavigation = args["lightNavigationBars"] as? Boolean
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            if (controller != null) {
+              lightStatus?.let { controller.isAppearanceLightStatusBars = it }
+              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                lightNavigation?.let { controller.isAppearanceLightNavigationBars = it }
+              }
+              result.success(null)
+            } else {
+              result.error("unavailable", "Insets controller unavailable", null)
+            }
           }
           else -> result.notImplemented()
         }

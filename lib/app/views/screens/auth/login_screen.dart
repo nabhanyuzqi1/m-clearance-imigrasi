@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart' as shimmer;
@@ -11,6 +12,7 @@ import '../../../localization/app_localizations.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/notification_service.dart';
+import '../../../services/system_ui_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../../providers/language_provider.dart';
@@ -39,10 +41,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
+    unawaited(
+      SystemUiService.instance.setSystemBarsAppearance(
+        lightStatusBars: false,
+        lightNavigationBars: false,
       ),
     );
   }
@@ -51,7 +53,12 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
+    unawaited(
+      SystemUiService.instance.setSystemBarsAppearance(
+        lightStatusBars: true,
+        lightNavigationBars: true,
+      ),
+    );
     super.dispose();
   }
 

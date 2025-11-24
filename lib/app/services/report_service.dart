@@ -181,9 +181,7 @@ class ReportService {
                       _tableHeader('Category'),
                       _tableHeader('Pending'),
                       _tableHeader('Approved'),
-                      _tableHeader('Rejected'),
-                      _tableHeader('Revision'),
-                      _tableHeader('Produced'),
+                      _tableHeader('Declined'),
                       _tableHeader('Total'),
                     ],
                   ),
@@ -192,9 +190,7 @@ class ReportService {
                       pw.Text('Arrival'),
                       pw.Text('${asInt(arrival['pending'])}'),
                       pw.Text('${asInt(arrival['approved'])}'),
-                      pw.Text('${asInt(arrival['declined'])}'),
-                      pw.Text('${asInt(arrival['revision'])}'),
-                      pw.Text('${asInt(arrival['produced'])}'),
+                      pw.Text('${asInt(arrival['declined'] ?? arrival['rejected'])}'),
                       pw.Text('${asInt(arrival['total'])}'),
                     ],
                   ),
@@ -203,9 +199,7 @@ class ReportService {
                       pw.Text('Departure'),
                       pw.Text('${asInt(departure['pending'])}'),
                       pw.Text('${asInt(departure['approved'])}'),
-                      pw.Text('${asInt(departure['declined'])}'),
-                      pw.Text('${asInt(departure['revision'])}'),
-                      pw.Text('${asInt(departure['produced'])}'),
+                      pw.Text('${asInt(departure['declined'] ?? departure['rejected'])}'),
                       pw.Text('${asInt(departure['total'])}'),
                     ],
                   ),
@@ -214,9 +208,7 @@ class ReportService {
                       pw.Text('Accounts'),
                       pw.Text('${asInt(accounts['pending'])}'),
                       pw.Text('${asInt(accounts['approved'])}'),
-                      pw.Text('${asInt(accounts['rejected'])}'),
-                      pw.Text('-'),
-                      pw.Text('-'),
+                      pw.Text('${asInt(accounts['declined'] ?? accounts['rejected'])}'),
                       pw.Text('${asInt(accounts['total'])}'),
                     ],
                   ),
@@ -233,11 +225,15 @@ class ReportService {
               pw.SizedBox(height: 8),
               pw.Bullet(text: 'Pending items: ${asInt(totals['pending'])}'),
               pw.Bullet(
-                text:
-                    'Processed items: ${asInt(totals['approved']) + asInt(totals['rejected'])}',
+                text: 'Approved items: ${asInt(totals['approved'])}',
               ),
               pw.Bullet(
-                text: 'Produced certificates: ${asInt(totals['produced'])}',
+                text:
+                    'Declined items: ${asInt(totals['declined'] ?? totals['rejected'])}',
+              ),
+              pw.Bullet(
+                text:
+                    'Total tracked: ${asInt(totals['total'] ?? (asInt(totals['pending']) + asInt(totals['approved']) + asInt(totals['declined'] ?? totals['rejected'])))}',
               ),
             ],
           );

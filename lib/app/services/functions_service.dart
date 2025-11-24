@@ -37,8 +37,9 @@ class FunctionsService {
     try {
       final callable = _functions.httpsCallable('getOfficerMonthlyStats');
       final result = await callable(<String, dynamic>{
-        'startDate': start.toUtc().toIso8601String(),
-        'endDate': end.toUtc().toIso8601String(),
+        // Send millis to avoid timezone parsing ambiguity.
+        'startDate': start.millisecondsSinceEpoch,
+        'endDate': end.millisecondsSinceEpoch,
       });
       return Map<String, dynamic>.from(result.data ?? {});
     } catch (e) {

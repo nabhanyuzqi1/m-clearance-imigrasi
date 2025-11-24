@@ -177,137 +177,145 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
       DateTime toRangeEnd(DateTime value) =>
           DateTime(value.year, value.month, value.day, 23, 59, 59, 999);
 
-      final start = stripToStart(range.start);
-      final end = toRangeEnd(range.end);
+      var start = stripToStart(range.start);
+      var end = toRangeEnd(range.end);
+      if (start.isAfter(end)) {
+        final tmp = start;
+        start = end;
+        end = tmp;
+      }
       final startTs = Timestamp.fromDate(start);
       final endTs = Timestamp.fromDate(end);
 
-      Query<Map<String, dynamic>> applicationQuery({
-        required String type,
-        String? status,
-        String? producedField,
-      }) {
-        Query<Map<String, dynamic>> query = applications.where(
-          'type',
-          isEqualTo: type,
-        );
+      Future<Map<String, int>> aggregateApplications() async {
+        final arrival = {'pending': 0, 'approved': 0, 'declined': 0};
+        final departure = {'pending': 0, 'approved': 0, 'declined': 0};
+        final docs = <String, Map<String, dynamic>>{};
 
-        if (status != null) {
-          query = query.where('status', isEqualTo: status);
+        Future<void> addSnapshot(
+          Query<Map<String, dynamic>> query,
+          String label,
+        ) async {
+          try {
+            final snapshot = await query.get();
+            for (final doc in snapshot.docs) {
+              docs.putIfAbsent(doc.id, () => doc.data());
+            }
+          } catch (error, stack) {
+            LoggingService().warning(
+              'Aggregate count failed for $label in fallback',
+              error,
+              stack,
+            );
+          }
         }
 
-        if (producedField != null) {
-          query = query
-              .where(producedField, isGreaterThanOrEqualTo: startTs)
-              .where(producedField, isLessThanOrEqualTo: endTs);
-        } else {
-          query = query
-              .where('createdAt', isGreaterThanOrEqualTo: startTs)
-              .where('createdAt', isLessThanOrEqualTo: endTs);
+        await Future.wait([
+          addSnapshot(
+            applications
+                .where('createdAt', isGreaterThanOrEqualTo: startTs)
+                .where('createdAt', isLessThanOrEqualTo: endTs),
+            'applications_created',
+          ),
+          addSnapshot(
+            applications
+                .where('updatedAt', isGreaterThanOrEqualTo: startTs)
+                .where('updatedAt', isLessThanOrEqualTo: endTs),
+            'applications_updated',
+          ),
+        ]);
+
+        for (final data in docs.values) {
+          final type = data['type'] == 'departure' ? departure : arrival;
+          final status = (data['status'] as String?) ?? 'waiting';
+          if (status == 'approved') {
+            type['approved'] = (type['approved'] ?? 0) + 1;
+          } else if (status == 'declined') {
+            type['declined'] = (type['declined'] ?? 0) + 1;
+          } else {
+            type['pending'] = (type['pending'] ?? 0) + 1;
+          }
         }
 
-        if (status != null && producedField == null) {
-          query = query
-              .where('updatedAt', isGreaterThanOrEqualTo: startTs)
-              .where('updatedAt', isLessThanOrEqualTo: endTs);
-        }
-
-        return query;
+        return {
+          'arrival_pending': arrival['pending'] ?? 0,
+          'arrival_approved': arrival['approved'] ?? 0,
+          'arrival_declined': arrival['declined'] ?? 0,
+          'departure_pending': departure['pending'] ?? 0,
+          'departure_approved': departure['approved'] ?? 0,
+          'departure_declined': departure['declined'] ?? 0,
+        };
       }
 
-      Query<Map<String, dynamic>> accountQuery({
-        String? status,
-        bool useCreatedAt = true,
-      }) {
-        Query<Map<String, dynamic>> query = users;
-        if (status != null) {
-          query = query.where('status', isEqualTo: status);
+      Future<Map<String, int>> aggregateAccounts() async {
+        final counts = {'pending': 0, 'approved': 0, 'declined': 0};
+        final docs = <String, Map<String, dynamic>>{};
+
+        Future<void> addSnapshot(
+          Query<Map<String, dynamic>> query,
+          String label,
+        ) async {
+          try {
+            final snapshot = await query.get();
+            for (final doc in snapshot.docs) {
+              docs.putIfAbsent(doc.id, () => doc.data());
+            }
+          } catch (error, stack) {
+            LoggingService().warning(
+              'Account aggregate failed for $label in fallback',
+              error,
+              stack,
+            );
+          }
         }
 
-        final field = useCreatedAt ? 'createdAt' : 'updatedAt';
-        query = query
-            .where(field, isGreaterThanOrEqualTo: startTs)
-            .where(field, isLessThanOrEqualTo: endTs);
+        await Future.wait([
+          addSnapshot(
+            users
+                .where('createdAt', isGreaterThanOrEqualTo: startTs)
+                .where('createdAt', isLessThanOrEqualTo: endTs),
+            'accounts_created',
+          ),
+          addSnapshot(
+            users
+                .where('updatedAt', isGreaterThanOrEqualTo: startTs)
+                .where('updatedAt', isLessThanOrEqualTo: endTs),
+            'accounts_updated',
+          ),
+        ]);
 
-        return query;
+        for (final data in docs.values) {
+          final status = (data['status'] as String?) ?? 'pending_approval';
+          if (status == 'approved') {
+            counts['approved'] = (counts['approved'] ?? 0) + 1;
+          } else if (status == 'rejected' || status == 'declined') {
+            counts['declined'] = (counts['declined'] ?? 0) + 1;
+          } else {
+            counts['pending'] = (counts['pending'] ?? 0) + 1;
+          }
+        }
+
+        return counts;
       }
 
-      // Arrival domain counts
-      final arrivalTotal = await countQuery(
-        applicationQuery(type: 'arrival'),
-        'arrival_total',
-      );
-      final arrivalPending = await countQuery(
-        applicationQuery(type: 'arrival', status: 'waiting'),
-        'arrival_pending',
-      );
-      final arrivalApproved = await countQuery(
-        applicationQuery(type: 'arrival', status: 'approved'),
-        'arrival_approved',
-      );
-      final arrivalDeclined = await countQuery(
-        applicationQuery(type: 'arrival', status: 'declined'),
-        'arrival_declined',
-      );
-      final arrivalRevision = await countQuery(
-        applicationQuery(type: 'arrival', status: 'revision'),
-        'arrival_revision',
-      );
-      final arrivalProduced = await countQuery(
-        applicationQuery(
-          type: 'arrival',
-          producedField: 'clearanceResultGeneratedAt',
-        ),
-        'arrival_produced',
-      );
+      final appCounts = await aggregateApplications();
+      final accountCounts = await aggregateAccounts();
 
-      // Departure domain counts
-      final departureTotal = await countQuery(
-        applicationQuery(type: 'departure'),
-        'departure_total',
-      );
-      final departurePending = await countQuery(
-        applicationQuery(type: 'departure', status: 'waiting'),
-        'departure_pending',
-      );
-      final departureApproved = await countQuery(
-        applicationQuery(type: 'departure', status: 'approved'),
-        'departure_approved',
-      );
-      final departureDeclined = await countQuery(
-        applicationQuery(type: 'departure', status: 'declined'),
-        'departure_declined',
-      );
-      final departureRevision = await countQuery(
-        applicationQuery(type: 'departure', status: 'revision'),
-        'departure_revision',
-      );
-      final departureProduced = await countQuery(
-        applicationQuery(
-          type: 'departure',
-          producedField: 'clearanceResultGeneratedAt',
-        ),
-        'departure_produced',
-      );
+      final arrivalPending = appCounts['arrival_pending'] ?? 0;
+      final arrivalApproved = appCounts['arrival_approved'] ?? 0;
+      final arrivalDeclined = appCounts['arrival_declined'] ?? 0;
+      final departurePending = appCounts['departure_pending'] ?? 0;
+      final departureApproved = appCounts['departure_approved'] ?? 0;
+      final departureDeclined = appCounts['departure_declined'] ?? 0;
+      final accountsPending = accountCounts['pending'] ?? 0;
+      final accountsApproved = accountCounts['approved'] ?? 0;
+      final accountsDeclined = accountCounts['declined'] ?? 0;
 
-      // Accounts counts
-      final accountsTotal = await countQuery(accountQuery(), 'accounts_total');
-      final accountsPending = await countQuery(
-        accountQuery(status: 'pending_approval'),
-        'accounts_pending',
-      );
-      final accountsApproved = await countQuery(
-        accountQuery(status: 'approved', useCreatedAt: false),
-        'accounts_approved',
-      );
-      final accountsRejected = await countQuery(
-        accountQuery(status: 'rejected', useCreatedAt: false),
-        'accounts_rejected',
-      );
-
-      final arrivalProcessed = arrivalApproved + arrivalDeclined;
-      final departureProcessed = departureApproved + departureDeclined;
-      final accountsProcessed = accountsApproved + accountsRejected;
+      final arrivalTotal = arrivalPending + arrivalApproved + arrivalDeclined;
+      final departureTotal =
+          departurePending + departureApproved + departureDeclined;
+      final accountsTotal =
+          accountsPending + accountsApproved + accountsDeclined;
 
       return {
         'range': {
@@ -319,33 +327,24 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           'pending': arrivalPending,
           'approved': arrivalApproved,
           'declined': arrivalDeclined,
-          'revision': arrivalRevision,
-          'produced': arrivalProduced,
-          'processed': arrivalProcessed,
         },
         'departure': {
           'total': departureTotal,
           'pending': departurePending,
           'approved': departureApproved,
           'declined': departureDeclined,
-          'revision': departureRevision,
-          'produced': departureProduced,
-          'processed': departureProcessed,
         },
         'accounts': {
           'total': accountsTotal,
           'pending': accountsPending,
           'approved': accountsApproved,
-          'rejected': accountsRejected,
-          'processed': accountsProcessed,
+          'declined': accountsDeclined,
         },
         'totals': {
           'pending': arrivalPending + departurePending + accountsPending,
           'approved': arrivalApproved + departureApproved + accountsApproved,
-          'rejected': arrivalDeclined + departureDeclined + accountsRejected,
-          'revision': arrivalRevision + departureRevision,
-          'produced': arrivalProduced + departureProduced,
-          'applications': arrivalTotal + departureTotal,
+          'declined': arrivalDeclined + departureDeclined + accountsDeclined,
+          'total': arrivalTotal + departureTotal + accountsTotal,
         },
       };
     } catch (error, stackTrace) {
@@ -678,18 +677,21 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           color: colorScheme.primary,
           stats: stats.arrival,
           icon: Icons.directions_boat_outlined,
+          tr: _tr,
         ),
         _SummaryCard(
           title: _tr('departure'),
           color: colorScheme.secondary,
           stats: stats.departure,
           icon: Icons.directions_boat,
+          tr: _tr,
         ),
         _SummaryCard(
           title: _tr('registration'),
           color: colorScheme.tertiary,
           stats: stats.accounts.asDomain(),
           icon: Icons.how_to_reg_outlined,
+          tr: _tr,
         ),
       ],
     );
@@ -820,75 +822,46 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     final stats = _stats!;
     final textTheme = Theme.of(context).textTheme;
     final items = [
-      _TotalMetric(label: _tr('total_pending'), value: stats.totals.pending),
-      _TotalMetric(label: _tr('total_processed'), value: stats.totalProcessed),
-      _TotalMetric(label: _tr('total_produced'), value: stats.totals.produced),
+      _TotalMetric(label: _tr('pending'), value: stats.totals.pending),
+      _TotalMetric(label: _tr('approved'), value: stats.totals.approved),
+      _TotalMetric(label: _tr('declined'), value: stats.totals.declined),
     ];
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children:
-          items
-              .map(
-                (metric) => Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.only(right: AppTheme.spacing12),
-                    padding: const EdgeInsets.all(AppTheme.spacing16),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surface,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                      border: Border.all(color: colorScheme.outlineVariant),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          metric.label,
-                          style: textTheme.labelMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.spacing8),
-                        Text(
-                          metric.value.toString(),
-                          style: textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
+      children: items.asMap().entries.map((entry) {
+        final index = entry.key;
+        final metric = entry.value;
+        final isLast = index == items.length - 1;
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.only(right: isLast ? 0 : AppTheme.spacing12),
+            padding: const EdgeInsets.all(AppTheme.spacing16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  metric.label,
+                  style: textTheme.labelMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-              )
-              .toList()
-            ..last = Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(AppTheme.spacing16),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                  border: Border.all(color: colorScheme.outlineVariant),
+                const SizedBox(height: AppTheme.spacing8),
+                Text(
+                  metric.value.toString(),
+                  style: textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      items.last.label,
-                      style: textTheme.labelMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: AppTheme.spacing8),
-                    Text(
-                      items.last.value.toString(),
-                      style: textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -950,13 +923,23 @@ class OfficerStats {
 
     final range = mapFor(map['range']);
 
+    final arrival = DomainStats.fromMap(mapFor(map['arrival']));
+    final departure = DomainStats.fromMap(mapFor(map['departure']));
+    final accounts = AccountStats.fromMap(mapFor(map['accounts']));
+    final totals = OverviewTotals.withFallback(
+      map: mapFor(map['totals']),
+      arrival: arrival,
+      departure: departure,
+      accounts: accounts,
+    );
+
     return OfficerStats(
       start: parseDate(range['start']),
       end: parseDate(range['end']),
-      arrival: DomainStats.fromMap(mapFor(map['arrival'])),
-      departure: DomainStats.fromMap(mapFor(map['departure'])),
-      accounts: AccountStats.fromMap(mapFor(map['accounts'])),
-      totals: OverviewTotals.fromMap(mapFor(map['totals'])),
+      arrival: arrival,
+      departure: departure,
+      accounts: accounts,
+      totals: totals,
     );
   }
 
@@ -987,9 +970,6 @@ class DomainStats {
     required this.pending,
     required this.approved,
     required this.declined,
-    required this.revision,
-    required this.produced,
-    required this.processed,
   });
 
   factory DomainStats.fromMap(Map<String, dynamic> map) {
@@ -1000,14 +980,19 @@ class DomainStats {
       return 0;
     }
 
+    final pending = asInt(map['pending']);
+    final approved = asInt(map['approved']);
+    final declined = asInt(map['declined'] ?? map['rejected']);
+    final providedTotal = asInt(map['total']);
+    final sumStatuses = pending + approved + declined;
+
+    final total = providedTotal > 0 ? providedTotal : sumStatuses;
+
     return DomainStats(
-      total: asInt(map['total']),
-      pending: asInt(map['pending']),
-      approved: asInt(map['approved']),
-      declined: asInt(map['declined']),
-      revision: asInt(map['revision']),
-      produced: asInt(map['produced']),
-      processed: asInt(map['processed']),
+      total: total,
+      pending: pending,
+      approved: approved,
+      declined: declined,
     );
   }
 
@@ -1015,9 +1000,8 @@ class DomainStats {
   final int pending;
   final int approved;
   final int declined;
-  final int revision;
-  final int produced;
-  final int processed;
+
+  int get processed => approved + declined;
 
   Map<String, dynamic> toMap() {
     return {
@@ -1025,9 +1009,6 @@ class DomainStats {
       'pending': pending,
       'approved': approved,
       'declined': declined,
-      'revision': revision,
-      'produced': produced,
-      'processed': processed,
     };
   }
 }
@@ -1037,8 +1018,7 @@ class AccountStats {
     required this.total,
     required this.pending,
     required this.approved,
-    required this.rejected,
-    required this.processed,
+    required this.declined,
   });
 
   factory AccountStats.fromMap(Map<String, dynamic> map) {
@@ -1049,28 +1029,34 @@ class AccountStats {
       return 0;
     }
 
+    final pending = asInt(map['pending']);
+    final approved = asInt(map['approved']);
+    final declined = asInt(map['declined'] ?? map['rejected']);
+    final providedTotal = asInt(map['total']);
+    final inferredTotal = pending + approved + declined;
+    final total = providedTotal > 0 ? providedTotal : inferredTotal;
+
     return AccountStats(
-      total: asInt(map['total']),
-      pending: asInt(map['pending']),
-      approved: asInt(map['approved']),
-      rejected: asInt(map['rejected']),
-      processed: asInt(map['processed']),
+      total: total,
+      pending: pending,
+      approved: approved,
+      declined: declined,
     );
   }
 
   final int total;
   final int pending;
   final int approved;
-  final int rejected;
-  final int processed;
+  final int declined;
+
+  int get processed => approved + declined;
 
   Map<String, dynamic> toMap() {
     return {
       'total': total,
       'pending': pending,
       'approved': approved,
-      'rejected': rejected,
-      'processed': processed,
+      'declined': declined,
     };
   }
 
@@ -1079,10 +1065,7 @@ class AccountStats {
       total: total,
       pending: pending,
       approved: approved,
-      declined: rejected,
-      revision: 0,
-      produced: 0,
-      processed: processed,
+      declined: declined,
     );
   }
 }
@@ -1091,10 +1074,8 @@ class OverviewTotals {
   OverviewTotals({
     required this.pending,
     required this.approved,
-    required this.rejected,
-    required this.revision,
-    required this.produced,
-    required this.applications,
+    required this.declined,
+    required this.total,
   });
 
   factory OverviewTotals.fromMap(Map<String, dynamic> map) {
@@ -1108,28 +1089,77 @@ class OverviewTotals {
     return OverviewTotals(
       pending: asInt(map['pending']),
       approved: asInt(map['approved']),
-      rejected: asInt(map['rejected']),
-      revision: asInt(map['revision']),
-      produced: asInt(map['produced']),
-      applications: asInt(map['applications']),
+      declined: asInt(map['declined'] ?? map['rejected']),
+      total: asInt(map['total'] ?? map['applications']),
     );
+  }
+
+  factory OverviewTotals.withFallback({
+    required Map<String, dynamic> map,
+    required DomainStats arrival,
+    required DomainStats departure,
+    required AccountStats accounts,
+  }) {
+    int asInt(dynamic value) {
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    final parsed = OverviewTotals.fromMap(map);
+    final pending = parsed.pending > 0
+        ? parsed.pending
+        : arrival.pending + departure.pending + accounts.pending;
+    final approved = parsed.approved > 0
+        ? parsed.approved
+        : arrival.approved + departure.approved + accounts.approved;
+    final declined = parsed.declined > 0
+        ? parsed.declined
+        : arrival.declined + departure.declined + accounts.declined;
+    final total = parsed.total > 0
+        ? parsed.total
+        : arrival.total + departure.total + accounts.total;
+
+    // If backend explicitly provided zeroes, honor them; otherwise use computed.
+    final explicitKeys = {
+      'pending',
+      'approved',
+      'declined',
+      'rejected',
+      'total',
+      'applications',
+    };
+    final hasExplicitTotals = map.keys.any(explicitKeys.contains);
+
+    return hasExplicitTotals
+        ? OverviewTotals(
+            pending: parsed.pending == 0 ? pending : parsed.pending,
+            approved: parsed.approved == 0 ? approved : parsed.approved,
+            declined: parsed.declined == 0 ? declined : parsed.declined,
+            total: parsed.total == 0 ? total : parsed.total,
+          )
+        : OverviewTotals(
+            pending: pending,
+            approved: approved,
+            declined: declined,
+            total: total,
+          );
   }
 
   final int pending;
   final int approved;
-  final int rejected;
-  final int revision;
-  final int produced;
-  final int applications;
+  final int declined;
+  final int total;
+
+  int get processed => approved + declined;
 
   Map<String, dynamic> toMap() {
     return {
       'pending': pending,
       'approved': approved,
-      'rejected': rejected,
-      'revision': revision,
-      'produced': produced,
-      'applications': applications,
+      'declined': declined,
+      'total': total,
     };
   }
 }
@@ -1140,12 +1170,14 @@ class _SummaryCard extends StatelessWidget {
     required this.color,
     required this.stats,
     required this.icon,
+    required this.tr,
   });
 
   final String title;
   final Color color;
   final DomainStats stats;
   final IconData icon;
+  final String Function(String) tr;
 
   @override
   Widget build(BuildContext context) {
@@ -1180,9 +1212,10 @@ class _SummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppTheme.spacing12),
-          _SummaryMetric(label: 'Total', value: stats.total.toString()),
-          _SummaryMetric(label: 'Pending', value: stats.pending.toString()),
-          _SummaryMetric(label: 'Processed', value: stats.processed.toString()),
+          _SummaryMetric(label: tr('pending'), value: stats.pending.toString()),
+          _SummaryMetric(label: tr('approved'), value: stats.approved.toString()),
+          _SummaryMetric(label: tr('declined'), value: stats.declined.toString()),
+          _SummaryMetric(label: tr('total'), value: stats.total.toString()),
         ],
       ),
     );
@@ -1232,8 +1265,6 @@ class _ChartLegend extends StatelessWidget {
       _LegendEntry(colorScheme.primary, tr('pending')),
       _LegendEntry(colorScheme.tertiary, tr('approved')),
       _LegendEntry(colorScheme.error, tr('declined')),
-      _LegendEntry(colorScheme.secondary, tr('revision')),
-      _LegendEntry(colorScheme.secondary, tr('produced')),
     ];
     return Wrap(
       spacing: AppTheme.spacing12,
@@ -1300,8 +1331,6 @@ class DataColumnBuilder {
     addStack(data.pending, scheme.primary);
     addStack(data.approved, scheme.tertiary);
     addStack(data.declined, scheme.error);
-    addStack(data.revision, scheme.secondary);
-    addStack(data.produced, scheme.secondary);
 
     if (items.isEmpty) {
       items.add(BarChartRodStackItem(0, 0, scheme.primary));

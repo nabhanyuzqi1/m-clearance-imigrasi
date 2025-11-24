@@ -354,15 +354,26 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(
-                context,
-              ).get('submissionDetail.failed_to_download_document'),
+        final uri = Uri.tryParse(filePath);
+        if (uri != null) {
+          final opened = await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication,
+          );
+          if (opened) return;
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(
+                  context,
+                ).get('submissionDetail.failed_to_download_document'),
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       LoggingService().error('Error viewing document: $e');

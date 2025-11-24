@@ -395,9 +395,9 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
       final XFile? pickedFile = await _picker
           .pickImage(
             source: ImageSource.camera,
-            imageQuality: 85, // Reduce quality to prevent memory issues
-            maxWidth: 1920, // Limit dimensions
-            maxHeight: 1080,
+            imageQuality: 92, // Keep clarity while avoiding huge files
+            maxWidth: 2400, // Limit dimensions gently to avoid over-compression
+            maxHeight: 2400,
           )
           .catchError((error) {
             LoggingService().error('ImagePicker.pickImage failed: $error');

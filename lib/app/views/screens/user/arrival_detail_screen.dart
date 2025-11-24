@@ -753,6 +753,16 @@ class ArrivalDetailScreen extends StatelessWidget {
           ),
         );
       } else {
+        final uriForFallback = Uri.tryParse(trimmedUrl);
+        if (uriForFallback != null) {
+          final launched = await launchUrl(
+            uriForFallback,
+            mode: LaunchMode.externalApplication,
+          );
+          if (launched) {
+            return;
+          }
+        }
         await showFailure();
       }
     } catch (e) {

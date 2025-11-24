@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:m_clearance_imigrasi/app/views/widgets/bouncing_dots_loader.dart';
 import '../../../localization/app_localizations.dart';
@@ -7,6 +8,7 @@ import '../../../config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../providers/language_provider.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/system_ui_service.dart';
 
 /// SplashScreen
 ///
@@ -34,11 +36,10 @@ class _SplashScreenState extends State<SplashScreen> {
     );
 
     // Atur gaya System UI Overlay agar sesuai dengan latar belakang splash screen
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness:
-            Brightness.dark, // Ikon status bar menjadi gelap
+    unawaited(
+      SystemUiService.instance.setSystemBarsAppearance(
+        lightStatusBars: true,
+        lightNavigationBars: true,
       ),
     );
 

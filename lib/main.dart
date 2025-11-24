@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -15,6 +16,7 @@ import 'app/config/theme.dart';
 import 'app/localization/app_localizations.dart';
 import 'app/services/auth_service.dart';
 import 'app/services/notification_service.dart';
+import 'app/services/system_ui_service.dart';
 import 'firebase_options.dart';
 import 'app/views/widgets/auth_wrapper.dart';
 import 'app/views/widgets/connectivity_gate.dart';
@@ -32,6 +34,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  await SystemUiService.instance.setSystemBarsAppearance(
+    lightStatusBars: true,
+    lightNavigationBars: true,
+  );
 
   // Guard against duplicate initialization (hot restart, multiple isolates).
   try {
