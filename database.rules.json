@@ -2,8 +2,12 @@
   "rules": {
     ".read": "auth != null",
     ".write": "auth != null",
+    "legal": {
+      ".read": true,
+      ".write": "auth != null && auth.token.role == 'officer'"
+    },
     "email_config": {
-      ".read": "auth != null && auth.token.role == 'officer'",
+      ".read": "auth != null",
       ".write": "auth != null && auth.token.role == 'officer'"
     }
   }

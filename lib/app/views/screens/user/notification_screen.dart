@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:m_clearance_imigrasi/app/config/routes.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
+import '../../../models/clearance_application.dart';
 import '../../../models/notification_item.dart';
-import '../../../services/notification_service.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/notification_service.dart';
+import '../../../services/user_service.dart';
+import '../../widgets/bouncing_dots_loader.dart';
+import '../../widgets/custom_app_bar.dart';
 
 class NotificationScreen extends StatefulWidget {
   final String initialLanguage;
@@ -15,7 +20,10 @@ class NotificationScreen extends StatefulWidget {
 
 class _NotificationScreenState extends State<NotificationScreen> {
   final NotificationService _notificationService = NotificationService();
-  String _tr(String key) => AppLocalizations.of(context).get('notifications.$key');
+  final UserService _userService = UserService();
+  bool _isNavigating = false;
+  String _tr(String key) =>
+      AppLocalizations.of(context).get('notifications.$key');
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -41,14 +49,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  Color _getNotificationTypeColor(NotificationType type) {
+  Color _getNotificationTypeColor(BuildContext context, NotificationType type) {
     switch (type) {
       case NotificationType.update:
-        return AppTheme.primaryColor;
+        return Theme.of(context).colorScheme.primary;
       case NotificationType.approved:
-        return AppTheme.successColor;
+        return Theme.of(context).colorScheme.tertiary;
       case NotificationType.revision:
-        return AppTheme.warningColor;
+        return Theme.of(context).colorScheme.secondary;
     }
   }
 
@@ -56,15 +64,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
     try {
       final success = await _notificationService.markAllAsRead();
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('mark_all_read_success'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('mark_all_read_success'))));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('mark_read_failed'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('mark_read_failed'))));
       }
     }
   }
@@ -73,33 +81,163 @@ class _NotificationScreenState extends State<NotificationScreen> {
     try {
       final success = await _notificationService.markAsRead(notificationId);
       if (!success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('mark_single_read_failed'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('mark_single_read_failed'))));
       }
     } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('mark_single_read_failed'))));
+      }
+    }
+  }
+
+  Future<void> _handleNotificationTap(NotificationItem notification) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      if (!notification.isRead) {
+        await _markAsRead(notification.id);
+      }
+      final metadata = notification.metadata;
+      if (metadata.isEmpty) {
+        return;
+      }
+      final applicationId = metadata['applicationId']?.toString();
+      if (applicationId != null && applicationId.isNotEmpty) {
+        await _navigateToApplication(applicationId, metadata);
+        return;
+      }
+      final status = metadata['status']?.toString();
+      if (status != null) {
+        await _navigateToAccountStatus(status);
+      }
+    } catch (e, stackTrace) {
+      LoggingService().error('Failed handling notification tap', e, stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_tr('mark_single_read_failed'))),
         );
       }
+    } finally {
+      _isNavigating = false;
     }
+  }
+
+  Future<void> _navigateToAccountStatus(String status) async {
+    if (!mounted) return;
+    switch (status) {
+      case 'pending_documents':
+        Navigator.pushNamed(
+          context,
+          AppRoutes.uploadDocuments,
+          arguments: {'initialLanguage': widget.initialLanguage},
+        );
+        break;
+      case 'pending_approval':
+        Navigator.pushNamed(
+          context,
+          AppRoutes.registrationPending,
+          arguments: {'initialLanguage': widget.initialLanguage},
+        );
+        break;
+      case 'approved':
+        Navigator.pushNamed(
+          context,
+          AppRoutes.userHome,
+          arguments: {'initialLanguage': widget.initialLanguage},
+        );
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _navigateToApplication(
+    String applicationId,
+    Map<String, dynamic> metadata,
+  ) async {
+    if (!mounted) return;
+    await _showLoadingDialog();
+    ClearanceApplication? application;
+    try {
+      application = await _userService.getApplicationById(applicationId);
+    } catch (e, stackTrace) {
+      LoggingService().error('Failed to fetch application $applicationId', e, stackTrace);
+    } finally {
+      if (mounted) {
+        final navigator = Navigator.of(context, rootNavigator: true);
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
+      }
+    }
+
+    if (application == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('application_not_found'))));
+      }
+      return;
+    }
+
+    final status = metadata['status']?.toString().toLowerCase();
+    if (status == 'revision') {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.clearanceForm,
+        arguments: {
+          'type': application.type,
+          'agentName': application.agentName,
+          'existingApplication': application,
+          'initialLanguage': widget.initialLanguage,
+        },
+      );
+      return;
+    }
+
+    Navigator.pushNamed(
+      context,
+      AppRoutes.clearanceResult,
+      arguments: {
+        'application': application,
+        'initialLanguage': widget.initialLanguage,
+      },
+    );
+  }
+
+  Future<void> _showLoadingDialog() async {
+    if (!mounted) return;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    LoggingService().debug('Building NotificationScreen with language: ${widget.initialLanguage}');
+    LoggingService().debug(
+      'Building NotificationScreen with language: ${widget.initialLanguage}',
+    );
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        title: Text(_tr('notifications'), style: TextStyle(fontFamily: 'Poppins')),
-        backgroundColor: AppTheme.surfaceColor,
-        foregroundColor: AppTheme.onSurface,
+      backgroundColor: colorScheme.surface,
+      appBar: CustomAppBar(
+        titleText: _tr('notifications'),
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         actions: [
           IconButton(
             onPressed: _markAllAsRead,
-            icon: Icon(Icons.done_all, color: AppTheme.primaryColor),
+            icon: Icon(
+              Icons.done_all,
+              color: colorScheme.primary,
+            ),
             tooltip: _tr('mark_all_read'),
           ),
         ],
@@ -108,7 +246,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         stream: _notificationService.getUserNotifications(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: BouncingDotsLoader());
           }
 
           if (snapshot.hasError) {
@@ -116,10 +254,26 @@ class _NotificationScreenState extends State<NotificationScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error, size: 64, color: AppTheme.errorColor),
+                  Icon(
+                    Icons.error,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   SizedBox(height: AppTheme.spacing16),
-                  Text(_tr('load_error'), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
-                  Text(snapshot.error.toString(), style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface)),
+                  Text(
+                    _tr('load_error'),
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    snapshot.error.toString(),
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -135,13 +289,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   Container(
                     padding: EdgeInsets.all(AppTheme.spacing24),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withAlpha(25),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withAlpha(25),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       Icons.notifications_none,
                       size: 64,
-                      color: AppTheme.primaryColor.withAlpha(51),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withAlpha(51),
                     ),
                   ),
                   SizedBox(height: AppTheme.spacing24),
@@ -151,7 +309,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       fontSize: AppTheme.fontSizeH5,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Poppins',
-                      color: AppTheme.onSurface,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   SizedBox(height: AppTheme.spacing8),
@@ -159,7 +317,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     _tr('no_notifications_desc'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: AppTheme.subtitleColor,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: AppTheme.fontSizeBody1,
                       fontFamily: 'Poppins',
                     ),
@@ -180,14 +338,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 background: Container(
                   alignment: Alignment.centerRight,
                   padding: EdgeInsets.only(right: AppTheme.spacing20),
-                  color: AppTheme.errorColor,
+                  color: Theme.of(context).colorScheme.error,
                   child: Icon(
                     Icons.delete,
-                    color: AppTheme.whiteColor,
+                    color: Theme.of(context).colorScheme.onError,
                   ),
                 ),
                 onDismissed: (direction) async {
-                  await _notificationService.deleteNotification(notification.id);
+                  await _notificationService.deleteNotification(
+                    notification.id,
+                  );
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(_tr('delete_success'))),
@@ -201,11 +361,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                   ),
                   child: InkWell(
-                    onTap: () {
-                      if (!notification.isRead) {
-                        _markAsRead(notification.id);
-                      }
-                    },
+                    onTap: () => _handleNotificationTap(notification),
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                     child: Padding(
                       padding: EdgeInsets.all(AppTheme.spacing16),
@@ -216,12 +372,20 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           Container(
                             padding: EdgeInsets.all(AppTheme.spacing8),
                             decoration: BoxDecoration(
-                              color: _getNotificationTypeColor(notification.type).withAlpha(25),
-                              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                              color: _getNotificationTypeColor(
+                                context,
+                                notification.type,
+                              ).withAlpha(25),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusSmall,
+                              ),
                             ),
                             child: Icon(
                               _getNotificationIcon(notification.type),
-                              color: _getNotificationTypeColor(notification.type),
+                              color: _getNotificationTypeColor(
+                                context,
+                                notification.type,
+                              ),
                               size: 24,
                             ),
                           ),
@@ -244,7 +408,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                               : FontWeight.bold,
                                           fontSize: AppTheme.fontSizeBody1,
                                           fontFamily: 'Poppins',
-                                          color: AppTheme.onSurface,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
                                         ),
                                       ),
                                     ),
@@ -255,13 +421,19 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                           vertical: AppTheme.spacing4,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: AppTheme.primaryColor,
-                                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          borderRadius: BorderRadius.circular(
+                                            AppTheme.radiusMedium,
+                                          ),
                                         ),
                                         child: Text(
                                           _tr('unread'),
                                           style: TextStyle(
-                                            color: AppTheme.whiteColor,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onPrimary,
                                             fontSize: AppTheme.fontSizeCaption,
                                             fontWeight: FontWeight.bold,
                                             fontFamily: 'Poppins',
@@ -276,7 +448,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                 Text(
                                   notification.body,
                                   style: TextStyle(
-                                    color: AppTheme.subtitleColor,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     fontSize: AppTheme.fontSizeBody2,
                                     fontFamily: 'Poppins',
                                   ),
@@ -289,7 +463,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                     Text(
                                       _formatDate(notification.date),
                                       style: TextStyle(
-                                        color: AppTheme.greyShade500,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                         fontSize: AppTheme.fontSizeCaption,
                                         fontFamily: 'Poppins',
                                       ),
@@ -301,13 +477,23 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                         vertical: AppTheme.spacing4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: _getNotificationTypeColor(notification.type).withAlpha(25),
-                                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                                        color: _getNotificationTypeColor(
+                                          context,
+                                          notification.type,
+                                        ).withAlpha(25),
+                                        borderRadius: BorderRadius.circular(
+                                          AppTheme.radiusSmall,
+                                        ),
                                       ),
                                       child: Text(
-                                        _getNotificationTypeText(notification.type),
+                                        _getNotificationTypeText(
+                                          notification.type,
+                                        ),
                                         style: TextStyle(
-                                          color: _getNotificationTypeColor(notification.type),
+                                          color: _getNotificationTypeColor(
+                                            context,
+                                            notification.type,
+                                          ),
                                           fontSize: AppTheme.fontSizeCaption,
                                           fontWeight: FontWeight.bold,
                                           fontFamily: 'Poppins',

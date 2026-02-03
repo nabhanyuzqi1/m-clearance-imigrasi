@@ -8,14 +8,23 @@ import '../views/screens/auth/register_screen.dart';
 import '../views/screens/auth/registration_pending_screen.dart';
 import '../views/screens/auth/splash_screen.dart';
 import '../views/screens/auth/upload_documents_screen.dart';
-import '../views/screens/officer/account_detail_screen.dart';
-import '../views/screens/officer/account_verification_list_screen.dart';
-import '../views/screens/officer/arrival_verification_screen.dart';
-import '../views/screens/officer/departure_verification_screen.dart';
-import '../views/screens/officer/edit_profile_screen.dart';
-import '../views/screens/officer/notification_screen.dart';
-import '../views/screens/officer/officer_report_screen.dart';
-import '../views/screens/officer/submission_detail_screen.dart';
+import '../views/screens/auth/two_factor_screen.dart';
+import '../views/screens/officer/account_detail_screen.dart'
+    deferred as account_detail;
+import '../views/screens/officer/account_verification_list_screen.dart'
+    deferred as account_verification_list;
+import '../views/screens/officer/arrival_verification_screen.dart'
+    deferred as arrival_verification;
+import '../views/screens/officer/departure_verification_screen.dart'
+    deferred as departure_verification;
+import '../views/screens/officer/edit_profile_screen.dart'
+    deferred as edit_profile;
+import '../views/screens/officer/notification_screen.dart'
+    deferred as officer_notification;
+import '../views/screens/officer/officer_report_screen.dart'
+    deferred as officer_report;
+import '../views/screens/officer/submission_detail_screen.dart'
+    deferred as submission_detail;
 import '../views/screens/user/clearance_form_screen.dart';
 import '../views/screens/user/clearance_result_screen.dart';
 import '../views/screens/user/edit_agent_profile_screen.dart';
@@ -25,16 +34,19 @@ import '../views/screens/user/user_settings_screen.dart';
 import '../views/screens/user/verification_loading_screen.dart';
 import '../views/screens/user/submission_sent_screen.dart';
 import '../views/screens/user/submission_waiting_screen.dart';
-import '../views/screens/officer/admin_home_screen.dart';
-import '../views/screens/officer/email_config_screen.dart';
+import '../views/screens/officer/admin_home_screen.dart' deferred as admin_home;
+import '../views/screens/officer/email_config_screen.dart'
+    deferred as email_config;
 import '../views/screens/user/privacy_security_screen.dart';
 import '../views/screens/common/legal_document_screen.dart';
 import '../models/legal_document.dart';
 
-import '../views/screens/officer/legal_content_editor_screen.dart';
+import '../views/screens/officer/legal_content_editor_screen.dart'
+    deferred as legal_content_editor;
 
 import '../views/screens/user/language_selection_screen.dart';
 import '../views/screens/user/notification_settings_screen.dart';
+
 /// AppRoutes Class
 ///
 /// Mengelola semua rute navigasi aplikasi secara terpusat.
@@ -52,7 +64,8 @@ class AppRoutes {
   static const String uploadDocuments = '/upload-documents';
   static const String registrationPending = '/registration-pending';
   static const String emailVerification = '/email-verification';
-  
+  static const String twoFactor = '/two-factor';
+
   static const String userHome = '/user-home';
   static const String userNotification = '/user-notification';
   static const String editAgentProfile = '/edit-agent-profile';
@@ -79,7 +92,7 @@ class AppRoutes {
   static const String departureVerification = '/departure-verification';
   static const String submissionDetail = '/submission-detail';
   static const String emailConfig = '/email-config';
-  
+
   // === GENERATOR RUTE ===
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     // Mengambil argumen jika ada
@@ -96,27 +109,63 @@ class AppRoutes {
         return FadeRoute(page: const ForgotPasswordScreen());
       case changePassword:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: ChangePasswordScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: ChangePasswordScreen(
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case confirmation:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: ConfirmationScreen(userData: arguments['userData'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: ConfirmationScreen(
+            userData: arguments['userData'],
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
+      case twoFactor:
+        final arguments = args as TwoFactorScreenArgs;
+        return FadeRoute(
+          page: TwoFactorScreen(args: arguments),
+        );
       case uploadDocuments:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: UploadDocumentsScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: UploadDocumentsScreen(
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case registrationPending:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: RegistrationPendingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: RegistrationPendingScreen(
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case emailVerification:
         // Backwards compatibility: route to code confirmation flow instead of link method.
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: ConfirmationScreen(userData: (arguments['userData'] as Map<String, String>?) ?? const {}, initialLanguage: arguments['initialLanguage'] ?? 'EN'));
-      
+        return FadeRoute(
+          page: ConfirmationScreen(
+            userData:
+                (arguments['userData'] as Map<String, String>?) ?? const {},
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
+
       case userHome:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: UserHomeScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: UserHomeScreen(
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case userNotification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: user_notif.NotificationScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: user_notif.NotificationScreen(
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case editAgentProfile:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(
@@ -130,19 +179,44 @@ class AppRoutes {
         );
       case clearanceForm:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: ClearanceFormScreen(type: arguments['type'], agentName: arguments['agentName'], existingApplication: arguments['existingApplication'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: ClearanceFormScreen(
+            type: arguments['type'],
+            agentName: arguments['agentName'],
+            existingApplication: arguments['existingApplication'],
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case verificationLoading:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: VerificationLoadingScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: VerificationLoadingScreen(
+            application: arguments['application'],
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case clearanceResult:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: ClearanceResultScreen(application: arguments['application'], initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: ClearanceResultScreen(
+            application: arguments['application'],
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case submissionSent:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: SubmissionSentScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: SubmissionSentScreen(
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case submissionWaiting:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: SubmissionWaitingScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: SubmissionWaitingScreen(
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case privacySecurity:
         return FadeRoute(page: const PrivacySecurityScreen());
       case terms:
@@ -161,7 +235,11 @@ class AppRoutes {
         return FadeRoute(page: const LanguageSelectionScreen());
       case notificationSettings:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: NotificationSettingsScreen(initialLanguage: arguments['initialLanguage'] ?? 'EN'));
+        return FadeRoute(
+          page: NotificationSettingsScreen(
+            initialLanguage: arguments['initialLanguage'] ?? 'EN',
+          ),
+        );
       case userSettings:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(
@@ -173,57 +251,257 @@ class AppRoutes {
           ),
         );
       case legalEditor:
-        return FadeRoute(page: const LegalContentEditorScreen());
+        return FadeRoute(
+          page: FutureBuilder(
+            future: legal_content_editor.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return legal_content_editor.LegalContentEditorScreen();
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
+          ),
+        );
 
       case adminHome:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(
-          page: AdminHomeScreen(
-            adminName: arguments['adminName'] ?? '',
-            adminUsername: arguments['adminUsername'] ?? '',
-            adminCorporateName: arguments['adminCorporateName'] ?? '',
-            photoURL: arguments['photoURL'],
+          page: FutureBuilder(
+            future: admin_home.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return admin_home.AdminHomeScreen(
+                  adminName: arguments['adminName'] ?? '',
+                  adminUsername: arguments['adminUsername'] ?? '',
+                  adminCorporateName: arguments['adminCorporateName'] ?? '',
+                  photoURL: arguments['photoURL'],
+                );
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
           ),
         );
       case adminNotification:
-        return FadeRoute(page: const OfficerNotificationScreen());
+        return FadeRoute(
+          page: FutureBuilder(
+            future: officer_notification.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return officer_notification.OfficerNotificationScreen();
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
+          ),
+        );
       case editOfficerProfile:
-        return FadeRoute(page: const EditProfileScreen());
+        return FadeRoute(
+          page: FutureBuilder(
+            future: edit_profile.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return edit_profile.EditProfileScreen();
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
+          ),
+        );
       case officerReport:
-        return FadeRoute(page: const OfficerReportScreen());
+        return FadeRoute(
+          page: FutureBuilder(
+            future: officer_report.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return officer_report.OfficerReportScreen();
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
+          ),
+        );
       case accountVerificationList:
-        return FadeRoute(page: const AccountVerificationListScreen());
+        return FadeRoute(
+          page: FutureBuilder(
+            future: account_verification_list.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return account_verification_list.AccountVerificationListScreen();
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
+          ),
+        );
       case accountDetail:
         final arguments = args as Map<String, dynamic>? ?? {};
         return FadeRoute(
-          page: AccountDetailScreen(
-            uid: arguments['uid'] ?? '',
+          page: FutureBuilder(
+            future: account_detail.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return account_detail.AccountDetailScreen(
+                  uid: arguments['uid'] ?? '',
+                );
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
           ),
         );
       case arrivalVerification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: ArrivalVerificationScreen(adminName: arguments['adminName'] ?? ''));
+        return FadeRoute(
+          page: FutureBuilder(
+            future: arrival_verification.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return arrival_verification.ArrivalVerificationScreen(
+                  adminName: arguments['adminName'] ?? '',
+                );
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
+          ),
+        );
       case departureVerification:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: DepartureVerificationScreen(adminName: arguments['adminName'] ?? ''));
+        return FadeRoute(
+          page: FutureBuilder(
+            future: departure_verification.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return departure_verification.DepartureVerificationScreen(
+                  adminName: arguments['adminName'] ?? '',
+                );
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
+          ),
+        );
       case submissionDetail:
         final arguments = args as Map<String, dynamic>? ?? {};
-        return FadeRoute(page: SubmissionDetailScreen(application: arguments['application'], adminName: arguments['adminName'] ?? ''));
+        return FadeRoute(
+          page: FutureBuilder(
+            future: submission_detail.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return submission_detail.SubmissionDetailScreen(
+                  application: arguments['application'],
+                  adminName: arguments['adminName'] ?? '',
+                );
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
+          ),
+        );
       case emailConfig:
         // Check if user is admin - officers should not access email config
         // This will be handled by the navigation guard in the calling screen
-        return FadeRoute(page: const EmailConfigScreen());
+        return FadeRoute(
+          page: FutureBuilder(
+            future: email_config.loadLibrary(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                if (snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(child: Text('Error loading screen')),
+                  );
+                }
+                return email_config.EmailConfigScreen();
+              } else {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
+          ),
+        );
 
       default:
         // Halaman default jika rute tidak ditemukan
         return FadeRoute(
           page: Scaffold(
-            body: Center(
-              child: Text('Rute tidak ditemukan: ${settings.name}'),
-            ),
+            body: Center(child: Text('Rute tidak ditemukan: ${settings.name}')),
           ),
         );
     }
   }
 }
+
 // --- IGNORE ---

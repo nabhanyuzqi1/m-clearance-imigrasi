@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../../config/theme.dart';
 import '../../../models/clearance_application.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/auth_service.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/attachment_status_tile.dart';
@@ -59,16 +63,35 @@ class ArrivalDetailScreen extends StatelessWidget {
     LoggingService().debug(
       'Building ArrivalDetailScreen for application: ${application.id}',
     );
+    final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final responsivePadding = screenWidth > 600
         ? AppTheme.spacing16
         : screenWidth * 0.04;
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+    final l10n = AppLocalizations.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color cardColor =
+        isDark ? colorScheme.surfaceContainerHigh : colorScheme.surface;
+    final Color elevatedCardColor =
+        isDark ? colorScheme.surfaceContainerHighest : colorScheme.surface;
+    final Color subtleShadow = colorScheme.shadow.withValues(
+      alpha: isDark ? 0.32 : 0.12,
+    );
+    final Color headerOverlay = colorScheme.onPrimary.withValues(
+      alpha: isDark ? 0.2 : 0.14,
+    );
+    final Color headerGradientStart = isDark
+        ? colorScheme.primaryContainer
+        : colorScheme.primary.withValues(alpha: 0.92);
+    final Color headerGradientEnd = colorScheme.primary;
     return Scaffold(
-      backgroundColor: AppTheme.greyShade50,
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
         titleText: _tr(context, 'arrival_detail'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -82,8 +105,8 @@ class ArrivalDetailScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    AppTheme.primaryColor,
-                    AppTheme.primaryColor.withAlpha(204),
+                    headerGradientStart,
+                    headerGradientEnd,
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -91,9 +114,9 @@ class ArrivalDetailScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.primaryColor.withAlpha(51),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: subtleShadow,
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
@@ -102,39 +125,35 @@ class ArrivalDetailScreen extends StatelessWidget {
                   Container(
                     padding: EdgeInsets.all(AppTheme.spacing12),
                     decoration: BoxDecoration(
-                      color: AppTheme.whiteColor.withAlpha(51),
+                      color: headerOverlay,
                       borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
                     child: Icon(
                       Icons.anchor,
-                      color: AppTheme.whiteColor,
+                      color: colorScheme.onPrimary,
                       size: screenWidth > 600 ? 32.0 : screenWidth * 0.08,
                     ),
                   ),
                   SizedBox(width: AppTheme.spacing16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          application.shipName,
-                          style: TextStyle(
-                            fontSize: AppTheme.fontSizeH5,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.whiteColor,
-                            fontFamily: 'Poppins',
-                          ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        application.shipName,
+                        style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onPrimary,
                         ),
-                        SizedBox(height: AppTheme.spacing4),
-                        Text(
-                          'Application ID: ${application.id}',
-                          style: TextStyle(
-                            fontSize: AppTheme.fontSizeBody2,
-                            color: AppTheme.whiteColor.withAlpha(204),
-                            fontFamily: 'Poppins',
-                          ),
+                      ),
+                      SizedBox(height: AppTheme.spacing4),
+                      Text(
+                        '${l10n.get('clearanceResult.application_id_label')}: ${application.id}',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onPrimary.withValues(alpha: 0.78),
                         ),
-                      ],
+                      ),
+                    ],
                     ),
                   ),
                 ],
@@ -147,13 +166,13 @@ class ArrivalDetailScreen extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(AppTheme.spacing16),
               decoration: BoxDecoration(
-                color: AppTheme.whiteColor,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.greyColor.withAlpha(25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: subtleShadow,
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
@@ -164,17 +183,15 @@ class ArrivalDetailScreen extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.info_outline,
-                        color: AppTheme.primaryColor,
+                        color: colorScheme.primary,
                         size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
                       ),
                       SizedBox(width: AppTheme.spacing12),
                       Text(
-                        'Application Status',
-                        style: TextStyle(
-                          fontSize: AppTheme.fontSizeH6,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.onSurface,
-                          fontFamily: 'Poppins',
+                        l10n.get('submissionDetail.application_status'),
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                     ],
@@ -186,12 +203,12 @@ class ArrivalDetailScreen extends StatelessWidget {
                       vertical: AppTheme.spacing8,
                     ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(application.status).withAlpha(25),
+                      color: _getStatusColor(context, application.status)
+                          .withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
                       border: Border.all(
-                        color: _getStatusColor(
-                          application.status,
-                        ).withAlpha(51),
+                        color: _getStatusColor(context, application.status)
+                            .withValues(alpha: 0.3),
                         width: 1,
                       ),
                     ),
@@ -200,7 +217,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                       children: [
                         Icon(
                           _getStatusIcon(application.status),
-                          color: _getStatusColor(application.status),
+                          color: _getStatusColor(context, application.status),
                           size: screenWidth > 600 ? 16.0 : screenWidth * 0.04,
                         ),
                         SizedBox(width: AppTheme.spacing8),
@@ -208,7 +225,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                           _getStatusText(application.status, context),
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: _getStatusColor(application.status),
+                            color: _getStatusColor(context, application.status),
                             fontFamily: 'Poppins',
                             fontSize: AppTheme.fontSizeBody2,
                           ),
@@ -226,13 +243,13 @@ class ArrivalDetailScreen extends StatelessWidget {
             Container(
               padding: EdgeInsets.all(AppTheme.spacing16),
               decoration: BoxDecoration(
-                color: AppTheme.whiteColor,
+                color: elevatedCardColor,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.greyColor.withAlpha(25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: subtleShadow,
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
@@ -243,66 +260,76 @@ class ArrivalDetailScreen extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.description,
-                        color: AppTheme.primaryColor,
+                        color: colorScheme.primary,
                         size: screenWidth > 600 ? 24.0 : screenWidth * 0.06,
                       ),
                       SizedBox(width: AppTheme.spacing12),
                       Text(
-                        'Arrival Details',
-                        style: TextStyle(
-                          fontSize: AppTheme.fontSizeH6,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.onSurface,
-                          fontFamily: 'Poppins',
+                        l10n.get('submissionDetail.application_details'),
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                     ],
                   ),
                   SizedBox(height: AppTheme.spacing16),
-                  _buildDetailItem(context, 'Ship Name', application.shipName),
-                  _buildDetailItem(context, 'Flag', application.flag),
                   _buildDetailItem(
                     context,
-                    'Last Port',
+                    l10n.get('submissionDetail.ship_name_label'),
+                    application.shipName,
+                  ),
+                  _buildDetailItem(
+                    context,
+                    l10n.get('submissionDetail.flag_label'),
+                    application.flag,
+                  ),
+                  _buildDetailItem(
+                    context,
+                    l10n.get('submissionDetail.last_port_label'),
                     _formatField(context, application.port),
                   ),
                   _buildDetailItem(
                     context,
-                    'ETA',
+                    l10n.get('submissionDetail.eta_label'),
                     _formatField(context, application.date),
                   ),
                   _buildDetailItem(
                     context,
-                    'WNI Crew',
+                    l10n.get('submissionDetail.wni_crew_label'),
                     application.wniCrew?.toString() ?? '0',
                   ),
                   _buildDetailItem(
                     context,
-                    'WNA Crew',
+                    l10n.get('submissionDetail.wna_crew_label'),
                     application.wnaCrew?.toString() ?? '0',
                   ),
-                  _buildDetailItem(context, 'Agent', application.agentName),
                   _buildDetailItem(
                     context,
-                    'Location',
+                    l10n.get('submissionDetail.agent_label'),
+                    application.agentName,
+                  ),
+                  _buildDetailItem(
+                    context,
+                    l10n.get('submissionDetail.location_label'),
                     _formatLocation(context, application.location),
                   ),
                   _buildDetailItem(
                     context,
-                    'Submitted At',
+                    l10n.get('submissionDetail.submitted_at_label'),
                     '${application.createdAt.day}/${application.createdAt.month}/${application.createdAt.year} ${application.createdAt.hour}:${application.createdAt.minute.toString().padLeft(2, '0')}',
                   ),
                   if (application.officerName != null)
                     _buildDetailItem(
                       context,
-                      'Reviewed By',
+                      l10n.get('submissionDetail.reviewed_by_label'),
                       application.officerName!,
                     ),
                   if (application.notes != null &&
                       application.notes!.isNotEmpty)
                     _buildDetailItem(
                       context,
-                      'Officer Notes',
+                      l10n.get('submissionDetail.officer_notes_label'),
                       application.notes!,
                     ),
                 ],
@@ -311,22 +338,28 @@ class ArrivalDetailScreen extends StatelessWidget {
 
             SizedBox(height: AppTheme.spacing24),
 
-            _buildAttachmentsSection(context),
+            _buildAttachmentsSection(
+              context,
+              colorScheme,
+              subtleShadow,
+              cardColor,
+            ),
 
             SizedBox(height: AppTheme.spacing24),
 
-            if (application.status == ApplicationStatus.approved &&
-                application.clearanceResultFile != null &&
-                application.clearanceResultFile!.isNotEmpty)
-              _buildDownloadCertificateCard(context),
+            if (application.status == ApplicationStatus.approved)
+              _buildDownloadCertificateCard(
+                context,
+                colorScheme,
+                subtleShadow,
+                cardColor,
+              ),
 
-            if (application.status == ApplicationStatus.approved &&
-                application.clearanceResultFile != null &&
-                application.clearanceResultFile!.isNotEmpty)
+            if (application.status == ApplicationStatus.approved)
               SizedBox(height: AppTheme.spacing24),
 
             if (application.status == ApplicationStatus.revision)
-              _buildRevisionBanner(context),
+              _buildRevisionBanner(context, colorScheme),
 
             if (application.status == ApplicationStatus.revision)
               SizedBox(height: AppTheme.spacing24),
@@ -337,16 +370,21 @@ class ArrivalDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAttachmentsSection(BuildContext context) {
+  Widget _buildAttachmentsSection(
+    BuildContext context,
+    ColorScheme colorScheme,
+    Color subtleShadow,
+    Color cardColor,
+  ) {
     final l10n = AppLocalizations.of(context);
     return Container(
       padding: EdgeInsets.all(AppTheme.spacing16),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
+        color: cardColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.greyColor.withAlpha(25),
+            color: subtleShadow,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -359,7 +397,7 @@ class ArrivalDetailScreen extends StatelessWidget {
             children: [
               Icon(
                 Icons.attach_file,
-                color: AppTheme.primaryColor,
+                color: colorScheme.primary,
                 size: 22,
               ),
               SizedBox(width: AppTheme.spacing12),
@@ -368,7 +406,7 @@ class ArrivalDetailScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: AppTheme.fontSizeH6,
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.onSurface,
+                  color: colorScheme.onSurface,
                   fontFamily: 'Poppins',
                 ),
               ),
@@ -395,27 +433,38 @@ class ArrivalDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDownloadCertificateCard(BuildContext context) {
+  Widget _buildDownloadCertificateCard(
+    BuildContext context,
+    ColorScheme colorScheme,
+    Color subtleShadow,
+    Color cardColor,
+  ) {
     final l10n = AppLocalizations.of(context);
-    final certificateUrl = application.clearanceResultFile;
-    if (certificateUrl == null || certificateUrl.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
+    final certificateUrl = application.shortLink != null &&
+            application.shortLink!.trim().isNotEmpty
+        ? application.shortLink!.trim()
+        : (application.clearanceResultFile ?? '').trim();
+    final certificateAvailable = certificateUrl.isNotEmpty &&
+        application.clearanceResultSentAt != null;
     final subtitleKey = application.type == ApplicationType.kedatangan
         ? 'clearanceResult.approved_subtitle_arrival'
         : 'clearanceResult.approved_subtitle_departure';
+    final sentAt = application.clearanceResultSentAt;
+    final sentAtText = sentAt != null
+        ? DateFormat('dd MMM yyyy HH:mm').format(sentAt.toLocal())
+        : null;
+    final clearanceCode = application.clearanceCode;
 
     return Container(
       padding: EdgeInsets.all(AppTheme.spacing16),
       decoration: BoxDecoration(
-        color: AppTheme.whiteColor,
+        color: cardColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primaryColor.withAlpha(25),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: colorScheme.primary.withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -427,7 +476,7 @@ class ArrivalDetailScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: AppTheme.fontSizeH6,
               fontWeight: FontWeight.bold,
-              color: AppTheme.onSurface,
+              color: colorScheme.onSurface,
               fontFamily: 'Poppins',
             ),
           ),
@@ -436,25 +485,113 @@ class ArrivalDetailScreen extends StatelessWidget {
             l10n.get(subtitleKey),
             style: TextStyle(
               fontSize: AppTheme.fontSizeBody2,
-              color: AppTheme.subtitleColor,
+              color: colorScheme.onSurfaceVariant,
               fontFamily: 'Poppins',
             ),
           ),
+          if (clearanceCode != null && clearanceCode.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: AppTheme.spacing12),
+              child: _buildInfoRow(
+                context,
+                l10n.get('clearanceResult.clearance_code'),
+                clearanceCode,
+                colorScheme,
+              ),
+            ),
+          if (sentAtText != null)
+            Padding(
+              padding: EdgeInsets.only(top: AppTheme.spacing8),
+              child: _buildInfoRow(
+                context,
+                l10n.get('clearanceResult.clearance_sent_at'),
+                sentAtText,
+                colorScheme,
+              ),
+            ),
+          if (!certificateAvailable)
+            Padding(
+              padding: EdgeInsets.only(top: AppTheme.spacing12),
+              child: Text(
+                l10n.get('clearanceResult.clearance_pending_message'),
+                style: TextStyle(
+                  fontSize: AppTheme.fontSizeBody2,
+                  color: colorScheme.error,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+            ),
           SizedBox(height: AppTheme.spacing12),
           CustomButton(
             text: l10n.get('clearanceResult.download_certificate'),
             type: CustomButtonType.elevated,
-            backgroundColor: AppTheme.primaryColor,
-            onPressed: () => _openDocument(context, certificateUrl),
+            backgroundColor: colorScheme.primary,
+            onPressed:
+                certificateAvailable
+                    ? () => _openDocument(
+                          context,
+                          certificateUrl,
+                          preferExternal: true,
+                        )
+                    : null,
             isFullWidth: true,
           ),
+          if (!certificateAvailable)
+            Padding(
+              padding: EdgeInsets.only(top: AppTheme.spacing8),
+              child: Text(
+                l10n.get('clearanceResult.clearance_download_disabled'),
+                style: TextStyle(
+                  fontSize: AppTheme.fontSizeSmall,
+                  color: colorScheme.onSurfaceVariant,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
+  Widget _buildInfoRow(
+    BuildContext context,
+    String label,
+    String value,
+    ColorScheme colorScheme,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Text(
+            '$label:',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurfaceVariant,
+              fontFamily: 'Poppins',
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+              fontFamily: 'Poppins',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDetailItem(BuildContext context, String label, String value) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: EdgeInsets.symmetric(vertical: AppTheme.spacing8),
       child: Row(
@@ -467,7 +604,7 @@ class ArrivalDetailScreen extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Poppins',
-                color: AppTheme.onSurface,
+                color: colorScheme.onSurface,
               ),
             ),
           ),
@@ -477,7 +614,7 @@ class ArrivalDetailScreen extends StatelessWidget {
               value,
               style: TextStyle(
                 fontFamily: 'Poppins',
-                color: AppTheme.onSurface,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -486,13 +623,18 @@ class ArrivalDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRevisionBanner(BuildContext context) {
+  Widget _buildRevisionBanner(
+    BuildContext context,
+    ColorScheme colorScheme,
+  ) {
     return Container(
       padding: EdgeInsets.all(AppTheme.spacing16),
       decoration: BoxDecoration(
-        color: AppTheme.warningColor.withAlpha(25),
+        color: colorScheme.secondary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        border: Border.all(color: AppTheme.warningColor.withAlpha(128)),
+        border: Border.all(
+          color: colorScheme.secondary.withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -502,7 +644,7 @@ class ArrivalDetailScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: AppTheme.fontSizeH6,
               fontWeight: FontWeight.bold,
-              color: AppTheme.warningColor,
+              color: colorScheme.secondary,
               fontFamily: 'Poppins',
             ),
           ),
@@ -511,7 +653,7 @@ class ArrivalDetailScreen extends StatelessWidget {
             _tr(context, 'revision_banner_body'),
             style: TextStyle(
               fontSize: AppTheme.fontSizeBody2,
-              color: AppTheme.subtitleColor,
+              color: colorScheme.onSurfaceVariant,
               fontFamily: 'Poppins',
             ),
           ),
@@ -519,7 +661,7 @@ class ArrivalDetailScreen extends StatelessWidget {
           CustomButton(
             text: _tr(context, 'revision_button'),
             type: CustomButtonType.elevated,
-            backgroundColor: AppTheme.primaryColor,
+            backgroundColor: colorScheme.primary,
             onPressed: () => _openRevisionForm(context),
             isFullWidth: true,
           ),
@@ -542,20 +684,67 @@ class ArrivalDetailScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _openDocument(BuildContext context, String fileUrl) async {
+  Future<void> _openDocument(
+    BuildContext context,
+    String fileUrl, {
+    bool preferExternal = false,
+  }) async {
     final l10n = AppLocalizations.of(context);
+    final trimmedUrl = fileUrl.trim();
+    final uri = Uri.tryParse(trimmedUrl);
+    final openExternally =
+        preferExternal && _shouldOpenExternally(trimmedUrl);
+
+    Future<void> showFailure() async {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
+      );
+    }
+
+    if (kIsWeb) {
+      if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+        final launched = await launchUrl(uri, webOnlyWindowName: '_blank');
+        if (!launched) {
+          await showFailure();
+        }
+      } else {
+        await showFailure();
+      }
+      return;
+    }
+
+    if (openExternally) {
+      if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+        final launched = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (!launched) {
+          await showFailure();
+        }
+      } else {
+        await showFailure();
+      }
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.get('clearanceForm.download_start'))),
     );
 
     try {
       final authService = AuthService();
-      final fileData = await authService.downloadFileData(fileUrl);
+      final fileData = await authService.downloadFileData(trimmedUrl);
+
+      if (!context.mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       if (fileData != null) {
-        final fileName = getFileNameFromUrl(fileUrl);
+        final fileName = getFileNameFromUrl(trimmedUrl);
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -564,28 +753,48 @@ class ArrivalDetailScreen extends StatelessWidget {
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
-        );
+        final uriForFallback = Uri.tryParse(trimmedUrl);
+        if (uriForFallback != null) {
+          final launched = await launchUrl(
+            uriForFallback,
+            mode: LaunchMode.externalApplication,
+          );
+          if (launched) {
+            return;
+          }
+        }
+        await showFailure();
       }
     } catch (e) {
       LoggingService().error('Error downloading file: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.get('clearanceForm.download_failed'))),
-      );
+      await showFailure();
     }
   }
 
-  Color _getStatusColor(ApplicationStatus status) {
+  bool _shouldOpenExternally(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return false;
+    }
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') {
+      return false;
+    }
+    final host = uri.host.toLowerCase();
+    return host.contains('mclearanceisam.com');
+  }
+
+  Color _getStatusColor(BuildContext context, ApplicationStatus status) {
+    final scheme = Theme.of(context).colorScheme;
     switch (status) {
       case ApplicationStatus.waiting:
-        return AppTheme.primaryColor;
+        return scheme.primary;
       case ApplicationStatus.approved:
-        return AppTheme.successColor;
+        return scheme.tertiary;
       case ApplicationStatus.revision:
-        return AppTheme.warningColor;
+        return scheme.secondary;
       case ApplicationStatus.declined:
-        return AppTheme.errorColor;
+        return scheme.error;
     }
   }
 

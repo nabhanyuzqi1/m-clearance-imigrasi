@@ -10,6 +10,7 @@ import '../../../services/logging_service.dart';
 import '../../../config/routes.dart';
 import '../../../providers/language_provider.dart';
 import '../../../localization/app_localizations.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class EditAgentProfileScreen extends StatefulWidget {
   final String username;
@@ -101,7 +102,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               style: TextStyle(
                 fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             actions: [
@@ -118,7 +119,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'camera'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -136,7 +137,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'gallery'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -146,7 +147,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'cancel'),
                   style: TextStyle(
-                    color: AppTheme.greyColor,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -218,14 +219,14 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               style: TextStyle(
                 fontSize: screenWidth * 0.045,
                 fontWeight: FontWeight.bold,
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             content: Text(
               message,
               style: TextStyle(
                 fontSize: screenWidth * 0.04,
-                color: AppTheme.onSurface.withAlpha(179),
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
               ),
             ),
             actions: [
@@ -234,7 +235,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'cancel'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -247,7 +248,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                 child: Text(
                   _tr(context, 'open_settings'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                     fontWeight: FontWeight.w600,
                   ),
@@ -303,14 +304,16 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                   style: TextStyle(
                     fontSize: screenWidth * 0.045,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.onSurface,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 content: Text(
                   _tr(context, 'email_changed_body'),
                   style: TextStyle(
                     fontSize: screenWidth * 0.04,
-                    color: AppTheme.onSurface.withAlpha(179), // 0.7 * 255
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withAlpha(179), // 0.7 * 255
                   ),
                 ),
                 actions: [
@@ -325,7 +328,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                     child: Text(
                       _tr(context, 'ok'),
                       style: TextStyle(
-                        color: AppTheme.primaryColor,
+                        color: Theme.of(context).colorScheme.primary,
                         fontSize: screenWidth * 0.04,
                         fontWeight: FontWeight.w600,
                       ),
@@ -339,7 +342,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(_tr(context, 'success')),
-              backgroundColor: Colors.green,
+              backgroundColor: AppTheme.successColor,
             ),
           );
           Navigator.of(context).pop(true);
@@ -353,7 +356,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr(context, 'error')),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -380,7 +383,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
     return Consumer<LanguageProvider>(
       builder: (context, languageProvider, child) {
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           appBar: AppBar(
             title: Text(
               _tr(context, 'title'),
@@ -396,25 +399,9 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
               ),
             ),
             centerTitle: true,
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
             elevation: 0,
-            actions: [
-              IconButton(
-                onPressed: _isLoading ? null : _saveProfile,
-                icon: _isLoading
-                    ? SizedBox(
-                        width: iconSize,
-                        height: iconSize,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.blue,
-                        ),
-                      )
-                    : Icon(Icons.save, color: Colors.blue, size: iconSize),
-                tooltip: _tr(context, 'save_changes'),
-              ),
-            ],
           ),
           body: SingleChildScrollView(
             padding: EdgeInsets.symmetric(
@@ -432,7 +419,9 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                       children: [
                         CircleAvatar(
                           radius: avatarRadius,
-                          backgroundColor: Colors.grey.shade200,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           child: UserService.currentProfileImagePath != null
                               ? ClipOval(
                                   child: Image.file(
@@ -454,7 +443,9 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                                                 return Icon(
                                                   Icons.person,
                                                   size: avatarRadius,
-                                                  color: Colors.grey,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
                                                 );
                                               },
                                         ),
@@ -462,21 +453,26 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                                     : Icon(
                                         Icons.person,
                                         size: avatarRadius,
-                                        color: Colors.grey,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
                                       )),
                         ),
                         InkWell(
                           onTap: _showImageSourceDialog,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.blue,
+                              color: Theme.of(context).colorScheme.primary,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.surface,
+                                width: 2,
+                              ),
                             ),
                             padding: EdgeInsets.all(screenWidth > 600 ? 10 : 8),
                             child: Icon(
                               Icons.camera_alt,
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.onPrimary,
                               size: iconSize,
                             ),
                           ),
@@ -490,7 +486,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                     child: Text(
                       _tr(context, 'change_profile_photo'),
                       style: TextStyle(
-                        color: Colors.blue,
+                        color: Theme.of(context).colorScheme.primary,
                         fontSize: AppTheme.responsiveFontSize(
                           context,
                           mobile: AppTheme.fontSizeBody1,
@@ -560,14 +556,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
                           ? Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                SizedBox(
-                                  width: iconSize,
-                                  height: iconSize,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                                const BouncingDotsLoader(),
                                 const SizedBox(width: 12),
                                 Text(
                                   _tr(context, 'saving'),
@@ -645,7 +634,7 @@ class _EditAgentProfileScreenState extends State<EditAgentProfileScreen> {
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
           ),
           filled: true,
-          fillColor: AppTheme.greyShade50,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         style: TextStyle(
           fontSize: AppTheme.responsiveFontSize(

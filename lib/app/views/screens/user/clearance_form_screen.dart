@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -8,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:shimmer/shimmer.dart' as shimmer;
 import 'package:m_clearance_imigrasi/app/utils/image_utils.dart';
 import '../../../config/theme.dart';
@@ -19,6 +21,7 @@ import '../../../services/logging_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../utils/file_utils.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 import 'clearance_result_screen.dart';
 import 'document_view_screen.dart';
 
@@ -54,23 +57,14 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   final _wnaCrewController = TextEditingController();
 
   String? _selectedFlag;
-  final List<String> _countryFlags = [
-    "Indonesia",
-    "Singapura",
-    "Malaysia",
-    "Panama",
-    "Liberia",
-    "Thailand",
-    "Vietnam",
-    "Filipina",
-    "Tiongkok",
-    "Jepang",
-    "Korea Selatan",
-    "India",
-    "Amerika Serikat",
-  ];
   String? _selectedLocation;
-  final List<String> _locations = ["Bagendang", "Pulang Pisau"];
+  static const String _otherLocationKey = 'Other Location';
+  List<String> _countryFlags = [];
+  final List<String> _locations = [_otherLocationKey];
+  final TextEditingController _otherLocationController =
+      TextEditingController();
+  StreamSubscription<DatabaseEvent>? _flagsSubscription;
+  StreamSubscription<DatabaseEvent>? _portsSubscription;
 
   // File data storage
   Uint8List? _portClearanceFileData;
@@ -83,6 +77,15 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   final ImagePicker _picker = ImagePicker();
 
   bool _isSubmitting = false;
+  bool get _isCustomLocation {
+    if (_selectedLocation == null || _selectedLocation!.isEmpty) {
+      return false;
+    }
+    if (_selectedLocation == _otherLocationKey) {
+      return true;
+    }
+    return !_locations.contains(_selectedLocation);
+  }
 
   // Cached translations to prevent rebuilds
   late String _formInstruction;
@@ -108,6 +111,134 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     _saving = _tr('saving');
   }
 
+  void _loadDynamicLookups() {
+    final flagsRef = FirebaseDatabase.instance.ref('lookups/flags');
+    final portsRef = FirebaseDatabase.instance.ref('lookups/ports');
+
+    _flagsSubscription = flagsRef.onValue.listen(
+      (event) {
+        final remote = _extractStringList(event.snapshot.value);
+        if (!mounted) return;
+        if (remote.isEmpty) {
+          LoggingService().warning(
+            'Flag lookup snapshot returned empty; keeping existing values',
+          );
+          return;
+        }
+        setState(() {
+          final nextFlags = List<String>.from(remote);
+          if (_selectedFlag != null && _selectedFlag!.trim().isNotEmpty) {
+            if (!nextFlags.contains(_selectedFlag)) {
+              nextFlags.add(_selectedFlag!);
+            }
+          }
+          nextFlags.sort();
+          _countryFlags = nextFlags;
+          if (_selectedFlag == null && _countryFlags.isNotEmpty) {
+            _selectedFlag = _countryFlags.first;
+          }
+        });
+      },
+      onError: (error) {
+        LoggingService().error('Failed loading flag list from RTDB', error);
+      },
+    );
+
+    _portsSubscription = portsRef.onValue.listen(
+      (event) {
+        final remote = _extractStringList(event.snapshot.value);
+        if (!mounted) return;
+        if (remote.isEmpty) {
+          LoggingService().warning(
+            'Port lookup snapshot returned empty; keeping existing values',
+          );
+          return;
+        }
+        final nextLocations = List<String>.from(remote);
+        if (!nextLocations.contains(_otherLocationKey)) {
+          nextLocations.add(_otherLocationKey);
+        }
+        if (_locationsEquals(nextLocations, _locations)) {
+          if (_isCustomLocation &&
+              _otherLocationController.text.trim().isEmpty &&
+              _selectedLocation != _otherLocationKey &&
+              _selectedLocation != null) {
+            setState(() {
+              _otherLocationController.text = _selectedLocation!.trim();
+              _selectedLocation = _otherLocationKey;
+            });
+          }
+          return;
+        }
+        setState(() {
+          _locations
+            ..clear()
+            ..addAll(nextLocations);
+          if (_isCustomLocation) {
+            if (_selectedLocation != _otherLocationKey &&
+                _selectedLocation != null &&
+                _otherLocationController.text.trim().isEmpty) {
+              _otherLocationController.text = _selectedLocation!.trim();
+              _selectedLocation = _otherLocationKey;
+            }
+            return;
+          }
+          if (_selectedLocation != null &&
+              !_locations.contains(_selectedLocation)) {
+            _otherLocationController.text = _selectedLocation!.trim();
+            _selectedLocation = _otherLocationKey;
+          } else if ((_selectedLocation == null ||
+                  _selectedLocation!.isEmpty) &&
+              remote.isNotEmpty) {
+            _selectedLocation = remote.first;
+          }
+        });
+      },
+      onError: (error) {
+        LoggingService().error('Failed loading port list from RTDB', error);
+      },
+    );
+  }
+
+  List<String> _extractStringList(Object? value) {
+    final results = <String>{};
+    if (value is List) {
+      for (final entry in value) {
+        if (entry is String && entry.trim().isNotEmpty) {
+          results.add(entry.trim());
+        }
+      }
+    } else if (value is Map) {
+      for (final entry in value.values) {
+        if (entry is String && entry.trim().isNotEmpty) {
+          results.add(entry.trim());
+        }
+      }
+    } else if (value is String && value.trim().isNotEmpty) {
+      results.add(value.trim());
+    }
+    final list = results.toList()..sort();
+    return list;
+  }
+
+  bool _locationsEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  String? _resolvedLocation() {
+    if (_isCustomLocation) {
+      final manual = _otherLocationController.text.trim();
+      return manual.isNotEmpty ? manual : null;
+    }
+    return _selectedLocation;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -117,15 +248,24 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       final app = widget.existingApplication!;
       LoggingService().debug('Loading existing application: ${app.id}');
       _shipNameController.text = app.shipName;
-      _selectedFlag = _countryFlags.contains(app.flag)
-          ? app.flag
-          : _countryFlags.first;
-      _agentNameController.text = app.agentName;
       _portController.text = app.port ?? '';
       _dateController.text = app.date ?? '';
       _wniCrewController.text = app.wniCrew ?? '';
       _wnaCrewController.text = app.wnaCrew ?? '';
-      _selectedLocation = app.location ?? _locations.first;
+      _agentNameController.text = app.agentName;
+
+      if (app.flag.isNotEmpty) {
+        _selectedFlag = app.flag;
+      }
+
+      final existingLocation = app.location?.trim();
+      if (existingLocation != null && existingLocation.isNotEmpty) {
+        _selectedLocation = existingLocation;
+        if (!_locations.contains(existingLocation)) {
+          _otherLocationController.text = existingLocation;
+        }
+      }
+
       // For existing applications, preserve remote references
       _portClearanceFileName = _friendlyFileName(app.portClearanceFile);
       _portClearanceFileUrl = app.portClearanceFile;
@@ -137,10 +277,13 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     } else {
       LoggingService().debug('Creating new application form');
       _agentNameController.text = widget.agentName;
-      _selectedLocation = _locations.first;
-      _selectedFlag = _countryFlags.first;
+      _selectedLocation = null;
+      _selectedFlag = null;
+      _otherLocationController.clear();
       _dateController.text = DateFormat('dd MMMM yyyy').format(DateTime.now());
     }
+
+    _loadDynamicLookups();
   }
 
   @override
@@ -158,6 +301,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     _dateController.dispose();
     _wniCrewController.dispose();
     _wnaCrewController.dispose();
+    _otherLocationController.dispose();
+    _flagsSubscription?.cancel();
+    _portsSubscription?.cancel();
     super.dispose();
   }
 
@@ -408,7 +554,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('select_file_failed')),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
         return;
@@ -484,8 +630,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     ).replaceFirst('{count}', addedCount.toString()),
             ),
             backgroundColor: addedCount > 0
-                ? AppTheme.successColor
-                : AppTheme.errorColor,
+                ? Theme.of(context).colorScheme.tertiary
+                : Theme.of(context).colorScheme.error,
           ),
         );
       } else {
@@ -494,7 +640,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${_tr('upload_success')}: $nameToShow'),
-              backgroundColor: AppTheme.successColor,
+              backgroundColor: Theme.of(context).colorScheme.tertiary,
             ),
           );
         }
@@ -503,7 +649,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_tr('select_file_failed')),
-          backgroundColor: AppTheme.errorColor,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     }
@@ -537,22 +683,40 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
     LoggingService().info('Submit application button pressed');
 
+    final applicationType = widget.existingApplication?.type ?? widget.type;
+    final requiresPortClearance =
+        applicationType == ApplicationType.kedatangan;
+
+    final existingPortFiles =
+        widget.existingApplication?.portClearanceFiles ?? const [];
+    final hasStoredPortFile =
+        (_portClearanceFileUrl != null && _portClearanceFileUrl!.trim().isNotEmpty) ||
+        existingPortFiles.any((url) => url.trim().isNotEmpty);
     final hasPortClearance =
-        _portClearanceFileData != null || _portClearanceFileName != null;
+        _portClearanceFileData != null ||
+        (_portClearanceFileName != null &&
+            _portClearanceFileName!.trim().isNotEmpty) ||
+        hasStoredPortFile;
     final hasCrewList =
         _pendingCrewListFiles.isNotEmpty || _existingCrewListFiles.isNotEmpty;
     final hasNotification =
-        _notificationLetterFileData != null ||
-        _notificationLetterFileName != null;
+        (_notificationLetterFileData != null &&
+            _notificationLetterFileName != null) ||
+        (_notificationLetterFileUrl != null &&
+            _notificationLetterFileUrl!.trim().isNotEmpty) ||
+        ((widget.existingApplication?.notificationLetterFiles ?? const [])
+            .any((url) => url.trim().isNotEmpty));
 
-    if (!hasPortClearance || !hasCrewList || !hasNotification) {
+    if ((requiresPortClearance && !hasPortClearance) ||
+        !hasCrewList ||
+        !hasNotification) {
       LoggingService().warning(
         'Missing required documents, redirecting to upload step',
       );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_tr('upload_all_docs')),
-          backgroundColor: AppTheme.errorColor,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       _goToStep(2);
@@ -593,7 +757,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   side: BorderSide(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                    color: Theme.of(context).colorScheme.primary.withAlpha(51),
                   ),
                   padding: EdgeInsets.symmetric(
                     horizontal: screenWidth * 0.08,
@@ -603,7 +767,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 child: Text(
                   _tr('cancel'),
                   style: TextStyle(
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: screenWidth * 0.04,
                   ),
                 ),
@@ -740,32 +904,31 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
       final existingPortFiles =
           widget.existingApplication?.portClearanceFiles ?? const [];
-      final finalPortFiles = (portClearanceUrl != null &&
-              portClearanceUrl.isNotEmpty)
+      final finalPortFiles =
+          (portClearanceUrl != null && portClearanceUrl.isNotEmpty)
           ? [portClearanceUrl]
-          : (_portClearanceFileUrl != null &&
-                  _portClearanceFileUrl!.isNotEmpty)
-              ? [_portClearanceFileUrl!]
-              : List<String>.from(existingPortFiles);
+          : (_portClearanceFileUrl != null && _portClearanceFileUrl!.isNotEmpty)
+          ? [_portClearanceFileUrl!]
+          : List<String>.from(existingPortFiles);
 
       final existingNotificationFiles =
           widget.existingApplication?.notificationLetterFiles ?? const [];
-      final finalNotificationFiles = (notificationLetterUrl != null &&
-              notificationLetterUrl.isNotEmpty)
+      final finalNotificationFiles =
+          (notificationLetterUrl != null && notificationLetterUrl.isNotEmpty)
           ? [notificationLetterUrl]
           : (_notificationLetterFileUrl != null &&
-                  _notificationLetterFileUrl!.isNotEmpty)
-              ? [_notificationLetterFileUrl!]
-              : List<String>.from(existingNotificationFiles);
+                _notificationLetterFileUrl!.isNotEmpty)
+          ? [_notificationLetterFileUrl!]
+          : List<String>.from(existingNotificationFiles);
 
       final application = ClearanceApplication(
         id: widget.existingApplication?.id ?? '',
         shipName: _shipNameController.text.trim(),
-        flag: _selectedFlag ?? _tr('indonesia'),
+        flag: _selectedFlag?.trim() ?? '',
         agentName: _agentNameController.text,
         agentUid: '', // Will be set by the service
         type: widget.type,
-        location: _selectedLocation,
+        location: _resolvedLocation(),
         port: _portController.text.trim().isEmpty
             ? null
             : _portController.text.trim(),
@@ -813,7 +976,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('success_message')),
-            backgroundColor: AppTheme.successColor,
+            backgroundColor: Theme.of(context).colorScheme.tertiary,
           ),
         );
 
@@ -852,7 +1015,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -871,15 +1034,15 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     final verticalPadding = screenHeight * 0.02; // 2% of screen height
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: CustomAppBar(
         titleText: AppLocalizations.of(context).get(
           widget.type == ApplicationType.kedatangan
               ? 'clearanceForm.arrival_title'
               : 'clearanceForm.departure_title',
         ),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
       ),
       body: SafeArea(
@@ -947,28 +1110,34 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isActive
-            ? AppTheme.primaryColor
-            : (isDone ? Colors.white : AppTheme.greyShade200),
+            ? Theme.of(context).colorScheme.primary
+            : (isDone
+                  ? Theme.of(context).colorScheme.surface
+                  : Theme.of(context).colorScheme.surfaceContainerHighest),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isActive || isDone
-              ? AppTheme.primaryColor
-              : AppTheme.greyShade300,
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: Row(
         key: ValueKey('step_$step'),
         children: [
           if (isDone)
-            const Icon(
+            Icon(
               Icons.check_circle,
-              color: AppTheme.primaryColor,
+              color: Theme.of(context).colorScheme.primary,
               size: 18,
             ),
           if (isDone) const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(color: isActive ? Colors.white : Colors.black),
+            style: TextStyle(
+              color: isActive
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
           ),
         ],
       ),
@@ -976,10 +1145,13 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
   }
 
   Widget _buildStepDivider() {
-    return const Flexible(
+    return Flexible(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 8.0),
-        child: Divider(color: AppTheme.greyShade500, thickness: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: Divider(
+          color: Theme.of(context).colorScheme.outlineVariant,
+          thickness: 1,
+        ),
       ),
     );
   }
@@ -1016,7 +1188,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         Text(
           _formInstruction,
           style: TextStyle(
-            color: AppTheme.greyShade500,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: screenWidth * 0.035,
           ),
         ),
@@ -1043,24 +1215,38 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               SizedBox(height: screenWidth * 0.02),
               DropdownButtonFormField<String>(
                 key: const ValueKey('flag_selector'),
-                // ignore: deprecated_member_use
-                value: _selectedFlag,
+                initialValue: _countryFlags.contains(_selectedFlag)
+                    ? _selectedFlag
+                    : (_selectedFlag != null && _selectedFlag!.trim().isNotEmpty
+                          ? _selectedFlag
+                          : null),
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   filled: true,
-                  fillColor: AppTheme.greyShade50,
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
                 ),
-                items: _countryFlags.map((String country) {
-                  return DropdownMenuItem<String>(
-                    value: country,
-                    child: Text(
-                      country,
-                      style: TextStyle(fontSize: screenWidth * 0.035),
-                    ),
-                  );
-                }).toList(),
+                items: () {
+                  final flags = List<String>.from(_countryFlags);
+                  if (_selectedFlag != null &&
+                      _selectedFlag!.trim().isNotEmpty &&
+                      !flags.contains(_selectedFlag)) {
+                    flags.add(_selectedFlag!);
+                  }
+                  flags.sort();
+                  return flags.map((String country) {
+                    return DropdownMenuItem<String>(
+                      value: country,
+                      child: Text(
+                        country,
+                        style: TextStyle(fontSize: screenWidth * 0.035),
+                      ),
+                    );
+                  }).toList();
+                }(),
                 onChanged: (newValue) {
                   if (newValue == null) return;
                   setState(() {
@@ -1088,31 +1274,84 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               SizedBox(height: screenWidth * 0.02),
               DropdownButtonFormField<String>(
                 key: const ValueKey('location_selector'),
-                initialValue: _selectedLocation,
+                initialValue: () {
+                  if (_selectedLocation == null || _selectedLocation!.isEmpty) {
+                    return null;
+                  }
+                  final locations = List<String>.from(_locations);
+                  if (!locations.contains(_otherLocationKey)) {
+                    locations.add(_otherLocationKey);
+                  }
+                  return locations.contains(_selectedLocation)
+                      ? _selectedLocation
+                      : _otherLocationKey;
+                }(),
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   filled: true,
-                  fillColor: AppTheme.greyShade50,
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
                 ),
-                items: _locations.map((String location) {
-                  return DropdownMenuItem<String>(
-                    value: location,
-                    child: Text(
-                      location,
-                      style: TextStyle(fontSize: screenWidth * 0.035),
-                    ),
-                  );
-                }).toList(),
+                items: () {
+                  final locations = List<String>.from(_locations);
+                  if (!locations.contains(_otherLocationKey)) {
+                    locations.add(_otherLocationKey);
+                  }
+                  return locations.map((String location) {
+                    return DropdownMenuItem<String>(
+                      value: location,
+                      child: Text(
+                        location == _otherLocationKey
+                            ? _tr('other_location')
+                            : location,
+                        style: TextStyle(fontSize: screenWidth * 0.035),
+                      ),
+                    );
+                  }).toList();
+                }(),
                 onChanged: (newValue) {
+                  if (newValue == null) return;
                   setState(() {
                     _selectedLocation = newValue;
+                    if (newValue != _otherLocationKey) {
+                      _otherLocationController.clear();
+                    }
                   });
                 },
-                validator: (value) =>
-                    value == null ? _tr('select_location') : null,
+                validator: (value) => value == null
+                    ? _tr('select_location')
+                    : (value == _otherLocationKey &&
+                              _otherLocationController.text.trim().isEmpty
+                          ? _tr('enter_location')
+                          : null),
               ),
+              if (_isCustomLocation) ...[
+                SizedBox(height: screenWidth * 0.02),
+                TextFormField(
+                  controller: _otherLocationController,
+                  decoration: InputDecoration(
+                    labelText: _tr('other_location'),
+                    hintText: _tr('enter_location'),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                  ),
+                  validator: (value) {
+                    if (!_isCustomLocation) return null;
+                    if (value == null || value.trim().isEmpty) {
+                      return _tr('enter_location');
+                    }
+                    return null;
+                  },
+                ),
+              ],
             ],
           ),
         ),
@@ -1180,7 +1419,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         Text(
           _uploadInstruction,
           style: TextStyle(
-            color: AppTheme.greyShade500,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: screenWidth * 0.035,
           ),
         ),
@@ -1215,8 +1454,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               child: OutlinedButton(
                 onPressed: () => _goToStep(1),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppTheme.primaryColor),
-                  foregroundColor: AppTheme.primaryColor,
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  foregroundColor: Theme.of(context).colorScheme.primary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1279,7 +1520,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 SizedBox(height: verticalSpacing),
                 Card(
                   elevation: 0,
-                  color: AppTheme.greyShade50,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1307,7 +1548,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                         ),
                         _buildDetailRow(
                           _tr('location'),
-                          _selectedLocation ?? '-',
+                          _resolvedLocation() ?? '-',
                         ),
                         _buildDetailRow(
                           _tr('date_label'),
@@ -1320,7 +1561,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 SizedBox(height: verticalSpacing * 2),
                 Card(
                   elevation: 0,
-                  color: AppTheme.greyShade50,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1364,8 +1605,10 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   child: OutlinedButton(
                     onPressed: () => _goToStep(2),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppTheme.primaryColor),
-                      foregroundColor: AppTheme.primaryColor,
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      foregroundColor: Theme.of(context).colorScheme.primary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1393,14 +1636,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                         ? Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              SizedBox(
-                                width: screenWidth * 0.05,
-                                height: screenWidth * 0.05,
-                                child: const CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              ),
+                              const BouncingDotsLoader(),
                               SizedBox(width: screenWidth * 0.03),
                               Text(_saving),
                             ],
@@ -1424,8 +1660,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
     return Padding(
       padding: EdgeInsets.all(horizontalPadding),
       child: shimmer.Shimmer.fromColors(
-        baseColor: AppTheme.greyShade200,
-        highlightColor: AppTheme.greyShade100,
+        baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+        highlightColor: Theme.of(context).colorScheme.surface,
         child: Column(
           children: [
             Expanded(
@@ -1435,7 +1671,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   Container(
                     height: screenWidth * 0.06,
                     width: screenWidth * 0.4,
-                    color: AppTheme.greyShade300,
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
                   SizedBox(height: verticalSpacing),
 
@@ -1443,7 +1679,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   Container(
                     height: screenWidth * 0.8,
                     decoration: BoxDecoration(
-                      color: AppTheme.greyShade300,
+                      color: Theme.of(context).colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
@@ -1453,7 +1689,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   Container(
                     height: screenWidth * 0.6,
                     decoration: BoxDecoration(
-                      color: AppTheme.greyShade300,
+                      color: Theme.of(context).colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
@@ -1467,7 +1703,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               child: Container(
                 height: screenWidth * 0.12,
                 decoration: BoxDecoration(
-                  color: AppTheme.greyShade300,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -1519,8 +1755,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               ),
               filled: isReadOnly,
               fillColor: isReadOnly
-                  ? AppTheme.greyShade200
-                  : AppTheme.greyShade50,
+                  ? Theme.of(context).colorScheme.surfaceContainerHighest
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
               suffixIcon: isDate
                   ? const Icon(Icons.calendar_today_outlined)
                   : null,
@@ -1565,8 +1801,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         _friendlyFileName(fileName) ??
         (hasRemoteFile ? _friendlyFileName(fileUrl) : null);
     final statusColor = isUploaded
-        ? AppTheme.successColor
-        : AppTheme.errorColor;
+        ? Theme.of(context).colorScheme.tertiary
+        : Theme.of(context).colorScheme.error;
     final statusText = isUploaded ? _tr('file_attached') : _tr('not_uploaded');
 
     return Card(
@@ -1590,7 +1826,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               displayName ?? subtitle,
               style: TextStyle(
                 fontSize: screenWidth * 0.035,
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -1616,9 +1852,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                 const Spacer(),
                 IconButton(
                   tooltip: _tr('view_file'),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.visibility_outlined,
-                    color: AppTheme.primaryColor,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   onPressed: !isUploaded
                       ? null
@@ -1641,7 +1877,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(_tr('file_not_available')),
-                                backgroundColor: AppTheme.errorColor,
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.error,
                               ),
                             );
                           }
@@ -1696,7 +1934,9 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
 
     final hasDocs = items.isNotEmpty;
     final statusText = hasDocs ? _tr('file_attached') : _tr('not_uploaded');
-    final statusColor = hasDocs ? AppTheme.successColor : AppTheme.errorColor;
+    final statusColor = hasDocs
+        ? Theme.of(context).colorScheme.tertiary
+        : Theme.of(context).colorScheme.error;
 
     return Card(
       key: key,
@@ -1736,7 +1976,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
               Text(
                 _tr('crew_list_empty'),
                 style: TextStyle(
-                  color: AppTheme.greyShade500,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: screenWidth * 0.035,
                 ),
               )
@@ -1760,13 +2000,15 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
       margin: EdgeInsets.only(top: screenWidth * 0.02),
       padding: EdgeInsets.all(screenWidth * 0.03),
       decoration: BoxDecoration(
-        color: AppTheme.greyShade50,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.greyShade200),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        ),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppTheme.primaryColor),
+          Icon(icon, color: Theme.of(context).colorScheme.primary),
           SizedBox(width: screenWidth * 0.03),
           Expanded(
             child: Column(
@@ -1785,7 +2027,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   statusText,
                   style: TextStyle(
                     fontSize: screenWidth * 0.03,
-                    color: AppTheme.successColor,
+                    color: Theme.of(context).colorScheme.tertiary,
                   ),
                 ),
               ],
@@ -1794,15 +2036,18 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
           if (onView != null)
             IconButton(
               tooltip: _tr('view_file'),
-              icon: const Icon(
+              icon: Icon(
                 Icons.visibility_outlined,
-                color: AppTheme.primaryColor,
+                color: Theme.of(context).colorScheme.primary,
               ),
               onPressed: onView,
             ),
           IconButton(
             tooltip: _tr('remove_file'),
-            icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
+            icon: Icon(
+              Icons.delete_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
             onPressed: onRemove,
           ),
         ],
@@ -1888,7 +2133,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
             child: Text(
               label,
               style: TextStyle(
-                color: AppTheme.greyShade500,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: screenWidth * 0.035,
               ),
             ),
@@ -1926,7 +2171,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         children: [
           Icon(
             Icons.description_outlined,
-            color: AppTheme.greyShade400,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             size: screenWidth * 0.05,
           ),
           SizedBox(width: horizontalSpacing),
@@ -1945,8 +2190,8 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   resolvedName ?? _tr('not_uploaded'),
                   style: TextStyle(
                     color: resolvedName != null
-                        ? AppTheme.primaryColor
-                        : AppTheme.errorColor,
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.error,
                     fontSize: screenWidth * 0.03,
                   ),
                 ),
@@ -1970,7 +2215,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
         children: [
           Icon(
             Icons.description_outlined,
-            color: AppTheme.greyShade400,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             size: screenWidth * 0.05,
           ),
           SizedBox(width: horizontalSpacing),
@@ -1989,7 +2234,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                   Text(
                     _tr('not_uploaded'),
                     style: TextStyle(
-                      color: AppTheme.errorColor,
+                      color: Theme.of(context).colorScheme.error,
                       fontSize: screenWidth * 0.03,
                     ),
                   )
@@ -2000,7 +2245,7 @@ class _ClearanceFormScreenState extends State<ClearanceFormScreen> {
                       child: Text(
                         '• $name',
                         style: TextStyle(
-                          color: AppTheme.primaryColor,
+                          color: Theme.of(context).colorScheme.primary,
                           fontSize: screenWidth * 0.03,
                         ),
                         overflow: TextOverflow.ellipsis,

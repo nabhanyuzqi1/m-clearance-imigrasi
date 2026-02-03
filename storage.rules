@@ -17,6 +17,15 @@ service firebase.storage {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Generated clearance documents – owner can download, officers/admins can review
+    match /clearance_documents/{userId}/{allPaths=**} {
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        request.auth.token.role == 'officer' ||
+        request.auth.token.role == 'admin'
+      );
+    }
+
     // Officers/Admins may review any application documents
     match /applications/{allPaths=**} {
       allow read: if request.auth != null &&

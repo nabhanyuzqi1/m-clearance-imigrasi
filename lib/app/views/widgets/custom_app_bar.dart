@@ -132,8 +132,8 @@ class NotificationIconWithBadge extends StatelessWidget {
                 top: 4.0,
                 child: Container(
                   padding: const EdgeInsets.all(2.0),
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.error,
                     shape: BoxShape.circle,
                   ),
                   constraints: const BoxConstraints(
@@ -142,8 +142,8 @@ class NotificationIconWithBadge extends StatelessWidget {
                   ),
                   child: Text(
                     badgeCount > 99 ? '99+' : '$badgeCount',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary,
                       fontSize: 10.0,
                       fontWeight: FontWeight.bold,
                     ),

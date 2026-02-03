@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import 'bouncing_dots_loader.dart';
 
-enum CustomButtonType {
-  elevated,
-  outlined,
-  text,
-}
+enum CustomButtonType { elevated, outlined, text }
 
 class CustomButton extends StatelessWidget {
   final String text;
@@ -60,26 +57,28 @@ class CustomButton extends StatelessWidget {
           SizedBox(width: screenWidth * 0.02),
         ],
         if (isLoading) ...[
-          SizedBox(
-            width: screenWidth * 0.05,
-            height: screenWidth * 0.05,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                foregroundColor ?? (type == CustomButtonType.elevated ? AppTheme.whiteColor : Theme.of(context).primaryColor),
-              ),
-            ),
-          ),
+          const BouncingDotsLoader(),
           SizedBox(width: screenWidth * 0.02),
         ],
         Flexible(
           child: Text(
             isLoading ? 'Loading...' : text,
-            style: textStyle ?? TextStyle(
-              fontSize: AppTheme.responsiveFontSize(context, mobile: AppTheme.fontSizeBody2, tablet: AppTheme.fontSizeBody1, desktop: AppTheme.fontSizeH6),
-              fontWeight: FontWeight.w500,
-              color: foregroundColor ?? (type == CustomButtonType.elevated ? AppTheme.whiteColor : Theme.of(context).primaryColor),
-            ),
+            style:
+                textStyle ??
+                TextStyle(
+                  fontSize: AppTheme.responsiveFontSize(
+                    context,
+                    mobile: AppTheme.fontSizeBody2,
+                    tablet: AppTheme.fontSizeBody1,
+                    desktop: AppTheme.fontSizeH6,
+                  ),
+                  fontWeight: FontWeight.w500,
+                  color:
+                      foregroundColor ??
+                      (type == CustomButtonType.elevated
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : Theme.of(context).colorScheme.primary),
+                ),
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
           ),
@@ -93,51 +92,59 @@ class CustomButton extends StatelessWidget {
 
     final buttonWidget = switch (type) {
       CustomButtonType.elevated => ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: backgroundColor,
-            foregroundColor: foregroundColor ?? AppTheme.whiteColor,
-            padding: padding ?? defaultPadding,
-            minimumSize: isFullWidth ? const Size(double.infinity, 0) : Size(width ?? 0, height ?? 0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
-            ),
-            elevation: 2,
+        onPressed: isLoading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor:
+              foregroundColor ?? Theme.of(context).colorScheme.onPrimary,
+          padding: padding ?? defaultPadding,
+          minimumSize: isFullWidth
+              ? const Size(double.infinity, 0)
+              : Size(width ?? 0, height ?? 0),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(borderRadius),
           ),
-          child: buttonContent,
+          elevation: 2,
         ),
+        child: buttonContent,
+      ),
       CustomButtonType.outlined => OutlinedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: foregroundColor ?? Theme.of(context).primaryColor,
-            side: BorderSide(color: borderColor ?? Theme.of(context).primaryColor),
-            padding: padding ?? defaultPadding,
-            minimumSize: isFullWidth ? const Size(double.infinity, 0) : Size(width ?? 0, height ?? 0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
-            ),
+        onPressed: isLoading ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor:
+              foregroundColor ?? Theme.of(context).colorScheme.primary,
+          side: BorderSide(
+            color: borderColor ?? Theme.of(context).colorScheme.primary,
           ),
-          child: buttonContent,
+          padding: padding ?? defaultPadding,
+          minimumSize: isFullWidth
+              ? const Size(double.infinity, 0)
+              : Size(width ?? 0, height ?? 0),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(borderRadius),
+          ),
         ),
+        child: buttonContent,
+      ),
       CustomButtonType.text => TextButton(
-          onPressed: isLoading ? null : onPressed,
-          style: TextButton.styleFrom(
-            foregroundColor: foregroundColor ?? Theme.of(context).primaryColor,
-            padding: padding ?? defaultPadding,
-            minimumSize: isFullWidth ? const Size(double.infinity, 0) : Size(width ?? 0, height ?? 0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
-            ),
+        onPressed: isLoading ? null : onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor:
+              foregroundColor ?? Theme.of(context).colorScheme.primary,
+          padding: padding ?? defaultPadding,
+          minimumSize: isFullWidth
+              ? const Size(double.infinity, 0)
+              : Size(width ?? 0, height ?? 0),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(borderRadius),
           ),
-          child: buttonContent,
         ),
+        child: buttonContent,
+      ),
     };
 
     if (isFullWidth) {
-      return SizedBox(
-        width: double.infinity,
-        child: buttonWidget,
-      );
+      return SizedBox(width: double.infinity, child: buttonWidget);
     }
 
     return buttonWidget;

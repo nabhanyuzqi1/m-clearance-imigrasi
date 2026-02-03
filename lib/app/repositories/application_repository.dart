@@ -2,12 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/clearance_application.dart';
 import 'firestore_provider.dart';
 import '../services/logging_service.dart';
-import '../services/notification_service.dart';
 import '../services/officer_service.dart';
-import '../services/clearance_certificate_service.dart';
+import '../services/functions_service.dart';
+import '../services/notification_service.dart';
 
 class ApplicationRepository {
   final FirebaseFirestore _db;
+  final FunctionsService _functionsService = FunctionsService();
   ApplicationRepository({FirebaseFirestore? db})
     : _db = db ?? FirestoreProvider.db;
 
@@ -133,7 +134,6 @@ class ApplicationRepository {
   }) async {
     final notificationService = NotificationService();
     final officerService = OfficerService();
-    final certificateService = ClearanceCertificateService();
 
     try {
       LoggingService().info(
@@ -168,33 +168,15 @@ class ApplicationRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      if (decision == 'approved' && applicationModel != null) {
-        final resolvedOfficerName =
-            officerName?.trim().isNotEmpty == true ? officerName!.trim() :
-            'Immigration Officer';
-        final resolvedCorporateName = officerCorporateName?.trim().isNotEmpty ==
-            true
-            ? officerCorporateName!.trim()
-            : resolvedOfficerName;
-
-        final certificateUrl = await certificateService.generateCertificate(
-          application: applicationModel,
-          officerName: resolvedOfficerName,
-          officerCorporateName: resolvedCorporateName,
-        );
-
-        if (certificateUrl != null) {
-          updates.addAll({
-            'clearanceResultFile': certificateUrl,
-            'clearanceResultGeneratedAt': FieldValue.serverTimestamp(),
-            'clearanceResultSignedBy': resolvedOfficerName,
-            'clearanceResultSignedByCorporate': resolvedCorporateName,
-          });
-        } else {
-          LoggingService().warning(
-            'Certificate generation returned null for application $appId',
-          );
-        }
+      if (decision != 'approved') {
+        updates.addAll({
+          'clearanceResultFile': FieldValue.delete(),
+          'clearanceResultGeneratedAt': FieldValue.delete(),
+          'clearanceResultSignedBy': FieldValue.delete(),
+          'clearanceResultSignedByCorporate': FieldValue.delete(),
+          'clearanceResultSentAt': FieldValue.delete(),
+          'clearanceCode': FieldValue.delete(),
+        });
       }
 
       await docRef.update(updates);
@@ -226,6 +208,125 @@ class ApplicationRepository {
       LoggingService().error('Error updating application $appId status', e);
       rethrow;
     }
+  }
+
+  Future<ClearanceApplication> sendClearanceCertificate({
+    required String appId,
+    required String officerName,
+    required String officerCorporateName,
+    bool generateOnly = false,
+  }) async {
+    final officerService = OfficerService();
+
+    try {
+      LoggingService().info(
+        generateOnly
+            ? 'Generating clearance document for preview: $appId'
+            : 'Initiating sendClearanceCertificate for $appId',
+      );
+      final callableResult = await _functionsService.sendClearanceCertificate(
+        applicationId: appId,
+        officerName: officerName,
+        officerCorporateName: officerCorporateName,
+        generateOnly: generateOnly,
+      );
+
+      final docRef = _db.collection('applications').doc(appId);
+
+      // Add retry logic with small delay to handle Firestore eventual consistency
+      ClearanceApplication? updatedApplication;
+      for (int attempt = 0; attempt < 3; attempt++) {
+        await Future.delayed(
+          Duration(milliseconds: attempt * 500),
+        ); // Progressive delay
+        final snapshot = await docRef.get();
+        if (snapshot.exists) {
+          updatedApplication = ClearanceApplication.fromFirestore(snapshot);
+          break;
+        }
+        LoggingService().info(
+          'Application $appId not found on attempt ${attempt + 1}, retrying...',
+        );
+      }
+
+      if (updatedApplication == null) {
+        LoggingService().warning(
+          'Application $appId missing after sendClearanceCertificate callable after retries.',
+        );
+        throw StateError('Application not found after certificate generation');
+      }
+
+      // If a short link was generated, update the application document with it
+      if (!generateOnly && callableResult['shortLink'] != null) {
+        try {
+          await docRef.update({
+            'shortLink': callableResult['shortLink'],
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          LoggingService().info('Short link saved to application $appId');
+
+          // Refresh the application data to include the short link
+          final refreshedSnapshot = await docRef.get();
+          if (refreshedSnapshot.exists) {
+            updatedApplication = ClearanceApplication.fromFirestore(
+              refreshedSnapshot,
+            );
+          }
+        } catch (shortLinkError) {
+          LoggingService().warning(
+            'Failed to save short link to application',
+            shortLinkError,
+          );
+          // Don't fail the whole operation if short link saving fails
+        }
+      }
+
+      final shipName = updatedApplication?.shipName ?? '';
+      final activityDescription = generateOnly
+          ? (shipName.isNotEmpty
+              ? 'eClearance generated for review: $shipName ($appId)'
+              : 'eClearance generated for review: $appId')
+          : (shipName.isNotEmpty
+              ? 'eClearance sent for $shipName ($appId)'
+              : 'eClearance sent for application $appId');
+
+      await officerService.logActivity(
+        title: shipName.isNotEmpty ? shipName : 'eClearance',
+        description: activityDescription,
+        type: 'applicationReview',
+        status: generateOnly ? 'clearanceGenerated' : 'clearanceSent',
+        iconData: generateOnly ? 'description' : 'qr_code',
+      );
+
+      LoggingService().info(
+        generateOnly
+            ? 'Clearance document generated for preview via callable for $appId'
+            : 'sendClearanceCertificate callable completed for $appId',
+        callableResult,
+      );
+
+      return updatedApplication!;
+    } catch (e, stackTrace) {
+      LoggingService().error(
+        'Failed to send eClearance for $appId via callable',
+        e,
+        stackTrace,
+      );
+      rethrow;
+    }
+  }
+
+  Future<ClearanceApplication> generateClearanceCertificate({
+    required String appId,
+    required String officerName,
+    required String officerCorporateName,
+  }) {
+    return sendClearanceCertificate(
+      appId: appId,
+      officerName: officerName,
+      officerCorporateName: officerCorporateName,
+      generateOnly: true,
+    );
   }
 
   Future<void> updateApplication(

@@ -1,5 +1,7 @@
 // lib/app/views/screens/officer/officer_report_screen.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -8,11 +10,13 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/report_model.dart';
+import '../../../models/user_model.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/report_service.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 import '../user/document_view_screen.dart';
 
 class OfficerReportScreen extends StatefulWidget {
@@ -25,12 +29,15 @@ class OfficerReportScreen extends StatefulWidget {
 }
 
 class _OfficerReportScreenState extends State<OfficerReportScreen> {
+  final AuthService _authService = AuthService();
   final FunctionsService _functionsService = FunctionsService();
   final ReportService _reportService = ReportService();
+  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
   bool _isGeneratingReport = false;
   bool _isLoadingStats = true;
   bool _isLoadingReports = true;
+  String? _officerDisplayName;
 
   OfficerStats? _stats;
   List<ReportModel> _reports = const [];
@@ -48,6 +55,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
   @override
   void initState() {
     super.initState();
+    _loadOfficerProfile();
     _loadStats();
     _loadReports();
   }
@@ -59,9 +67,21 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         start: _selectedRange.start,
         end: _selectedRange.end,
       );
+      Map<String, dynamic> statsMap = raw;
+
+      if (statsMap.isEmpty || statsMap['arrival'] == null) {
+        LoggingService().warning(
+          'getOfficerStats returned empty payload, attempting Firestore fallback',
+        );
+        statsMap = await _buildFallbackStats(_selectedRange);
+      }
+
+      if (statsMap.isEmpty) {
+        throw StateError('Officer stats unavailable for selected range');
+      }
       if (!mounted) return;
       setState(() {
-        _stats = OfficerStats.fromMap(raw);
+        _stats = OfficerStats.fromMap(statsMap);
         _isLoadingStats = false;
       });
     } catch (error, stackTrace) {
@@ -77,6 +97,263 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
+    }
+  }
+
+  Future<void> _loadOfficerProfile() async {
+    try {
+      final authUser = _firebaseAuth.currentUser;
+      if (authUser == null) return;
+      final profile = await _authService.getUserData(authUser.uid);
+      final resolvedName = _resolveOfficerDisplayName(profile, authUser);
+      if (!mounted) return;
+      setState(() => _officerDisplayName = resolvedName);
+    } catch (error, stackTrace) {
+      LoggingService().warning(
+        'Failed to load officer profile for reports history',
+        error,
+        stackTrace,
+      );
+    }
+  }
+
+  String _resolveOfficerDisplayName(UserModel? profile, User? authUser) {
+    final candidates = <String?>[
+      profile?.fullName,
+      profile?.username,
+      profile?.corporateName,
+      authUser?.displayName,
+      profile?.email,
+      authUser?.email,
+    ];
+
+    for (final candidate in candidates) {
+      final value = candidate?.trim() ?? '';
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    return authUser?.uid ?? '';
+  }
+
+  Future<Map<String, dynamic>> _buildFallbackStats(DateTimeRange range) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final applications = firestore.collection('applications');
+      final users = firestore.collection('users');
+
+      Future<int> countQuery(
+        Query<Map<String, dynamic>> query,
+        String label,
+      ) async {
+        try {
+          final aggregate = await query.count().get();
+          final countValue = aggregate.count;
+          return countValue ?? 0;
+        } catch (e, stackTrace) {
+          LoggingService().warning(
+            'Aggregate count failed for $label, falling back to snapshot length',
+            e,
+            stackTrace,
+          );
+          try {
+            final snapshot = await query.get();
+            return snapshot.size;
+          } catch (secondaryError, secondaryStack) {
+            LoggingService().error(
+              'Snapshot count fallback also failed for $label',
+              secondaryError,
+              secondaryStack,
+            );
+            return 0;
+          }
+        }
+      }
+
+      DateTime stripToStart(DateTime value) =>
+          DateTime(value.year, value.month, value.day);
+
+      DateTime toRangeEnd(DateTime value) =>
+          DateTime(value.year, value.month, value.day, 23, 59, 59, 999);
+
+      var start = stripToStart(range.start);
+      var end = toRangeEnd(range.end);
+      if (start.isAfter(end)) {
+        final tmp = start;
+        start = end;
+        end = tmp;
+      }
+      final startTs = Timestamp.fromDate(start);
+      final endTs = Timestamp.fromDate(end);
+
+      Future<Map<String, int>> aggregateApplications() async {
+        final arrival = {'pending': 0, 'approved': 0, 'declined': 0};
+        final departure = {'pending': 0, 'approved': 0, 'declined': 0};
+        final docs = <String, Map<String, dynamic>>{};
+
+        Future<void> addSnapshot(
+          Query<Map<String, dynamic>> query,
+          String label,
+        ) async {
+          try {
+            final snapshot = await query.get();
+            for (final doc in snapshot.docs) {
+              docs.putIfAbsent(doc.id, () => doc.data());
+            }
+          } catch (error, stack) {
+            LoggingService().warning(
+              'Aggregate count failed for $label in fallback',
+              error,
+              stack,
+            );
+          }
+        }
+
+        await Future.wait([
+          addSnapshot(
+            applications
+                .where('createdAt', isGreaterThanOrEqualTo: startTs)
+                .where('createdAt', isLessThanOrEqualTo: endTs),
+            'applications_created',
+          ),
+          addSnapshot(
+            applications
+                .where('updatedAt', isGreaterThanOrEqualTo: startTs)
+                .where('updatedAt', isLessThanOrEqualTo: endTs),
+            'applications_updated',
+          ),
+        ]);
+
+        for (final data in docs.values) {
+          final type = data['type'] == 'departure' ? departure : arrival;
+          final status = (data['status'] as String?) ?? 'waiting';
+          if (status == 'approved') {
+            type['approved'] = (type['approved'] ?? 0) + 1;
+          } else if (status == 'declined') {
+            type['declined'] = (type['declined'] ?? 0) + 1;
+          } else {
+            type['pending'] = (type['pending'] ?? 0) + 1;
+          }
+        }
+
+        return {
+          'arrival_pending': arrival['pending'] ?? 0,
+          'arrival_approved': arrival['approved'] ?? 0,
+          'arrival_declined': arrival['declined'] ?? 0,
+          'departure_pending': departure['pending'] ?? 0,
+          'departure_approved': departure['approved'] ?? 0,
+          'departure_declined': departure['declined'] ?? 0,
+        };
+      }
+
+      Future<Map<String, int>> aggregateAccounts() async {
+        final counts = {'pending': 0, 'approved': 0, 'declined': 0};
+        final docs = <String, Map<String, dynamic>>{};
+
+        Future<void> addSnapshot(
+          Query<Map<String, dynamic>> query,
+          String label,
+        ) async {
+          try {
+            final snapshot = await query.get();
+            for (final doc in snapshot.docs) {
+              docs.putIfAbsent(doc.id, () => doc.data());
+            }
+          } catch (error, stack) {
+            LoggingService().warning(
+              'Account aggregate failed for $label in fallback',
+              error,
+              stack,
+            );
+          }
+        }
+
+        await Future.wait([
+          addSnapshot(
+            users
+                .where('createdAt', isGreaterThanOrEqualTo: startTs)
+                .where('createdAt', isLessThanOrEqualTo: endTs),
+            'accounts_created',
+          ),
+          addSnapshot(
+            users
+                .where('updatedAt', isGreaterThanOrEqualTo: startTs)
+                .where('updatedAt', isLessThanOrEqualTo: endTs),
+            'accounts_updated',
+          ),
+        ]);
+
+        for (final data in docs.values) {
+          final status = (data['status'] as String?) ?? 'pending_approval';
+          if (status == 'approved') {
+            counts['approved'] = (counts['approved'] ?? 0) + 1;
+          } else if (status == 'rejected' || status == 'declined') {
+            counts['declined'] = (counts['declined'] ?? 0) + 1;
+          } else {
+            counts['pending'] = (counts['pending'] ?? 0) + 1;
+          }
+        }
+
+        return counts;
+      }
+
+      final appCounts = await aggregateApplications();
+      final accountCounts = await aggregateAccounts();
+
+      final arrivalPending = appCounts['arrival_pending'] ?? 0;
+      final arrivalApproved = appCounts['arrival_approved'] ?? 0;
+      final arrivalDeclined = appCounts['arrival_declined'] ?? 0;
+      final departurePending = appCounts['departure_pending'] ?? 0;
+      final departureApproved = appCounts['departure_approved'] ?? 0;
+      final departureDeclined = appCounts['departure_declined'] ?? 0;
+      final accountsPending = accountCounts['pending'] ?? 0;
+      final accountsApproved = accountCounts['approved'] ?? 0;
+      final accountsDeclined = accountCounts['declined'] ?? 0;
+
+      final arrivalTotal = arrivalPending + arrivalApproved + arrivalDeclined;
+      final departureTotal =
+          departurePending + departureApproved + departureDeclined;
+      final accountsTotal =
+          accountsPending + accountsApproved + accountsDeclined;
+
+      return {
+        'range': {
+          'start': start.toIso8601String(),
+          'end': end.toIso8601String(),
+        },
+        'arrival': {
+          'total': arrivalTotal,
+          'pending': arrivalPending,
+          'approved': arrivalApproved,
+          'declined': arrivalDeclined,
+        },
+        'departure': {
+          'total': departureTotal,
+          'pending': departurePending,
+          'approved': departureApproved,
+          'declined': departureDeclined,
+        },
+        'accounts': {
+          'total': accountsTotal,
+          'pending': accountsPending,
+          'approved': accountsApproved,
+          'declined': accountsDeclined,
+        },
+        'totals': {
+          'pending': arrivalPending + departurePending + accountsPending,
+          'approved': arrivalApproved + departureApproved + accountsApproved,
+          'declined': arrivalDeclined + departureDeclined + accountsDeclined,
+          'total': arrivalTotal + departureTotal + accountsTotal,
+        },
+      };
+    } catch (error, stackTrace) {
+      LoggingService().error(
+        'Fallback officer stats computation failed',
+        error,
+        stackTrace,
+      );
+      return {};
     }
   }
 
@@ -119,7 +396,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     }
 
     try {
-      final fileData = await AuthService().downloadFileData(pdfUrl);
+      final fileData = await _authService.downloadFileData(pdfUrl);
 
       if (!mounted) {
         await _openReportExternally(pdfUrl);
@@ -305,10 +582,15 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
             ? null
             : _showCreateReportSheet,
         icon: _isGeneratingReport
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    colorScheme.onPrimary,
+                  ),
+                ),
               )
             : const Icon(Icons.summarize_outlined),
         label: Text(_tr('create_new_report')),
@@ -319,7 +601,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           await _loadReports();
         },
         child: _isLoadingStats && _stats == null
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: BouncingDotsLoader())
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(AppTheme.spacing24),
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -395,18 +677,21 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
           color: colorScheme.primary,
           stats: stats.arrival,
           icon: Icons.directions_boat_outlined,
+          tr: _tr,
         ),
         _SummaryCard(
           title: _tr('departure'),
           color: colorScheme.secondary,
           stats: stats.departure,
-          icon: Icons.flight_takeoff_outlined,
+          icon: Icons.directions_boat,
+          tr: _tr,
         ),
         _SummaryCard(
           title: _tr('registration'),
           color: colorScheme.tertiary,
           stats: stats.accounts.asDomain(),
           icon: Icons.how_to_reg_outlined,
+          tr: _tr,
         ),
       ],
     );
@@ -537,75 +822,46 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
     final stats = _stats!;
     final textTheme = Theme.of(context).textTheme;
     final items = [
-      _TotalMetric(label: _tr('total_pending'), value: stats.totals.pending),
-      _TotalMetric(label: _tr('total_processed'), value: stats.totalProcessed),
-      _TotalMetric(label: _tr('total_produced'), value: stats.totals.produced),
+      _TotalMetric(label: _tr('pending'), value: stats.totals.pending),
+      _TotalMetric(label: _tr('approved'), value: stats.totals.approved),
+      _TotalMetric(label: _tr('declined'), value: stats.totals.declined),
     ];
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children:
-          items
-              .map(
-                (metric) => Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.only(right: AppTheme.spacing12),
-                    padding: const EdgeInsets.all(AppTheme.spacing16),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surface,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                      border: Border.all(color: colorScheme.outlineVariant),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          metric.label,
-                          style: textTheme.labelMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.spacing8),
-                        Text(
-                          metric.value.toString(),
-                          style: textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
+      children: items.asMap().entries.map((entry) {
+        final index = entry.key;
+        final metric = entry.value;
+        final isLast = index == items.length - 1;
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.only(right: isLast ? 0 : AppTheme.spacing12),
+            padding: const EdgeInsets.all(AppTheme.spacing16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  metric.label,
+                  style: textTheme.labelMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-              )
-              .toList()
-            ..last = Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(AppTheme.spacing16),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-                  border: Border.all(color: colorScheme.outlineVariant),
+                const SizedBox(height: AppTheme.spacing8),
+                Text(
+                  metric.value.toString(),
+                  style: textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      items.last.label,
-                      style: textTheme.labelMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: AppTheme.spacing8),
-                    Text(
-                      items.last.value.toString(),
-                      style: textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -621,7 +877,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
         ),
         const SizedBox(height: AppTheme.spacing16),
         if (_isLoadingReports)
-          const Center(child: CircularProgressIndicator())
+          const Center(child: BouncingDotsLoader())
         else if (_reports.isEmpty)
           Center(
             child: Text(
@@ -637,6 +893,7 @@ class _OfficerReportScreenState extends State<OfficerReportScreen> {
               report: report,
               onTap: () => _downloadReport(report),
               tr: _tr,
+              createdByLabel: _officerDisplayName ?? report.createdBy,
             ),
           ),
       ],
@@ -666,13 +923,23 @@ class OfficerStats {
 
     final range = mapFor(map['range']);
 
+    final arrival = DomainStats.fromMap(mapFor(map['arrival']));
+    final departure = DomainStats.fromMap(mapFor(map['departure']));
+    final accounts = AccountStats.fromMap(mapFor(map['accounts']));
+    final totals = OverviewTotals.withFallback(
+      map: mapFor(map['totals']),
+      arrival: arrival,
+      departure: departure,
+      accounts: accounts,
+    );
+
     return OfficerStats(
       start: parseDate(range['start']),
       end: parseDate(range['end']),
-      arrival: DomainStats.fromMap(mapFor(map['arrival'])),
-      departure: DomainStats.fromMap(mapFor(map['departure'])),
-      accounts: AccountStats.fromMap(mapFor(map['accounts'])),
-      totals: OverviewTotals.fromMap(mapFor(map['totals'])),
+      arrival: arrival,
+      departure: departure,
+      accounts: accounts,
+      totals: totals,
     );
   }
 
@@ -703,9 +970,6 @@ class DomainStats {
     required this.pending,
     required this.approved,
     required this.declined,
-    required this.revision,
-    required this.produced,
-    required this.processed,
   });
 
   factory DomainStats.fromMap(Map<String, dynamic> map) {
@@ -716,14 +980,19 @@ class DomainStats {
       return 0;
     }
 
+    final pending = asInt(map['pending']);
+    final approved = asInt(map['approved']);
+    final declined = asInt(map['declined'] ?? map['rejected']);
+    final providedTotal = asInt(map['total']);
+    final sumStatuses = pending + approved + declined;
+
+    final total = providedTotal > 0 ? providedTotal : sumStatuses;
+
     return DomainStats(
-      total: asInt(map['total']),
-      pending: asInt(map['pending']),
-      approved: asInt(map['approved']),
-      declined: asInt(map['declined']),
-      revision: asInt(map['revision']),
-      produced: asInt(map['produced']),
-      processed: asInt(map['processed']),
+      total: total,
+      pending: pending,
+      approved: approved,
+      declined: declined,
     );
   }
 
@@ -731,9 +1000,8 @@ class DomainStats {
   final int pending;
   final int approved;
   final int declined;
-  final int revision;
-  final int produced;
-  final int processed;
+
+  int get processed => approved + declined;
 
   Map<String, dynamic> toMap() {
     return {
@@ -741,9 +1009,6 @@ class DomainStats {
       'pending': pending,
       'approved': approved,
       'declined': declined,
-      'revision': revision,
-      'produced': produced,
-      'processed': processed,
     };
   }
 }
@@ -753,8 +1018,7 @@ class AccountStats {
     required this.total,
     required this.pending,
     required this.approved,
-    required this.rejected,
-    required this.processed,
+    required this.declined,
   });
 
   factory AccountStats.fromMap(Map<String, dynamic> map) {
@@ -765,28 +1029,34 @@ class AccountStats {
       return 0;
     }
 
+    final pending = asInt(map['pending']);
+    final approved = asInt(map['approved']);
+    final declined = asInt(map['declined'] ?? map['rejected']);
+    final providedTotal = asInt(map['total']);
+    final inferredTotal = pending + approved + declined;
+    final total = providedTotal > 0 ? providedTotal : inferredTotal;
+
     return AccountStats(
-      total: asInt(map['total']),
-      pending: asInt(map['pending']),
-      approved: asInt(map['approved']),
-      rejected: asInt(map['rejected']),
-      processed: asInt(map['processed']),
+      total: total,
+      pending: pending,
+      approved: approved,
+      declined: declined,
     );
   }
 
   final int total;
   final int pending;
   final int approved;
-  final int rejected;
-  final int processed;
+  final int declined;
+
+  int get processed => approved + declined;
 
   Map<String, dynamic> toMap() {
     return {
       'total': total,
       'pending': pending,
       'approved': approved,
-      'rejected': rejected,
-      'processed': processed,
+      'declined': declined,
     };
   }
 
@@ -795,10 +1065,7 @@ class AccountStats {
       total: total,
       pending: pending,
       approved: approved,
-      declined: rejected,
-      revision: 0,
-      produced: 0,
-      processed: processed,
+      declined: declined,
     );
   }
 }
@@ -807,10 +1074,8 @@ class OverviewTotals {
   OverviewTotals({
     required this.pending,
     required this.approved,
-    required this.rejected,
-    required this.revision,
-    required this.produced,
-    required this.applications,
+    required this.declined,
+    required this.total,
   });
 
   factory OverviewTotals.fromMap(Map<String, dynamic> map) {
@@ -824,28 +1089,77 @@ class OverviewTotals {
     return OverviewTotals(
       pending: asInt(map['pending']),
       approved: asInt(map['approved']),
-      rejected: asInt(map['rejected']),
-      revision: asInt(map['revision']),
-      produced: asInt(map['produced']),
-      applications: asInt(map['applications']),
+      declined: asInt(map['declined'] ?? map['rejected']),
+      total: asInt(map['total'] ?? map['applications']),
     );
+  }
+
+  factory OverviewTotals.withFallback({
+    required Map<String, dynamic> map,
+    required DomainStats arrival,
+    required DomainStats departure,
+    required AccountStats accounts,
+  }) {
+    int asInt(dynamic value) {
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    final parsed = OverviewTotals.fromMap(map);
+    final pending = parsed.pending > 0
+        ? parsed.pending
+        : arrival.pending + departure.pending + accounts.pending;
+    final approved = parsed.approved > 0
+        ? parsed.approved
+        : arrival.approved + departure.approved + accounts.approved;
+    final declined = parsed.declined > 0
+        ? parsed.declined
+        : arrival.declined + departure.declined + accounts.declined;
+    final total = parsed.total > 0
+        ? parsed.total
+        : arrival.total + departure.total + accounts.total;
+
+    // If backend explicitly provided zeroes, honor them; otherwise use computed.
+    final explicitKeys = {
+      'pending',
+      'approved',
+      'declined',
+      'rejected',
+      'total',
+      'applications',
+    };
+    final hasExplicitTotals = map.keys.any(explicitKeys.contains);
+
+    return hasExplicitTotals
+        ? OverviewTotals(
+            pending: parsed.pending == 0 ? pending : parsed.pending,
+            approved: parsed.approved == 0 ? approved : parsed.approved,
+            declined: parsed.declined == 0 ? declined : parsed.declined,
+            total: parsed.total == 0 ? total : parsed.total,
+          )
+        : OverviewTotals(
+            pending: pending,
+            approved: approved,
+            declined: declined,
+            total: total,
+          );
   }
 
   final int pending;
   final int approved;
-  final int rejected;
-  final int revision;
-  final int produced;
-  final int applications;
+  final int declined;
+  final int total;
+
+  int get processed => approved + declined;
 
   Map<String, dynamic> toMap() {
     return {
       'pending': pending,
       'approved': approved,
-      'rejected': rejected,
-      'revision': revision,
-      'produced': produced,
-      'applications': applications,
+      'declined': declined,
+      'total': total,
     };
   }
 }
@@ -856,55 +1170,53 @@ class _SummaryCard extends StatelessWidget {
     required this.color,
     required this.stats,
     required this.icon,
+    required this.tr,
   });
 
   final String title;
   final Color color;
   final DomainStats stats;
   final IconData icon;
+  final String Function(String) tr;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return SizedBox(
-      width: 280,
-      child: Container(
-        padding: const EdgeInsets.all(AppTheme.spacing16),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
-          border: Border.all(color: colorScheme.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: color.withValues(alpha: 0.12),
-                  foregroundColor: color,
-                  child: Icon(icon),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTheme.spacing16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withValues(alpha: 0.12),
+                foregroundColor: color,
+                child: Icon(icon),
+              ),
+              const SizedBox(width: AppTheme.spacing12),
+              Text(
+                title,
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(width: AppTheme.spacing12),
-                Text(
-                  title,
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.spacing12),
-            _SummaryMetric(label: 'Total', value: stats.total.toString()),
-            _SummaryMetric(label: 'Pending', value: stats.pending.toString()),
-            _SummaryMetric(
-              label: 'Processed',
-              value: stats.processed.toString(),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacing12),
+          _SummaryMetric(label: tr('pending'), value: stats.pending.toString()),
+          _SummaryMetric(label: tr('approved'), value: stats.approved.toString()),
+          _SummaryMetric(label: tr('declined'), value: stats.declined.toString()),
+          _SummaryMetric(label: tr('total'), value: stats.total.toString()),
+        ],
       ),
     );
   }
@@ -951,10 +1263,8 @@ class _ChartLegend extends StatelessWidget {
   Widget build(BuildContext context) {
     final entries = [
       _LegendEntry(colorScheme.primary, tr('pending')),
-      _LegendEntry(Colors.green, tr('approved')),
+      _LegendEntry(colorScheme.tertiary, tr('approved')),
       _LegendEntry(colorScheme.error, tr('declined')),
-      _LegendEntry(Colors.orange, tr('revision')),
-      _LegendEntry(colorScheme.secondary, tr('produced')),
     ];
     return Wrap(
       spacing: AppTheme.spacing12,
@@ -1019,10 +1329,8 @@ class DataColumnBuilder {
     }
 
     addStack(data.pending, scheme.primary);
-    addStack(data.approved, Colors.green);
+    addStack(data.approved, scheme.tertiary);
     addStack(data.declined, scheme.error);
-    addStack(data.revision, Colors.orange);
-    addStack(data.produced, scheme.secondary);
 
     if (items.isEmpty) {
       items.add(BarChartRodStackItem(0, 0, scheme.primary));
@@ -1037,11 +1345,13 @@ class _ReportListTile extends StatelessWidget {
     required this.report,
     required this.onTap,
     required this.tr,
+    required this.createdByLabel,
   });
 
   final ReportModel report;
   final VoidCallback onTap;
   final String Function(String) tr;
+  final String createdByLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1079,7 +1389,7 @@ class _ReportListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: AppTheme.spacing4),
                   Text(
-                    '${tr('created_by')} ${report.createdBy}',
+                    '${tr('created_by')} $createdByLabel',
                     style: textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),

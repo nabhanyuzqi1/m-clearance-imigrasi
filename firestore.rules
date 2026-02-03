@@ -112,6 +112,9 @@ service cloud.firestore {
       // Delete: deny for all clients
       allow delete: if false;
     }
+    match /users {
+      allow list: if isSignedIn() && isOfficerOrAdmin();
+    }
 
     // Notifications: notifications/{uid}/items/{notifId}
     // Read allowed for owner; client writes denied (Functions use admin privileges)
@@ -191,13 +194,19 @@ service cloud.firestore {
 
     // Cached counters (dashboard metrics)
     match /counters/{counterId} {
-      allow read, list: if isOfficerOrAdmin();
-      allow write: if false;
-    }
+       allow read, list: if isOfficerOrAdmin();
+       allow write: if false;
+     }
 
-    // Default: deny everything else
-    match /{document=**} {
-      allow read, write: if false;
-    }
+     // Short URLs collection (public read access for URL shortener)
+     match /shortUrls/{shortId} {
+       allow read: if true; // Public read access for URL shortener
+       allow write: if false; // Only server-side creation
+     }
+
+     // Default: deny everything else
+     match /{document=**} {
+       allow read, write: if false;
+     }
   }
 }

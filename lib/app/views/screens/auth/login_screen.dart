@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart' as shimmer;
@@ -10,9 +11,13 @@ import '../../../config/theme.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
+import '../../../services/notification_service.dart';
+import '../../../services/system_ui_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 import '../../../providers/language_provider.dart';
+import '../../widgets/bouncing_dots_loader.dart';
+import 'two_factor_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,10 +41,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
+    unawaited(
+      SystemUiService.instance.setSystemBarsAppearance(
+        lightStatusBars: false,
+        lightNavigationBars: false,
       ),
     );
   }
@@ -48,7 +53,12 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
+    unawaited(
+      SystemUiService.instance.setSystemBarsAppearance(
+        lightStatusBars: true,
+        lightNavigationBars: true,
+      ),
+    );
     super.dispose();
   }
 
@@ -69,6 +79,8 @@ class _LoginScreenState extends State<LoginScreen> {
           LoggingService().info(
             'Login successful for user: ${userModel.email}, status: ${userModel.status}',
           );
+          await NotificationService()
+              .startRealtimeListener(force: true);
           switch (userModel.status) {
             case 'approved':
               if (userModel.role == 'admin' || userModel.role == 'officer') {
@@ -160,6 +172,22 @@ class _LoginScreenState extends State<LoginScreen> {
           );
           _showErrorSnackbar(_tr('invalid_credentials'));
         }
+      } on TwoFactorRequiredException catch (twoFactor) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+        });
+        Navigator.pushReplacementNamed(
+          context,
+          AppRoutes.twoFactor,
+          arguments: TwoFactorScreenArgs(
+            email: twoFactor.email,
+            password: twoFactor.password,
+            challenge: twoFactor.challenge,
+            deviceIdentity: twoFactor.deviceIdentity,
+            rememberDeviceDays: twoFactor.rememberDeviceDays,
+          ),
+        );
       } on FirebaseAuthException catch (e) {
         LoggingService().error(
           'Login failed with FirebaseAuthException: ${e.message}',
@@ -177,13 +205,20 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showErrorSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppTheme.errorColor),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
     final screenWidth = MediaQuery.of(context).size.width;
     final responsivePadding = AppTheme.responsivePadding(context);
 
@@ -193,7 +228,7 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Scaffold(
             resizeToAvoidBottomInset: true,
-            backgroundColor: AppTheme.backgroundColor,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             body: Stack(
               fit: StackFit.expand,
               children: [
@@ -234,7 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Container(
                           padding: EdgeInsets.all(responsivePadding * 2),
                           decoration: BoxDecoration(
-                            color: AppTheme.whiteColor,
+                            color: Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(
                               AppTheme.radiusLarge,
                             ),
@@ -256,13 +291,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: AppTheme.whiteColor,
+                      color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(
                         AppTheme.radiusMedium,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.blackColor.withAlpha(64),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withAlpha(64),
                           offset: const Offset(0, 2),
                           blurRadius: 4,
                         ),
@@ -271,7 +308,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       _tr('sign_in'),
                       style: TextStyle(
-                        color: AppTheme.blackColor,
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: AppTheme.fontSizeBody2,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Poppins',
@@ -284,28 +321,46 @@ class _LoginScreenState extends State<LoginScreen> {
                       MediaQuery.of(context).padding.top +
                       AppTheme.paddingSmall,
                   right: responsivePadding * 2,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _tr('change_language'),
-                        style: TextStyle(
-                          color: AppTheme.whiteColor,
-                          fontSize: AppTheme.fontSizeBody2,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: 'Poppins',
-                          shadows: [
-                            Shadow(
-                              offset: const Offset(1, 1),
-                              blurRadius: 2,
-                              color: AppTheme.blackColor.withAlpha(128),
-                            ),
-                          ],
-                        ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(
+                        alpha: isDarkMode ? 0.55 : 0.45,
                       ),
-                      const SizedBox(width: 8),
-                      _buildLanguageSwitcher(),
-                    ],
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusMedium,
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _tr('change_language'),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: AppTheme.fontSizeBody2,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Poppins',
+                            letterSpacing: 0.2,
+                            shadows: const [
+                              Shadow(
+                                offset: Offset(0, 1),
+                                blurRadius: 2,
+                                color: Colors.black54,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildLanguageSwitcher(),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -313,10 +368,12 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           if (_isLoading)
             shimmer.Shimmer.fromColors(
-              baseColor: AppTheme.blackColor.withAlpha(128),
-              highlightColor: AppTheme.blackColor.withAlpha(64),
+              baseColor: Theme.of(context).colorScheme.surface.withAlpha(128),
+              highlightColor: Theme.of(
+                context,
+              ).colorScheme.surface.withAlpha(64),
               child: Container(
-                color: AppTheme.blackColor.withAlpha(128),
+                color: Theme.of(context).colorScheme.surface.withAlpha(128),
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -325,22 +382,24 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 60,
                         height: 60,
                         decoration: BoxDecoration(
-                          color: AppTheme.whiteColor.withAlpha(128),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surface.withAlpha(128),
                           shape: BoxShape.circle,
                         ),
-                        child: const CircularProgressIndicator(
-                          color: Colors.white,
-                        ),
+                        child: const BouncingDotsLoader(),
                       ),
                       const SizedBox(height: AppTheme.paddingLarge),
                       Container(
                         width: 150,
                         height: 20,
-                        color: AppTheme.whiteColor.withAlpha(128),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surface.withAlpha(128),
                         child: Text(
                           _tr('logging_in'),
                           style: AppTheme.labelLarge(context).copyWith(
-                            color: AppTheme.whiteColor,
+                            color: Theme.of(context).colorScheme.surface,
                             fontWeight: FontWeight.bold,
                           ),
                           textAlign: TextAlign.center,
@@ -368,7 +427,9 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Center(
                 child: Image.asset(
-                  'assets/images/logo.png',
+                  Theme.of(context).brightness == Brightness.dark
+                      ? 'assets/images/isam_logo_white.png'
+                      : 'assets/images/logo.png',
                   height: AppTheme.fontSizeXXXXLarge * 3,
                   errorBuilder: (context, error, stackTrace) => Icon(
                     Icons.directions_boat,
@@ -406,7 +467,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     _isPasswordVisible
                         ? Icons.visibility_off_outlined
                         : Icons.visibility_outlined,
-                    color: AppTheme.subtitleColor,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   onPressed: () =>
                       setState(() => _isPasswordVisible = !_isPasswordVisible),
@@ -442,9 +503,9 @@ class _LoginScreenState extends State<LoginScreen> {
               Center(
                 child: RichText(
                   text: TextSpan(
-                    style: AppTheme.linkSecondary(
-                      context,
-                    ).copyWith(color: AppTheme.blackColor54),
+                    style: AppTheme.linkSecondary(context).copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                     children: [
                       TextSpan(text: _tr('not_a_member')),
                       TextSpan(
@@ -468,8 +529,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLanguageSwitcher() {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+    final menuColor = isDarkMode
+        ? theme.colorScheme.surfaceContainerHighest
+        : theme.colorScheme.surface;
+
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.language, color: AppTheme.whiteColor),
+      icon: Icon(Icons.language, color: Colors.white),
+      tooltip: _tr('change_language'),
       onSelected: (String newValue) {
         final languageProvider = Provider.of<LanguageProvider>(
           context,
@@ -478,10 +546,22 @@ class _LoginScreenState extends State<LoginScreen> {
         languageProvider.setLocale(Locale(newValue.toLowerCase()));
       },
       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        PopupMenuItem<String>(value: 'EN', child: Text(_tr('english'))),
-        PopupMenuItem<String>(value: 'ID', child: Text(_tr('indonesian'))),
+        PopupMenuItem<String>(
+          value: 'EN',
+          child: Text(
+            _tr('english'),
+            style: TextStyle(color: theme.colorScheme.onSurface),
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'ID',
+          child: Text(
+            _tr('indonesian'),
+            style: TextStyle(color: theme.colorScheme.onSurface),
+          ),
+        ),
       ],
-      color: AppTheme.whiteColor,
+      color: menuColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       ),

@@ -16,6 +16,7 @@ import '../../../services/officer_service.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/custom_bottom_navbar.dart';
 import '../../widgets/skeleton_loader.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 import 'package:intl/intl.dart';
 import 'account_verification_list_screen.dart';
 import 'arrival_verification_screen.dart';
@@ -120,6 +121,8 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
   final FunctionsService _functionsService = FunctionsService();
   final AuthService _authService = AuthService();
   final NotificationService _notificationService = NotificationService();
+  final OfficerService _officerService = OfficerService();
+  late final Stream<List<OfficerActivity>> _recentActivitiesStream;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _dashboardSubscription;
@@ -135,6 +138,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
     super.initState();
     _fetchInitialStats();
     _listenToRealtimeCounters();
+    _recentActivitiesStream = _officerService.getOfficerActivities(limit: 3);
   }
 
   @override
@@ -288,6 +292,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                 : fallbackFullName;
 
             final displayPhotoUrl = userAccount?.photoURL ?? widget.photoURL;
+            final avatarSize = screenWidth * 0.16;
 
             LoggingService().info(
               'Admin Home Screen: photoURL = $displayPhotoUrl',
@@ -299,23 +304,57 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                 SizedBox(height: verticalSpacing),
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: screenWidth * 0.08,
-                      backgroundColor: colorScheme.surfaceContainerHighest,
-                      backgroundImage:
-                          (displayPhotoUrl != null &&
-                              displayPhotoUrl.isNotEmpty)
-                          ? NetworkImage(displayPhotoUrl)
-                          : null,
-                      child:
-                          (displayPhotoUrl == null || displayPhotoUrl.isEmpty)
-                          ? Icon(
+                    (displayPhotoUrl != null && displayPhotoUrl.isNotEmpty)
+                        ? ClipOval(
+                            child: SizedBox(
+                              width: avatarSize,
+                              height: avatarSize,
+                              child: Image.network(
+                                displayPhotoUrl,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (
+                                  context,
+                                  child,
+                                  loadingProgress,
+                                ) {
+                                  if (loadingProgress == null) return child;
+                                  return SkeletonLoader(
+                                    width: avatarSize,
+                                    height: avatarSize,
+                                    borderRadius: BorderRadius.circular(avatarSize),
+                                  );
+                                },
+                                errorBuilder:
+                                    (
+                                      BuildContext context,
+                                      Object error,
+                                      StackTrace? stackTrace,
+                                    ) {
+                                      LoggingService().error(
+                                        'Profile image load failed: $error',
+                                        error,
+                                        stackTrace,
+                                      );
+                                      return Image.asset(
+                                        'assets/images/logo.png',
+                                        width: avatarSize,
+                                        height: avatarSize,
+                                        fit: BoxFit.cover,
+                                      );
+                                    },
+                              ),
+                            ),
+                          )
+                        : CircleAvatar(
+                            radius: avatarSize * 0.5,
+                            backgroundColor:
+                                colorScheme.surfaceContainerHighest,
+                            child: Icon(
                               Icons.person,
-                              size: screenWidth * 0.08,
+                              size: avatarSize * 0.5,
                               color: colorScheme.onSurfaceVariant,
-                            )
-                          : null,
-                    ),
+                            ),
+                          ),
                     SizedBox(width: screenWidth * 0.04),
                     Expanded(
                       child: Column(
@@ -419,7 +458,7 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
                 Text(tr('recent_activities'), style: textTheme.titleLarge),
                 SizedBox(height: verticalSpacing),
                 StreamBuilder<List<OfficerActivity>>(
-                  stream: OfficerService().getOfficerActivities(limit: 3),
+                  stream: _recentActivitiesStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const SkeletonListLoader(itemCount: 3);
@@ -645,23 +684,11 @@ class _AdminMenuScreenState extends State<AdminMenuScreen> {
       desktop: AppTheme.fontSizeBody1,
     );
 
-    final progressColor = isPrimary
-        ? colorScheme.onPrimary
-        : colorScheme.primary;
     final trailingWidget = isBusy
         ? SizedBox(
             width: iconSize,
             height: iconSize,
-            child: Center(
-              child: SizedBox(
-                width: iconSize * 0.6,
-                height: iconSize * 0.6,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                ),
-              ),
-            ),
+            child: Center(child: BouncingDotsLoader()),
           )
         : Icon(
             iconData,

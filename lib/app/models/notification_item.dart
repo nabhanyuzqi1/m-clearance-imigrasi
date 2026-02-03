@@ -10,6 +10,7 @@ class NotificationItem {
   final NotificationType type;
   final String userId;
   bool isRead;
+  final Map<String, dynamic> metadata;
 
   NotificationItem({
     required this.id,
@@ -19,7 +20,8 @@ class NotificationItem {
     required this.type,
     required this.userId,
     this.isRead = false,
-  });
+    Map<String, dynamic>? metadata,
+  }) : metadata = metadata != null ? Map<String, dynamic>.unmodifiable(metadata) : const {};
 
   factory NotificationItem.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -48,6 +50,22 @@ class NotificationItem {
     final body = data['body'] ?? data['message'] ?? '';
     final userId = data['userId'] ?? '';
     final isRead = data['isRead'] ?? false;
+    const knownKeys = {
+      'title',
+      'body',
+      'date',
+      'createdAt',
+      'timestamp',
+      'type',
+      'userId',
+      'isRead',
+    };
+    final extra = <String, dynamic>{};
+    data.forEach((key, value) {
+      if (!knownKeys.contains(key)) {
+        extra[key] = value is Timestamp ? value.toDate() : value;
+      }
+    });
 
     return NotificationItem(
       id: doc.id,
@@ -57,6 +75,7 @@ class NotificationItem {
       type: type,
       userId: userId,
       isRead: isRead,
+      metadata: extra,
     );
   }
 
@@ -69,11 +88,13 @@ class NotificationItem {
       'type': type.index,
       'userId': userId,
       'isRead': isRead,
+      ...metadata,
     };
   }
 
   NotificationItem copyWith({
     bool? isRead,
+    Map<String, dynamic>? metadata,
   }) {
     return NotificationItem(
       id: id,
@@ -83,6 +104,7 @@ class NotificationItem {
       type: type,
       userId: userId,
       isRead: isRead ?? this.isRead,
+      metadata: metadata ?? this.metadata,
     );
   }
 }

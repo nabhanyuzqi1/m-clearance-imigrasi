@@ -21,15 +21,6 @@ import '../../widgets/skeleton_loader.dart';
 import 'history_screen.dart';
 import 'user_settings_screen.dart';
 
-ImageProvider<Object> _buildProfileImage(String imageUrl, double screenWidth) {
-  try {
-    return NetworkImage(imageUrl);
-  } catch (e) {
-    LoggingService().error('Error loading profile image: $e');
-    return const AssetImage('assets/images/logo.png'); // Fallback image
-  }
-}
-
 class UserHomeScreen extends StatefulWidget {
   final String initialLanguage;
 
@@ -146,15 +137,15 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               CustomButton(
                 text: AppLocalizations.of(context).get('userProfile.cancel'),
                 type: CustomButtonType.outlined,
-                borderColor: AppTheme.errorShade200,
-                foregroundColor: AppTheme.errorColor,
+                borderColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.error,
                 onPressed: () => Navigator.of(dialogContext).pop(),
               ),
               SizedBox(width: screenWidth * 0.02),
               CustomButton(
                 text: AppLocalizations.of(context).get('userProfile.logout'),
                 type: CustomButtonType.elevated,
-                backgroundColor: AppTheme.errorShade400,
+                backgroundColor: Theme.of(context).colorScheme.error,
                 onPressed: () async {
                   Navigator.of(dialogContext).pop();
                   await AuthService().signOut();
@@ -189,7 +180,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                     AppLocalizations.of(context).get('userHome.loading_user'),
                     style: TextStyle(
                       fontSize: AppTheme.responsiveFontSize(context),
-                      color: AppTheme.greyColor,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -199,9 +190,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         }
 
         if (currentUser == null) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: Center(child: BouncingDotsLoader()));
         }
 
         final List<Widget> pages = <Widget>[
@@ -226,17 +215,17 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         ];
 
         return Scaffold(
-          backgroundColor: AppTheme.whiteColor,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           body: pages.elementAt(_selectedIndex),
           bottomNavigationBar: CustomBottomNavbar(
             items: NavigationItems.userItems,
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
-            selectedItemColor: AppTheme.primaryColor,
-            unselectedItemColor: AppTheme.greyColor,
+            selectedItemColor: Theme.of(context).colorScheme.primary,
+            unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
             showSelectedLabels: true,
             showUnselectedLabels: true,
-            backgroundColor: AppTheme.whiteColor,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             elevation: 8,
             languageCode: widget.initialLanguage,
           ),
@@ -247,7 +236,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 }
 
 // User Menu Screen - Main home screen with service cards
-class UserMenuScreen extends StatelessWidget {
+class UserMenuScreen extends StatefulWidget {
   final UserAccount userAccount;
   final String initialLanguage;
   final VoidCallback onNotificationsTap;
@@ -261,6 +250,22 @@ class UserMenuScreen extends StatelessWidget {
     required this.notificationService,
   });
 
+  @override
+  State<UserMenuScreen> createState() => _UserMenuScreenState();
+}
+
+class _UserMenuScreenState extends State<UserMenuScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   String _tr(BuildContext context, String screenKey, String stringKey) =>
       AppLocalizations.of(context).get('$screenKey.$stringKey');
 
@@ -269,20 +274,21 @@ class UserMenuScreen extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final horizontalPadding = screenWidth * 0.06;
     final verticalSpacing = screenWidth * 0.04;
+    final avatarSize = screenWidth * 0.16;
 
     return Scaffold(
-      backgroundColor: AppTheme.whiteColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: CustomAppBar(
         title: LogoTitle(
           text: AppLocalizations.of(context).get('splash.app_name'),
         ),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         actions: [
           NotificationIconWithBadge(
-            badgeCountStream: notificationService.getUnreadCount(),
-            onPressed: onNotificationsTap,
+            badgeCountStream: widget.notificationService.getUnreadCount(),
+            onPressed: widget.onNotificationsTap,
           ),
         ],
       ),
@@ -294,23 +300,58 @@ class UserMenuScreen extends StatelessWidget {
             // Welcome section
             Row(
               children: [
-                CircleAvatar(
-                  radius: screenWidth * 0.08,
-                  backgroundColor: AppTheme.greyShade200,
-                  backgroundImage: userAccount.profileImageUrl != null
-                      ? _buildProfileImage(
-                          userAccount.profileImageUrl!,
-                          screenWidth,
-                        )
-                      : null,
-                  child: userAccount.profileImageUrl == null
-                      ? Icon(
+                widget.userAccount.profileImageUrl != null
+                    ? ClipOval(
+                        child: SizedBox(
+                          width: avatarSize,
+                          height: avatarSize,
+                          child: Image.network(
+                            widget.userAccount.profileImageUrl!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (
+                              context,
+                              child,
+                              loadingProgress,
+                            ) {
+                              if (loadingProgress == null) return child;
+                              return SkeletonLoader(
+                                width: avatarSize,
+                                height: avatarSize,
+                                borderRadius: BorderRadius.circular(avatarSize),
+                              );
+                            },
+                            errorBuilder:
+                                (
+                                  BuildContext context,
+                                  Object error,
+                                  StackTrace? stackTrace,
+                                ) {
+                                  LoggingService().error(
+                                    'Profile image load failed: $error',
+                                    error,
+                                    stackTrace,
+                                  );
+                                  return Image.asset(
+                                    'assets/images/logo.png',
+                                    width: avatarSize,
+                                    height: avatarSize,
+                                    fit: BoxFit.cover,
+                                  );
+                                },
+                          ),
+                        ),
+                      )
+                    : CircleAvatar(
+                        radius: avatarSize * 0.5,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                        child: Icon(
                           Icons.person,
-                          size: screenWidth * 0.08,
-                          color: AppTheme.greyColor,
-                        )
-                      : null,
-                ),
+                          size: avatarSize * 0.5,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                 SizedBox(width: screenWidth * 0.04),
                 Expanded(
                   child: Column(
@@ -318,15 +359,15 @@ class UserMenuScreen extends StatelessWidget {
                     children: [
                       Text(
                         _tr(context, 'userHome', 'hello'),
-                        style: AppTheme.bodyMedium(
-                          context,
-                        ).copyWith(color: AppTheme.greyColor),
+                        style: AppTheme.bodyMedium(context).copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       Text(
-                        userAccount.name,
-                        style: AppTheme.headingSmall(
-                          context,
-                        ).copyWith(color: AppTheme.blackColor),
+                        widget.userAccount.name,
+                        style: AppTheme.headingSmall(context).copyWith(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -341,7 +382,7 @@ class UserMenuScreen extends StatelessWidget {
               _tr(context, 'userHome', 'services'),
               style: AppTheme.headingSmall(
                 context,
-              ).copyWith(color: AppTheme.blackColor),
+              ).copyWith(color: Theme.of(context).colorScheme.onSurface),
             ),
             SizedBox(height: verticalSpacing),
 
@@ -351,7 +392,7 @@ class UserMenuScreen extends StatelessWidget {
               title: _tr(context, 'userHome', 'arrival_clearance'),
               subtitle: _tr(context, 'userHome', 'arrival_description'),
               icon: Icons.anchor,
-              color: AppTheme.primaryColor,
+              color: Theme.of(context).colorScheme.primary,
               serviceIcon: Icons.anchor,
               isPrimary: true,
               onTap: () {
@@ -361,8 +402,8 @@ class UserMenuScreen extends StatelessWidget {
                   AppRoutes.clearanceForm,
                   arguments: {
                     'type': ApplicationType.kedatangan,
-                    'agentName': userAccount.name,
-                    'initialLanguage': initialLanguage,
+                    'agentName': widget.userAccount.name,
+                    'initialLanguage': widget.initialLanguage,
                   },
                 );
               },
@@ -375,7 +416,7 @@ class UserMenuScreen extends StatelessWidget {
               title: _tr(context, 'userHome', 'departure_clearance'),
               subtitle: _tr(context, 'userHome', 'departure_description'),
               icon: Icons.directions_boat,
-              color: AppTheme.secondaryColor,
+              color: Theme.of(context).colorScheme.secondary,
               serviceIcon: Icons.directions_boat,
               isPrimary: false,
               onTap: () {
@@ -385,8 +426,8 @@ class UserMenuScreen extends StatelessWidget {
                   AppRoutes.clearanceForm,
                   arguments: {
                     'type': ApplicationType.keberangkatan,
-                    'agentName': userAccount.name,
-                    'initialLanguage': initialLanguage,
+                    'agentName': widget.userAccount.name,
+                    'initialLanguage': widget.initialLanguage,
                   },
                 );
               },
@@ -398,7 +439,7 @@ class UserMenuScreen extends StatelessWidget {
               _tr(context, 'userHome', 'recent_applications'),
               style: AppTheme.labelLarge(
                 context,
-              ).copyWith(color: AppTheme.blackColor),
+              ).copyWith(color: Theme.of(context).colorScheme.onSurface),
             ),
             SizedBox(height: verticalSpacing),
 
@@ -414,7 +455,9 @@ class UserMenuScreen extends StatelessWidget {
                   return Center(
                     child: Text(
                       _tr(context, 'userHome', 'error_loading_applications'),
-                      style: TextStyle(color: AppTheme.errorColor),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   );
                 }
@@ -430,14 +473,16 @@ class UserMenuScreen extends StatelessWidget {
                         Icon(
                           Icons.inbox,
                           size: screenWidth * 0.15,
-                          color: AppTheme.greyColor,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         SizedBox(height: verticalSpacing),
                         Text(
                           _tr(context, 'userHome', 'no_applications'),
-                          style: AppTheme.bodyMedium(
-                            context,
-                          ).copyWith(color: AppTheme.greyColor),
+                          style: AppTheme.bodyMedium(context).copyWith(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -447,19 +492,25 @@ class UserMenuScreen extends StatelessWidget {
 
                 return Column(
                   children: recentApps.map((app) {
-                    final statusColor = _getStatusColor(app.status);
+                    final statusColor = _getStatusColor(context, app.status);
                     final statusText = _getStatusText(app.status, context);
 
                     return Container(
                       margin: EdgeInsets.only(bottom: verticalSpacing * 0.5),
                       padding: EdgeInsets.all(verticalSpacing),
                       decoration: BoxDecoration(
-                        color: AppTheme.whiteColor,
+                        color: Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.greyShade200),
+                        border: Border.all(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.greyColor.withAlpha(13),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.shadow.withAlpha(13),
                             blurRadius: 8,
                             offset: const Offset(0, 4),
                           ),
@@ -471,7 +522,7 @@ class UserMenuScreen extends StatelessWidget {
                             app.type == ApplicationType.kedatangan
                                 ? Icons.anchor
                                 : Icons.directions_boat,
-                            color: AppTheme.primaryColor,
+                            color: Theme.of(context).colorScheme.primary,
                             size: screenWidth * 0.06,
                           ),
                           SizedBox(width: horizontalPadding * 0.5),
@@ -483,15 +534,19 @@ class UserMenuScreen extends StatelessWidget {
                                   app.shipName,
                                   style: AppTheme.bodyMedium(context).copyWith(
                                     fontWeight: FontWeight.bold,
-                                    color: AppTheme.blackColor,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 Text(
                                   app.date ?? 'No Date',
-                                  style: AppTheme.bodySmall(
-                                    context,
-                                  ).copyWith(color: AppTheme.greyColor),
+                                  style: AppTheme.bodySmall(context).copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
                                 ),
                               ],
                             ),
@@ -558,12 +613,14 @@ class UserMenuScreen extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.all(cardPadding),
         decoration: BoxDecoration(
-          color: isPrimary ? color : AppTheme.whiteColor,
+          color: isPrimary ? color : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border: isPrimary ? null : Border.all(color: AppTheme.greyShade300),
+          border: isPrimary
+              ? null
+              : Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.greyColor.withAlpha(25),
+              color: Theme.of(context).colorScheme.shadow.withAlpha(25),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -581,7 +638,9 @@ class UserMenuScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: titleFontSize,
                       fontWeight: FontWeight.bold,
-                      color: isPrimary ? Colors.white : AppTheme.blackColor,
+                      color: isPrimary
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -591,8 +650,10 @@ class UserMenuScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: subtitleFontSize,
                       color: isPrimary
-                          ? AppTheme.whiteColor70
-                          : AppTheme.greyColor,
+                          ? Theme.of(
+                              context,
+                            ).colorScheme.onPrimary.withAlpha(179)
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -603,7 +664,9 @@ class UserMenuScreen extends StatelessWidget {
             Icon(
               serviceIcon,
               size: iconSize,
-              color: isPrimary ? Colors.white : AppTheme.primaryColor,
+              color: isPrimary
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.primary,
             ),
           ],
         ),
@@ -611,16 +674,16 @@ class UserMenuScreen extends StatelessWidget {
     );
   }
 
-  Color _getStatusColor(ApplicationStatus status) {
+  Color _getStatusColor(BuildContext context, ApplicationStatus status) {
     switch (status) {
       case ApplicationStatus.waiting:
-        return AppTheme.primaryColor;
+        return Theme.of(context).colorScheme.primary;
       case ApplicationStatus.revision:
-        return AppTheme.warningColor;
+        return Theme.of(context).colorScheme.secondary;
       case ApplicationStatus.approved:
-        return AppTheme.successColor;
+        return Theme.of(context).colorScheme.tertiary;
       case ApplicationStatus.declined:
-        return AppTheme.errorColor;
+        return Theme.of(context).colorScheme.error;
     }
   }
 

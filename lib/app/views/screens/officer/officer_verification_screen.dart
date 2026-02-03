@@ -4,6 +4,7 @@ import '../../../config/theme.dart';
 import '../../../services/logging_service.dart';
 import '../../../services/functions_service.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class OfficerVerificationScreen extends StatefulWidget {
   final String initialLanguage;
@@ -62,7 +63,7 @@ class _OfficerVerificationScreenState extends State<OfficerVerificationScreen> {
               future: _getVerificationStats(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(child: BouncingDotsLoader());
                 }
 
                 final stats = snapshot.data ?? {};

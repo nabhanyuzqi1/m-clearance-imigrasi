@@ -6,6 +6,7 @@ import '../../../models/legal_document.dart';
 import '../../../services/legal_content_service.dart';
 import '../../../services/logging_service.dart';
 import '../../widgets/custom_app_bar.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class LegalContentEditorScreen extends StatefulWidget {
   const LegalContentEditorScreen({super.key});
@@ -225,7 +226,7 @@ class _LegalContentEditorScreenState extends State<LegalContentEditorScreen> {
               const SizedBox(height: AppTheme.spacing16),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: BouncingDotsLoader())
                     : TextField(
                         controller: _controller,
                         maxLines: null,
@@ -246,11 +247,7 @@ class _LegalContentEditorScreenState extends State<LegalContentEditorScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _isLoading || _isSaving ? null : _saveContent,
                   icon: _isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
+                      ? const BouncingDotsLoader()
                       : const Icon(Icons.save_outlined),
                   label: Text(
                     _isSaving

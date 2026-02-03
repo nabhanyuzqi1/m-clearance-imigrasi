@@ -83,38 +83,29 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   }
 
   Widget _buildFilterButton(String text, HistoryFilter filter) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isSelected = _currentFilter == filter;
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _currentFilter = filter;
-          });
+      child: ElevatedButton(
+        onPressed: () {
+          setState(() => _currentFilter = filter);
         },
-        child: Container(
-          padding: EdgeInsets.symmetric(vertical: AppTheme.spacing12),
-          decoration: BoxDecoration(
-            color: isSelected ? AppTheme.whiteColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: AppTheme.blackColor.withAlpha(25),
-                      blurRadius: 5,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : [],
-          ),
-          child: Center(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: AppTheme.onSurface,
-                fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily,
-              ),
-            ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isSelected
+              ? colorScheme.primary
+              : colorScheme.surfaceContainerHighest,
+          foregroundColor: isSelected
+              ? colorScheme.onPrimary
+              : colorScheme.onSurfaceVariant,
+          elevation: isSelected ? 2 : 0,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: AppTheme.fontSizeSmall,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
       ),
@@ -164,43 +155,160 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     }
   }
 
-  Color _getStatusColor(ApplicationStatus status) {
+  Color _getStatusColor(BuildContext context, ApplicationStatus status) {
     switch (status) {
       case ApplicationStatus.waiting:
-        return AppTheme.primaryColor;
+        return Theme.of(context).colorScheme.primary;
       case ApplicationStatus.revision:
-        return AppTheme.warningColor;
+        return Theme.of(context).colorScheme.secondary;
       case ApplicationStatus.approved:
-        return AppTheme.successColor;
+        return Theme.of(context).colorScheme.tertiary;
       case ApplicationStatus.declined:
-        return AppTheme.errorColor;
+        return Theme.of(context).colorScheme.error;
     }
   }
 
-  Widget _buildStatusChip(ApplicationStatus status) {
+  Widget _buildApplicationCard(
+    ClearanceApplication app,
+    ColorScheme colorScheme,
+  ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth * 0.06;
+    final verticalSpacing = screenWidth * 0.03;
+    final statusColor = _getStatusColor(context, app.status);
+    final statusText = _getStatusText(app.status);
+    final bool isArrival = app.type == ApplicationType.kedatangan;
+    final iconData = isArrival ? Icons.anchor : Icons.directions_boat;
+    final typeLabel = isArrival ? _tr('arrival') : _tr('departure');
+    final portLabel = isArrival ? _tr('last_port') : _tr('next_port');
+    final portValue = _formatField(app.port);
+    final dateValue = _formatField(app.date);
+
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppTheme.spacing12,
-        vertical: AppTheme.spacing8,
+      margin: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalSpacing * 0.5,
       ),
+      padding: EdgeInsets.all(AppTheme.spacing16),
       decoration: BoxDecoration(
-        color: _getStatusColor(status).withAlpha(25),
-        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.circle, color: _getStatusColor(status), size: 10),
-          SizedBox(width: AppTheme.spacing8),
-          Text(
-            _getStatusText(status),
-            style: TextStyle(
-              color: _getStatusColor(status),
-              fontWeight: FontWeight.bold,
-              fontFamily: Theme.of(context).textTheme.bodyLarge?.fontFamily,
-            ),
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        border: Border.all(color: colorScheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      child: InkWell(
+        onTap: () => _showApplicationDetail(app),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(AppTheme.spacing12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  ),
+                  child: Icon(
+                    iconData,
+                    color: colorScheme.primary,
+                    size: screenWidth * 0.075,
+                  ),
+                ),
+                SizedBox(width: AppTheme.spacing12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        app.shipName,
+                        style: AppTheme.bodyMedium(context).copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      SizedBox(height: AppTheme.spacing4),
+                      Text(
+                        '$typeLabel • ${app.flag}',
+                        style: AppTheme.bodySmall(context).copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacing12,
+                    vertical: AppTheme.spacing8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      fontSize: AppTheme.fontSizeCaption,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppTheme.spacing12),
+            Row(
+              children: [
+                Icon(
+                  Icons.place_outlined,
+                  size: 16,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                SizedBox(width: AppTheme.spacing8),
+                Expanded(
+                  child: Text(
+                    '$portLabel: $portValue',
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontFamily: 'Poppins',
+                      fontSize: AppTheme.fontSizeBody2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppTheme.spacing8),
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today,
+                  size: 16,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                SizedBox(width: AppTheme.spacing8),
+                Text(
+                  dateValue,
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontFamily: 'Poppins',
+                    fontSize: AppTheme.fontSizeBody2,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -241,14 +349,14 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontFamily: 'Poppins',
-              color: AppTheme.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           Text(
             app.shipName,
             style: TextStyle(
               fontSize: AppTheme.fontSizeBody2,
-              color: AppTheme.subtitleColor,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontFamily: 'Poppins',
             ),
           ),
@@ -270,7 +378,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             fontWeight: FontWeight.bold,
             fontSize: AppTheme.fontSizeBody1,
             fontFamily: 'Poppins',
-            color: AppTheme.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         SizedBox(height: AppTheme.spacing8),
@@ -280,7 +388,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         ),
         Text(
           "${_tr('crewlist')}: ${app.wniCrew ?? '0'} WNI - ${app.wnaCrew ?? '0'} WNA",
-          style: TextStyle(fontFamily: 'Poppins', color: AppTheme.onSurface),
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
         ),
       ],
     );
@@ -296,7 +407,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             fontWeight: FontWeight.bold,
             fontSize: AppTheme.fontSizeBody1,
             fontFamily: 'Poppins',
-            color: AppTheme.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         SizedBox(height: AppTheme.spacing8),
@@ -308,7 +419,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
               app.agentName,
               style: TextStyle(
                 fontFamily: 'Poppins',
-                color: AppTheme.onSurface,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ],
@@ -331,7 +442,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             fontWeight: FontWeight.bold,
             fontSize: AppTheme.fontSizeBody1,
             fontFamily: 'Poppins',
-            color: AppTheme.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         SizedBox(height: AppTheme.spacing8),
@@ -341,7 +452,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
               : app.status == ApplicationStatus.declined
               ? "${_tr('declined')} - ${app.notes ?? _tr('no_notes')}"
               : "",
-          style: TextStyle(color: AppTheme.errorColor, fontFamily: 'Poppins'),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.error,
+            fontFamily: 'Poppins',
+          ),
         ),
       ],
     );
@@ -352,7 +466,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
       case ApplicationStatus.revision:
         return ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.warningColor,
+            backgroundColor: Theme.of(context).colorScheme.secondary,
           ),
           onPressed: () {
             Navigator.pop(context);
@@ -372,14 +486,16 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         );
       case ApplicationStatus.declined:
         return ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed: () => Navigator.pop(context),
           child: Text(_tr('done_button')),
         );
       case ApplicationStatus.approved:
         return ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primaryColor,
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
           onPressed: () {
             Navigator.pop(context);
@@ -402,7 +518,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             "OK",
             style: TextStyle(
               fontFamily: 'Poppins',
-              color: AppTheme.primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         );
@@ -419,8 +535,8 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     return Scaffold(
       appBar: CustomAppBar(
         titleText: _tr('history'),
-        backgroundColor: AppTheme.whiteColor,
-        foregroundColor: AppTheme.blackColor,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
@@ -441,7 +557,9 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: AppTheme.greyShade100,
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
               ),
             ),
           ),
@@ -452,7 +570,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             ),
             child: Container(
               decoration: BoxDecoration(
-                color: AppTheme.greyShade100,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(AppTheme.radiusExtraLarge),
               ),
               child: Row(
@@ -485,7 +603,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                           desktop: 18,
                         ),
                         fontFamily: 'Poppins',
-                        color: AppTheme.onSurface,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   );
@@ -502,13 +620,17 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                         Container(
                           padding: EdgeInsets.all(AppTheme.spacing24),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withAlpha(12),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withAlpha(12),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Icons.image_outlined,
                             size: 60,
-                            color: AppTheme.primaryColor.withAlpha(51),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withAlpha(51),
                           ),
                         ),
                         SizedBox(height: AppTheme.spacing24),
@@ -518,7 +640,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                             fontSize: AppTheme.fontSizeH5,
                             fontWeight: FontWeight.bold,
                             fontFamily: 'Poppins',
-                            color: AppTheme.onSurface,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         SizedBox(height: AppTheme.spacing8),
@@ -526,7 +648,9 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                           _tr('empty_subtitle'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: AppTheme.subtitleColor,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: AppTheme.fontSizeBody1,
                             fontFamily: 'Poppins',
                           ),
@@ -542,69 +666,9 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                   itemCount: filteredApplications.length,
                   itemBuilder: (context, index) {
                     final app = filteredApplications[index];
-                    return GestureDetector(
-                      onTap: () => _showApplicationDetail(app),
-                      child: Card(
-                        elevation: 2,
-                        margin: EdgeInsets.only(bottom: AppTheme.spacing12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusMedium,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.all(AppTheme.spacing16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    app.type == ApplicationType.kedatangan
-                                        ? Icons.anchor
-                                        : Icons.directions_boat,
-                                    color: AppTheme.greyShade600,
-                                  ),
-                                  SizedBox(width: AppTheme.spacing8),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        app.type == ApplicationType.kedatangan
-                                            ? _tr('arrival')
-                                            : _tr('departure'),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontFamily: 'Poppins',
-                                          color: AppTheme.onSurface,
-                                        ),
-                                      ),
-                                      Text(
-                                        "${app.shipName} - ${_formatField(app.port)}",
-                                        style: TextStyle(
-                                          color: AppTheme.subtitleColor,
-                                          fontFamily: 'Poppins',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: AppTheme.spacing8),
-                              Text(
-                                app.date ?? 'No Date',
-                                style: TextStyle(
-                                  color: AppTheme.subtitleColor,
-                                  fontFamily: 'Poppins',
-                                ),
-                              ),
-                              SizedBox(height: AppTheme.spacing12),
-                              _buildStatusChip(app.status),
-                            ],
-                          ),
-                        ),
-                      ),
+                    return _buildApplicationCard(
+                      app,
+                      Theme.of(context).colorScheme,
                     );
                   },
                 );

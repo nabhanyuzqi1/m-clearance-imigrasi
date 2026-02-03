@@ -50,20 +50,24 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDT1oRAddYqxhMv90Al81CZfpBmxamuA6s',
-    appId: '1:1059246245623:web:1dbe99369c4028a05835f2',
-    messagingSenderId: '1059246245623',
-    projectId: 'm-clearance-imigrasi',
-    authDomain: 'm-clearance-imigrasi.firebaseapp.com',
-    storageBucket: 'm-clearance-imigrasi.firebasestorage.app',
-    measurementId: 'G-Q8F0DKPDFK',
+    apiKey: 'AIzaSyAz3J__EQv-UO6c5JusEReMvPwFfyl0LVg',
+    appId: '1:672708613887:web:8c213f12350d73a1185eca',
+    messagingSenderId: '672708613887',
+    projectId: 'm-clearance-imigrasi-sampit',
+    authDomain: 'm-clearance-imigrasi-sampit.firebaseapp.com',
+    databaseURL:
+        'https://m-clearance-imigrasi-sampit.asia-southeast1.firebasedatabase.app/',
+    storageBucket: 'm-clearance-imigrasi-sampit.firebasestorage.app',
+    measurementId: 'G-RFXT7G9BRZ',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAtxiF7OuPvVWfjX2VCbjh_Jc4Ez83YRAQ',
-    appId: '1:1059246245623:android:1e9c5f0b562a30925835f2',
-    messagingSenderId: '1059246245623',
-    projectId: 'm-clearance-imigrasi',
-    storageBucket: 'm-clearance-imigrasi.firebasestorage.app',
+    apiKey: 'AIzaSyDKya9rhy6YGV7FKEpdfQqNn87dSkbPaXo',
+    appId: '1:672708613887:android:df3dc6ae2eb48fa3185eca',
+    messagingSenderId: '672708613887',
+    projectId: 'm-clearance-imigrasi-sampit',
+    databaseURL: 'https://m-clearance-imigrasi-sampit-default-rtdb.firebaseio.com',
+    storageBucket: 'm-clearance-imigrasi-sampit.firebasestorage.app',
   );
+
 }

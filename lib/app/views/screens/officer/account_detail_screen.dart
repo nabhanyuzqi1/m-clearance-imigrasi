@@ -9,10 +9,13 @@ import '../../../services/logging_service.dart';
 import '../../../services/functions_service.dart';
 import '../../../services/officer_service.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/storage_reference_utils.dart';
 import '../../screens/user/document_view_screen.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/attachment_status_tile.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/bouncing_dots_loader.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AccountDetailScreen extends StatefulWidget {
   final String uid;
@@ -142,16 +145,22 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     String subtitle, {
     Color? subtitleColor,
     bool allowFallback = true,
+    bool isSelectable = false,
   }) {
+    final theme = Theme.of(context);
     final displaySubtitle = subtitle.isNotEmpty
         ? subtitle
         : (allowFallback ? _tr('N/A') : '');
+    final subtitleStyle = TextStyle(
+      color: subtitleColor ?? theme.colorScheme.onSurfaceVariant,
+      fontSize: AppTheme.fontSizeMedium,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 24),
+          Icon(icon, color: theme.colorScheme.primary, size: 24),
           const SizedBox(width: 16.0),
           Expanded(
             child: Column(
@@ -161,21 +170,15 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                   title,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: theme.colorScheme.onSurface,
                     fontSize: AppTheme.fontSizeMedium,
                   ),
                 ),
                 if (displaySubtitle.isNotEmpty) ...[
                   const SizedBox(height: 4.0),
-                  Text(
-                    displaySubtitle,
-                    style: TextStyle(
-                      color:
-                          subtitleColor ??
-                          Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: AppTheme.fontSizeMedium,
-                    ),
-                  ),
+                  isSelectable
+                      ? SelectableText(displaySubtitle, style: subtitleStyle)
+                      : Text(displaySubtitle, style: subtitleStyle),
                 ],
               ],
             ),
@@ -429,49 +432,31 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
+  static const List<String> _registrationDocOrder = ['nib', 'ktp'];
+
   List<Widget> _buildRegistrationDocumentTiles(
     List<Map<String, dynamic>> docs,
   ) {
-    final grouped = <String, Set<String>>{};
-    final labels = <String, String>{};
+    final grouped = <String, Set<String>>{
+      for (final key in _registrationDocOrder) key: <String>{},
+    };
 
     for (final doc in docs) {
-      final raw = (doc['documentName'] ?? doc['name'] ?? doc['type'] ?? '')
-          .toString()
-          .trim();
-      final key = _normalizeDocumentKey(raw);
-      if (key.isEmpty) continue;
-
-      final url = (doc['storagePath'] ?? doc['path'] ?? doc['url'] ?? '')
-          .toString();
-      labels.putIfAbsent(key, () => _labelForDocumentKey(key, raw));
-      grouped.putIfAbsent(key, () => <String>{});
-      if (url.trim().isNotEmpty) {
-        grouped[key]!.add(url.trim());
+      final reference = _canonicalDocumentReference(doc);
+      if (reference.isEmpty) {
+        continue;
       }
+      final key = _extractRegistrationDocKey(doc, reference);
+      if (key == null) {
+        continue;
+      }
+      grouped[key]!.add(reference);
     }
 
-    for (final expected in const ['ktp', 'nib']) {
-      labels.putIfAbsent(
-        expected,
-        () => _labelForDocumentKey(expected, expected),
-      );
-      grouped.putIfAbsent(expected, () => <String>{});
-    }
-
-    final keys = labels.keys.toList()
-      ..sort((a, b) {
-        const priority = {'ktp': 0, 'nib': 1, 'siup': 2, 'npwp': 3};
-        final pa = priority[a] ?? 999;
-        final pb = priority[b] ?? 999;
-        if (pa != pb) return pa.compareTo(pb);
-        return labels[a]!.compareTo(labels[b]!);
-      });
-
-    return keys
+    return _registrationDocOrder
         .map(
           (key) => AttachmentStatusTile(
-            label: labels[key]!,
+            label: _documentLabel(key),
             fileUrls: grouped[key]!.toList(),
             onViewFile: (ctx, url) => _openDocumentUrl(url),
           ),
@@ -479,52 +464,113 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         .toList();
   }
 
-  String _normalizeDocumentKey(String raw) {
+  String _documentLabel(String key) {
+    switch (key) {
+      case 'nib':
+        return _tr('nib_label');
+      case 'ktp':
+        return _tr('ktp_label');
+      default:
+        return key.toUpperCase();
+    }
+  }
+
+  String _canonicalDocumentReference(Map<String, dynamic> doc) {
+    const preferredKeys = [
+      'storagePath',
+      'path',
+      'storage_path',
+      'reference',
+      'ref',
+      'downloadUrl',
+      'downloadURL',
+      'url',
+      'fileUrl',
+      'fileURL',
+    ];
+
+    for (final key in preferredKeys) {
+      final value = doc[key];
+      if (value is String && value.trim().isNotEmpty) {
+        final canonical = StorageReferenceUtils.canonicalize(value);
+        if (canonical.isNotEmpty) {
+          return canonical;
+        }
+      }
+    }
+
+    return '';
+  }
+
+  String? _extractRegistrationDocKey(
+    Map<String, dynamic> doc,
+    String reference,
+  ) {
+    final candidates = <String?>[
+      doc['documentType'] as String?,
+      doc['type'] as String?,
+      doc['name'] as String?,
+      doc['documentName'] as String?,
+      doc['document_name'] as String?,
+      doc['displayName'] as String?,
+      doc['originalName'] as String?,
+    ];
+
+    for (final candidate in candidates) {
+      final key = _normalizeDocumentKey(candidate);
+      if (key != null && _registrationDocOrder.contains(key)) {
+        return key;
+      }
+    }
+
+    final fromReference = _normalizeDocumentKey(reference);
+    if (fromReference != null &&
+        _registrationDocOrder.contains(fromReference)) {
+      return fromReference;
+    }
+
+    return null;
+  }
+
+  String? _normalizeDocumentKey(String? raw) {
+    if (raw == null) return null;
     final lower = raw.toLowerCase();
     if (lower.contains('ktp')) return 'ktp';
     if (lower.contains('nib')) return 'nib';
-    if (lower.contains('siup')) return 'siup';
-    if (lower.contains('npwp')) return 'npwp';
-    return lower.replaceAll(RegExp(r'[^a-z0-9]'), '');
-  }
-
-  String _labelForDocumentKey(String key, String fallback) {
-    switch (key) {
-      case 'ktp':
-        return 'KTP';
-      case 'nib':
-        return 'NIB';
-      case 'siup':
-        return 'SIUP';
-      case 'npwp':
-        return 'NPWP';
-      default:
-        if (fallback.trim().isEmpty) {
-          return _tr('registration_docs');
-        }
-        final words = fallback
-            .replaceAll('_', ' ')
-            .split(RegExp(r'\s+'))
-            .where((word) => word.isNotEmpty)
-            .map(
-              (word) =>
-                  '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
-            );
-        return words.join(' ');
-    }
+    return null;
   }
 
   Future<void> _openDocumentUrl(String url) async {
     if (url.isEmpty) return;
+    final uri = Uri.tryParse(url);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (launched) {
+        return;
+      }
+    }
+
     final fileName = getFileNameFromUrl(url);
     if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            DocumentViewScreen(storagePath: url, fileName: fileName),
-      ),
-    );
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              DocumentViewScreen(storagePath: url, fileName: fileName),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).get('submissionDetail.failed_to_download_document')),
+        ),
+      );
+    }
   }
 
   Map<String, dynamic> _statusDescriptor(String status) {
@@ -565,6 +611,153 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     }
   }
 
+  Widget _buildProfileHeader(
+    UserModel user,
+    Map<String, dynamic> statusDescriptor,
+  ) {
+    final theme = Theme.of(context);
+    final statusLabel =
+        (statusDescriptor['label'] as String?) ??
+        user.status.replaceAll('_', ' ').toUpperCase();
+    final statusColor =
+        statusDescriptor['color'] as Color? ?? theme.colorScheme.primary;
+    final nameCandidates = [
+      user.fullName.trim(),
+      user.corporateName.trim(),
+      user.username.trim(),
+      user.email.trim(),
+    ];
+    final displayName = nameCandidates.firstWhere(
+      (value) => value.isNotEmpty,
+      orElse: () => user.uid,
+    );
+    final email = user.email.trim();
+    final corporateName = user.corporateName.trim();
+    final nationality = user.nationality.trim();
+    final role = user.role.trim();
+    final photoUrl = user.photoURL?.trim() ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: theme.colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withAlpha(120),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 44,
+            backgroundColor:
+                theme.colorScheme.primary.withValues(alpha: 0.12),
+            backgroundImage: photoUrl.isNotEmpty
+                ? NetworkImage(photoUrl)
+                : null,
+            child: photoUrl.isNotEmpty
+                ? null
+                : Icon(
+                    Icons.person_outline,
+                    size: 44,
+                    color: theme.colorScheme.primary,
+                  ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            displayName,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          if (corporateName.isNotEmpty &&
+              corporateName.toLowerCase() != displayName.toLowerCase())
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                corporateName,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          if (email.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: SelectableText(
+                email,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              Chip(
+                avatar: Icon(
+                  Icons.verified_outlined,
+                  color: statusColor,
+                  size: 18,
+                ),
+                label: Text(statusLabel),
+                backgroundColor: statusColor.withValues(alpha: 0.12),
+                labelStyle: theme.textTheme.bodySmall?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
+                side: BorderSide(color: statusColor.withValues(alpha: 0.4)),
+              ),
+              if (role.isNotEmpty)
+                Chip(
+                  avatar: Icon(
+                    Icons.badge_outlined,
+                    color: theme.colorScheme.primary,
+                    size: 18,
+                  ),
+                  label: Text('${_tr('role')}: ${role.toUpperCase()}'),
+                  backgroundColor: theme.colorScheme.primaryContainer
+                      .withValues(alpha: 0.6),
+                  labelStyle: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              if (nationality.isNotEmpty)
+                Chip(
+                  avatar: Icon(
+                    Icons.public,
+                    color: theme.colorScheme.secondary,
+                    size: 18,
+                  ),
+                  label: Text('${_tr('nationality')}: $nationality'),
+                  backgroundColor: theme.colorScheme.secondaryContainer
+                      .withValues(alpha: 0.6),
+                  labelStyle: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSecondaryContainer,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     LoggingService().debug(
@@ -585,7 +778,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         future: _userFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: BouncingDotsLoader());
           }
           final user = snapshot.data;
           if (user == null) {
@@ -612,7 +805,15 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildProfileHeader(user, statusDescriptor),
                 _buildSectionCard(_tr('user_information'), [
+                  _buildInfoTile(
+                    Icons.fingerprint_outlined,
+                    _tr('user_id'),
+                    user.uid,
+                    allowFallback: false,
+                    isSelectable: true,
+                  ),
                   _buildInfoTile(
                     Icons.person_outline,
                     _tr('username'),
@@ -628,6 +829,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                     Icons.email_outlined,
                     _tr('email'),
                     user.email,
+                    isSelectable: true,
                   ),
                   _buildInfoTile(
                     Icons.business_outlined,
@@ -714,7 +916,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     return Positioned.fill(
       child: ColoredBox(
         color: Colors.black.withAlpha(89),
-        child: const Center(child: CircularProgressIndicator()),
+        child: const Center(child: BouncingDotsLoader()),
       ),
     );
   }

@@ -14,7 +14,11 @@ class ClearanceApplication {
   final ApplicationType type;
   final String? notes;
   final String? port;
+  final String? lastPort;
+  final String? nextPort;
   final String? date;
+  final String? arrivalDate;
+  final String? departureDate;
   final String? wniCrew;
   final String? wnaCrew;
   final String? officerName;
@@ -26,6 +30,9 @@ class ClearanceApplication {
   final DateTime? clearanceResultGeneratedAt;
   final String? clearanceResultSignedBy;
   final String? clearanceResultSignedByCorporate;
+  final DateTime? clearanceResultSentAt;
+  final String? clearanceCode;
+  final String? shortLink;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -39,11 +46,16 @@ class ClearanceApplication {
     this.status = ApplicationStatus.waiting,
     this.notes,
     this.port,
+    this.lastPort,
+    this.nextPort,
     this.date,
+    this.arrivalDate,
+    this.departureDate,
     this.wniCrew,
     this.wnaCrew,
     this.officerName,
     this.location,
+    this.shortLink,
     List<String>? portClearanceFiles,
     String? portClearanceFile,
     List<String>? crewListFiles,
@@ -53,19 +65,21 @@ class ClearanceApplication {
     this.clearanceResultGeneratedAt,
     this.clearanceResultSignedBy,
     this.clearanceResultSignedByCorporate,
+    this.clearanceResultSentAt,
+    this.clearanceCode,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) : portClearanceFiles = _normalizeList(
-           explicit: portClearanceFiles,
-           single: portClearanceFile,
-         ),
+         explicit: portClearanceFiles,
+         single: portClearanceFile,
+       ),
        crewListFiles = crewListFiles != null
            ? List<String>.from(crewListFiles)
            : const [],
        notificationLetterFiles = _normalizeList(
-           explicit: notificationLetterFiles,
-           single: notificationLetterFile,
-         ),
+         explicit: notificationLetterFiles,
+         single: notificationLetterFile,
+       ),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now();
 
@@ -101,7 +115,11 @@ class ClearanceApplication {
       status: status,
       notes: data['notes'],
       port: data['port'],
+      lastPort: data['lastPort'],
+      nextPort: data['nextPort'],
       date: data['date'],
+      arrivalDate: data['arrivalDate'] ?? data['arrival_date'],
+      departureDate: data['departureDate'] ?? data['departure_date'],
       wniCrew: data['wniCrew'],
       wnaCrew: data['wnaCrew'],
       officerName: data['officerName'],
@@ -130,6 +148,10 @@ class ClearanceApplication {
       clearanceResultSignedBy: data['clearanceResultSignedBy'],
       clearanceResultSignedByCorporate:
           data['clearanceResultSignedByCorporate'],
+      clearanceResultSentAt: (data['clearanceResultSentAt'] as Timestamp?)
+          ?.toDate(),
+      clearanceCode: data['clearanceCode'],
+      shortLink: data['shortLink'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -144,7 +166,11 @@ class ClearanceApplication {
       'status': status.name,
       'notes': notes,
       'port': port,
+      'lastPort': lastPort,
+      'nextPort': nextPort,
       'date': date,
+      'arrivalDate': arrivalDate,
+      'departureDate': departureDate,
       'wniCrew': wniCrew,
       'wnaCrew': wnaCrew,
       'officerName': officerName,
@@ -159,6 +185,9 @@ class ClearanceApplication {
       'clearanceResultGeneratedAt': clearanceResultGeneratedAt,
       'clearanceResultSignedBy': clearanceResultSignedBy,
       'clearanceResultSignedByCorporate': clearanceResultSignedByCorporate,
+      'clearanceResultSentAt': clearanceResultSentAt,
+      'clearanceCode': clearanceCode,
+      'shortLink': shortLink,
     };
 
     print('DEBUG: ClearanceApplication.toFirestore() data: $data');
@@ -176,13 +205,24 @@ class ClearanceApplication {
     String? notes,
     String? officerName,
     String? location,
+    String? shortLink,
+    String? wniCrew,
+    String? wnaCrew,
     List<String>? portClearanceFiles,
     List<String>? crewListFiles,
     List<String>? notificationLetterFiles,
     String? clearanceResultFile,
     DateTime? clearanceResultGeneratedAt,
+    DateTime? clearanceResultSentAt,
     String? clearanceResultSignedBy,
     String? clearanceResultSignedByCorporate,
+    String? clearanceCode,
+    String? port,
+    String? lastPort,
+    String? nextPort,
+    String? date,
+    String? arrivalDate,
+    String? departureDate,
     DateTime? updatedAt,
   }) {
     return ClearanceApplication(
@@ -194,24 +234,34 @@ class ClearanceApplication {
       type: type,
       status: status ?? this.status,
       notes: notes ?? this.notes,
-      port: port,
-      date: date,
-      wniCrew: wniCrew,
-      wnaCrew: wnaCrew,
+      port: port ?? this.port,
+      lastPort: lastPort ?? this.lastPort,
+      nextPort: nextPort ?? this.nextPort,
+      date: date ?? this.date,
+      arrivalDate: arrivalDate ?? this.arrivalDate,
+      departureDate: departureDate ?? this.departureDate,
+      wniCrew: wniCrew ?? this.wniCrew,
+      wnaCrew: wnaCrew ?? this.wnaCrew,
       officerName: officerName ?? this.officerName,
       location: location ?? this.location,
+      shortLink: shortLink ?? this.shortLink,
       portClearanceFiles:
           portClearanceFiles ?? List<String>.from(this.portClearanceFiles),
       crewListFiles: crewListFiles ?? List<String>.from(this.crewListFiles),
-      notificationLetterFiles: notificationLetterFiles ??
+      notificationLetterFiles:
+          notificationLetterFiles ??
           List<String>.from(this.notificationLetterFiles),
       clearanceResultFile: clearanceResultFile ?? this.clearanceResultFile,
-      clearanceResultGeneratedAt: clearanceResultGeneratedAt ??
-          this.clearanceResultGeneratedAt,
+      clearanceResultGeneratedAt:
+          clearanceResultGeneratedAt ?? this.clearanceResultGeneratedAt,
+      clearanceResultSentAt:
+          clearanceResultSentAt ?? this.clearanceResultSentAt,
       clearanceResultSignedBy:
           clearanceResultSignedBy ?? this.clearanceResultSignedBy,
-      clearanceResultSignedByCorporate: clearanceResultSignedByCorporate ??
+      clearanceResultSignedByCorporate:
+          clearanceResultSignedByCorporate ??
           this.clearanceResultSignedByCorporate,
+      clearanceCode: clearanceCode ?? this.clearanceCode,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
@@ -225,6 +275,15 @@ class ClearanceApplication {
 
   String? get notificationLetterFile =>
       notificationLetterFiles.isNotEmpty ? notificationLetterFiles.first : null;
+
+  int? get totalCrewCount {
+    final wni = int.tryParse(wniCrew ?? '');
+    final wna = int.tryParse(wnaCrew ?? '');
+    if (wni == null && wna == null) {
+      return null;
+    }
+    return (wni ?? 0) + (wna ?? 0);
+  }
 }
 
 String? _normalizeLocation(dynamic value) {
@@ -286,12 +345,13 @@ List<String> _resolveFileList(
   return files;
 }
 
-List<String> _normalizeList({
-  List<String>? explicit,
-  String? single,
-}) {
+List<String> _normalizeList({List<String>? explicit, String? single}) {
   if (explicit != null) {
-    return explicit.whereType<String>().map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    return explicit
+        .whereType<String>()
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
   if (single != null && single.trim().isNotEmpty) {
     return [single.trim()];

@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:provider/provider.dart';
 import 'app/providers/connectivity_provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -11,6 +15,8 @@ import 'app/config/routes.dart';
 import 'app/config/theme.dart';
 import 'app/localization/app_localizations.dart';
 import 'app/services/auth_service.dart';
+import 'app/services/notification_service.dart';
+import 'app/services/system_ui_service.dart';
 import 'firebase_options.dart';
 import 'app/views/widgets/auth_wrapper.dart';
 import 'app/views/widgets/connectivity_gate.dart';
@@ -20,15 +26,19 @@ import 'app/providers/theme_provider.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // If you're going to use other Firebase services in the background, such as Firestore,
-  // make sure you call `initializeApp` before using other Firebase services.
   await Firebase.initializeApp();
 
   debugPrint("Handling a background message: ${message.messageId}");
+  await NotificationService.handleBackgroundMessage(message);
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  await SystemUiService.instance.setSystemBarsAppearance(
+    lightStatusBars: true,
+    lightNavigationBars: true,
+  );
 
   // Guard against duplicate initialization (hot restart, multiple isolates).
   try {
@@ -36,6 +46,10 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      if (!kIsWeb) {
+        FirebaseDatabase.instance.setPersistenceEnabled(true);
+        FirebaseDatabase.instance.setLoggingEnabled(true);
+      }
       debugPrint('[Startup] Firebase.initializeApp executed');
     } else {
       debugPrint(
@@ -51,34 +65,14 @@ void main() async {
     }
   }
 
-  // Ensure a dedicated named app with correct Dart-provided options to avoid
-  // picking up native defaults from google-services.json.
-  FirebaseApp appClient;
-  try {
-    appClient = Firebase.app('client');
-    debugPrint('[Startup] Using existing Firebase app "client"');
-  } catch (_) {
-    appClient = await Firebase.initializeApp(
-      name: 'client',
-      options: DefaultFirebaseOptions.currentPlatform,
+  // Initialize Firebase App Check
+  if (!kDebugMode) {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.deviceCheck,
+      webProvider: ReCaptchaV3Provider('your-recaptcha-site-key'),
     );
-    debugPrint('[Startup] Initialized Firebase app "client"');
-  }
-
-  // Diagnostics: print effective Firebase options for the named app.
-  final opts = appClient.options;
-  final safeKey = (opts.apiKey.length > 6)
-      ? '${opts.apiKey.substring(0, 6)}...'
-      : opts.apiKey;
-  debugPrint(
-    '[Startup] FirebaseOptions(client): projectId=${opts.projectId}, appId=${opts.appId}, apiKey=$safeKey, '
-    'storageBucket=${opts.storageBucket}, authDomain=${opts.authDomain}, '
-    'messagingSenderId=${opts.messagingSenderId}, measurementId=${opts.measurementId}',
-  );
-
-  // Note: Using firebasestorage.app bucket as specified by user
-  if (opts.storageBucket != null) {
-    debugPrint('[Startup] Storage bucket configured: ${opts.storageBucket}');
+    debugPrint('[Startup] Firebase App Check activated');
   }
 
   // Initialize Firebase Crashlytics (only on mobile platforms)
@@ -100,6 +94,8 @@ void main() async {
   // Set up Firebase Cloud Messaging
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+  final notificationService = NotificationService();
+
   // Request notification permissions on app start if not already granted
   try {
     final settings = await FirebaseMessaging.instance.getNotificationSettings();
@@ -110,22 +106,39 @@ void main() async {
         sound: true,
       );
     }
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+    await notificationService.ensureInitialised();
+    await notificationService.syncFcmToken();
   } catch (e) {
     debugPrint('[Startup] Error handling notification permissions: $e');
+    await notificationService.ensureInitialised();
   }
 
   // Preload critical assets for better startup performance
-  runApp(
-    MultiProvider(
-      providers: [
-        Provider<AuthService>(create: (_) => AuthService()),
-        ChangeNotifierProvider(create: (_) => LanguageProvider()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
-      ],
-      child: const MyApp(),
-    ),
-  );
+  runZonedGuarded(() {
+    runApp(
+      MultiProvider(
+        providers: [
+          Provider<AuthService>(create: (_) => AuthService()),
+          ChangeNotifierProvider(create: (_) => LanguageProvider()),
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
+          ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
+        ],
+        child: const MyApp(),
+      ),
+    );
+  }, (error, stack) {
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    } else {
+      debugPrint('[Startup] Unhandled error: $error');
+    }
+  });
 }
 
 class MyApp extends StatefulWidget {
@@ -136,21 +149,20 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  late final NotificationService _notificationService;
+
   @override
   void initState() {
     super.initState();
+    _notificationService = NotificationService();
     WidgetsBinding.instance.addObserver(this);
     // Set up foreground message handling
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Got a message whilst in the foreground!');
-      debugPrint('Message data: ${message.data}');
-
-      if (message.notification != null) {
-        debugPrint(
-          'Message also contained a notification: ${message.notification}',
-        );
-      }
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      await _notificationService.handleForegroundMessage(message);
     });
+    FirebaseMessaging.onMessageOpenedApp.listen(
+      _notificationService.handleOpenedNotification,
+    );
   }
 
   @override
@@ -165,7 +177,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       try {
         await Future.wait([
           precacheImage(const AssetImage('assets/images/logo.png'), context),
-          precacheImage(const AssetImage('assets/images/dermaga.png'), context),
+          precacheImage(
+            const AssetImage('assets/images/dermaga.png'),
+            context,
+          ),
           precacheImage(
             const AssetImage('assets/images/shipping.png'),
             context,

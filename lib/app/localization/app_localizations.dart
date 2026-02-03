@@ -7,8 +7,14 @@ class AppLocalizations {
   AppLocalizations(this.locale);
 
   static AppLocalizations of(BuildContext context) {
-    final localizations = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    assert(localizations != null, 'Could not find an AppLocalizations object above this widget.');
+    final localizations = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    assert(
+      localizations != null,
+      'Could not find an AppLocalizations object above this widget.',
+    );
     return localizations!;
   }
 
@@ -17,7 +23,9 @@ class AppLocalizations {
   String get(String key) {
     final keys = key.split('.');
     if (keys.length != 2) {
-      debugPrint('Invalid localization key format: $key. Expected format: screenKey.stringKey');
+      debugPrint(
+        'Invalid localization key format: $key. Expected format: screenKey.stringKey',
+      );
       return '[$key]';
     }
     return AppStrings.tr(
@@ -37,8 +45,10 @@ class AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   }
 
   @override
-  Future<AppLocalizations> load(Locale locale) {
-    return Future.value(AppLocalizations(locale));
+  Future<AppLocalizations> load(Locale locale) async {
+    // Load strings asynchronously from RTDB/cache/local
+    await AppStrings.loadStrings();
+    return AppLocalizations(locale);
   }
 
   @override

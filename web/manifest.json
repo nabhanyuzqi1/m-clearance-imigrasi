@@ -1,6 +1,7 @@
 {
     "name": "M-Clearance ISAM",
     "short_name": "M-Clearance",
+    "id": "com.web.imigrasi",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

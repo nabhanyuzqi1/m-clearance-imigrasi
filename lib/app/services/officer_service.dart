@@ -36,9 +36,13 @@ class OfficerService {
     Future<void> emitFromCallable() async {
       if (callableInFlight) return;
       callableInFlight = true;
+      LoggingService().info('Starting emitFromCallable for officer activities');
       try {
         final raw = await _functionsService.fetchOfficerActivities(
           limit: limit,
+        );
+        LoggingService().info(
+          'Received ${raw.length} activities from callable',
         );
         final activities = raw
             .map(
@@ -47,9 +51,13 @@ class OfficerService {
             )
             .where((activity) => activity.id.isNotEmpty)
             .toList();
+        LoggingService().info('Parsed ${activities.length} valid activities');
         await emit(activities);
       } catch (e) {
-        LoggingService().warning('Callable fetchOfficerActivities failed', e);
+        LoggingService().error(
+          'Callable fetchOfficerActivities failed with error: $e',
+          e,
+        );
         if (lastEmitted.isEmpty && !controller.isClosed) {
           controller.add(const []);
         }

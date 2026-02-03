@@ -8,6 +8,7 @@ import '../../../localization/app_localizations.dart';
 import '../../../models/user_model.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/logging_service.dart';
+import '../../widgets/bouncing_dots_loader.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -22,6 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _nationalityController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
@@ -30,6 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _agreeToTerms = false;
+  bool _isRegistering = false;
   String _tr(String key) {
     return AppLocalizations.of(context).get('register.$key');
   }
@@ -40,6 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _corporateNameController.dispose();
     _usernameController.dispose();
     _fullNameController.dispose();
+    _nationalityController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -47,6 +51,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _goToNextStep() {
+    if (_isRegistering) return;
     LoggingService().info(
       'Registration next step attempted, terms agreed: $_agreeToTerms',
     );
@@ -71,9 +76,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _performRegistration() async {
+    if (_isRegistering) return;
     LoggingService().info(
       'Starting user registration for email: ${_emailController.text}',
     );
+    if (mounted) {
+      setState(() {
+        _isRegistering = true;
+      });
+    } else {
+      _isRegistering = true;
+    }
     try {
       final UserModel? user = await _authService.registerWithEmailAndPassword(
         _emailController.text,
@@ -81,7 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _corporateNameController.text,
         _usernameController.text,
         _fullNameController.text,
-        '', // nationality removed from UI; pass empty to keep function signature unchanged
+        _nationalityController.text.trim(),
       );
       if (user != null) {
         LoggingService().info(
@@ -143,6 +156,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRegistering = false;
+        });
+      } else {
+        _isRegistering = false;
+      }
     }
   }
 
@@ -160,11 +181,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         foregroundColor: colorScheme.onSurface,
       ),
       backgroundColor: colorScheme.surface,
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: EdgeInsets.all(AppTheme.spacing24),
-          children: [
+      body: Stack(
+        children: [
+          Form(
+            key: _formKey,
+            child: ListView(
+              padding: EdgeInsets.all(AppTheme.spacing24),
+              children: [
             Text(
               _tr('create_account_subtitle'),
               style: textTheme.bodyMedium?.copyWith(
@@ -202,7 +225,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
               validator: (v) => v!.isEmpty ? _tr('full_name_req') : null,
             ),
             SizedBox(height: AppTheme.spacing20),
-            // Nationality field removed per requirement.
+            _buildLabel(_tr('nationality')),
+            TextFormField(
+              controller: _nationalityController,
+              decoration: _buildInputDecoration(
+                context,
+                hintText: _tr('nationality_hint'),
+              ),
+              textCapitalization: TextCapitalization.words,
+              validator: (v) => v!.trim().isEmpty ? _tr('nationality_req') : null,
+            ),
+            SizedBox(height: AppTheme.spacing20),
             _buildLabel(_tr('email')),
             TextFormField(
               controller: _emailController,
@@ -298,11 +331,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
             SizedBox(height: AppTheme.spacing12),
             _buildLoginRedirect(),
             SizedBox(height: AppTheme.spacing20),
-          ],
-        ),
+              ],
+            ),
+          ),
+          if (_isRegistering)
+            Positioned.fill(
+              child: AbsorbPointer(
+                absorbing: true,
+                child: Container(
+                  color: colorScheme.surface.withAlpha(200),
+                  child: const Center(child: BouncingDotsLoader()),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
+
 
   Widget _buildLabel(String text) {
     return Padding(

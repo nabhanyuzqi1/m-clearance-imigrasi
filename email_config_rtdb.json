@@ -1,0 +1,96 @@
+{
+  "global": {
+    "smtpHost": "smtp.gmail.com",
+    "smtpPort": 587,
+    "smtpUsername": "",
+    "smtpPassword": "",
+    "smtpUseTls": true,
+    "from": "noreply@mclearance.com",
+    "fromName": "M-Clearance System",
+    "accountName": "M-Clearance",
+    "supportEmail": "support@mclearance.com",
+    "maxRetries": 3,
+    "cooldownSeconds": 60,
+    "maxAttempts": 5
+  },
+  "templates": {
+    "verification": {
+      "defaultLanguage": "en",
+      "tags": ["email_verification"],
+      "languages": {
+        "en": {
+          "subject": "Verify your email address - {accountName}",
+          "html": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n  <title>Email Verification</title>\n  <style>\n    body { margin: 0; padding: 0; background-color: #f5f7fb; font-family: 'Segoe UI', Arial, sans-serif; color: #1f2933; }\n    .wrapper { width: 100%; padding: 24px 0; }\n    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 18px 45px rgba(102, 126, 234, 0.18); }\n    .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); text-align: center; padding: 40px 24px; }\n    .hero h1 { margin: 0; font-size: 28px; letter-spacing: 0.5px; color: #ffffff; text-transform: uppercase; }\n    .hero p { margin: 12px 0 0 0; font-size: 16px; color: rgba(255, 255, 255, 0.78); }\n    .content { padding: 40px 32px 48px 32px; }\n    .content h2 { margin-top: 0; margin-bottom: 16px; font-size: 22px; color: #1f2933; }\n    .content p { margin: 0 0 16px 0; font-size: 16px; line-height: 1.6; color: #4b5563; }\n    .code-box { background: #f5f7ff; border: 2px dashed #667eea; padding: 24px 16px; border-radius: 12px; text-align: center; margin: 24px 0; }\n    .code-label { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.35em; color: #667eea; text-transform: uppercase; }\n    .code-value { margin: 12px 0 0 0; font-size: 42px; font-weight: 700; letter-spacing: 0.2em; color: #4c51bf; }\n    .footer { border-top: 1px solid #e5e7eb; margin-top: 32px; padding-top: 24px; text-align: center; font-size: 14px; color: #6b7280; line-height: 1.6; }\n    .footer a { color: #667eea; text-decoration: none; font-weight: 600; }\n  </style>\n</head>\n<body>\n  <div class=\"wrapper\">\n    <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\">\n      <tr>\n        <td align=\"center\">\n          <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"container\">\n            <tr>\n              <td class=\"hero\">\n                <h1>{accountName}</h1>\n                <p>Email Verification</p>\n              </td>\n            </tr>\n            <tr>\n              <td class=\"content\">\n                <h2>Verify Your Email Address</h2>\n                <p>Hello <strong>{name}</strong>,</p>\n                <p>Thank you for registering with {accountName}. Please enter the verification code below to complete your registration.</p>\n                <div class=\"code-box\">\n                  <p class=\"code-label\">Your Verification Code</p>\n                  <p class=\"code-value\">{code}</p>\n                </div>\n                <p>This code will expire in <strong>{expiresInMinutes} minutes</strong>. Please keep it confidential to protect your account.</p>\n                <p>If you didn’t request this verification, you can safely ignore this message.</p>\n                <div class=\"footer\">\n                  <p>Best regards,<br /><strong>{accountName} Team</strong><br /><a href=\"mailto:{supportEmail}\">{supportEmail}</a></p>\n                </div>\n              </td>\n            </tr>\n          </table>\n        </td>\n      </tr>\n    </table>\n  </div>\n</body>\n</html>",
+          "text": "Hello {name},\n\nYour verification code for {accountName} is {code}. It will expire in {expiresInMinutes} minutes.\nIf you didn't request this verification, please ignore this message.\n\nBest regards,\n{accountName} Team\n{supportEmail}"
+        },
+        "id": {
+          "subject": "Verifikasi alamat email Anda - {accountName}",
+          "html": "<!DOCTYPE html>\n<html lang=\"id\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n  <title>Verifikasi Email</title>\n  <style>\n    body { margin: 0; padding: 0; background-color: #f5f7fb; font-family: 'Segoe UI', Arial, sans-serif; color: #1f2933; }\n    .wrapper { width: 100%; padding: 24px 0; }\n    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 18px 45px rgba(102, 126, 234, 0.18); }\n    .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); text-align: center; padding: 40px 24px; }\n    .hero h1 { margin: 0; font-size: 28px; letter-spacing: 0.5px; color: #ffffff; text-transform: uppercase; }\n    .hero p { margin: 12px 0 0 0; font-size: 16px; color: rgba(255, 255, 255, 0.78); }\n    .content { padding: 40px 32px 48px 32px; }\n    .content h2 { margin-top: 0; margin-bottom: 16px; font-size: 22px; color: #1f2933; }\n    .content p { margin: 0 0 16px 0; font-size: 16px; line-height: 1.6; color: #4b5563; }\n    .code-box { background: #f5f7ff; border: 2px dashed #667eea; padding: 24px 16px; border-radius: 12px; text-align: center; margin: 24px 0; }\n    .code-label { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.35em; color: #667eea; text-transform: uppercase; }\n    .code-value { margin: 12px 0 0 0; font-size: 42px; font-weight: 700; letter-spacing: 0.2em; color: #4c51bf; }\n    .footer { border-top: 1px solid #e5e7eb; margin-top: 32px; padding-top: 24px; text-align: center; font-size: 14px; color: #6b7280; line-height: 1.6; }\n    .footer a { color: #667eea; text-decoration: none; font-weight: 600; }\n  </style>\n</head>\n<body>\n  <div class=\"wrapper\">\n    <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" width=\"100%\">\n      <tr>\n        <td align=\"center\">\n          <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" class=\"container\">\n            <tr>\n              <td class=\"hero\">\n                <h1>{accountName}</h1>\n                <p>Verifikasi Email</p>\n              </td>\n            </tr>\n            <tr>\n              <td class=\"content\">\n                <h2>Mohon Verifikasi Alamat Email Anda</h2>\n                <p>Halo <strong>{name}</strong>,</p>\n                <p>Terima kasih telah mendaftar di {accountName}. Silakan gunakan kode verifikasi berikut untuk melengkapi proses pendaftaran Anda.</p>\n                <div class=\"code-box\">\n                  <p class=\"code-label\">Kode Verifikasi Anda</p>\n                  <p class=\"code-value\">{code}</p>\n                </div>\n                <p>Kode ini akan kedaluwarsa dalam <strong>{expiresInMinutes} menit</strong>. Mohon jaga kerahasiaannya demi keamanan akun Anda.</p>\n                <p>Jika Anda tidak merasa meminta verifikasi ini, silakan abaikan email ini.</p>\n                <div class=\"footer\">\n                  <p>Salam hangat,<br /><strong>Tim {accountName}</strong><br /><a href=\"mailto:{supportEmail}\">{supportEmail}</a></p>\n                </div>\n              </td>\n            </tr>\n          </table>\n        </td>\n      </tr>\n    </table>\n  </div>\n</body>\n</html>",
+          "text": "Halo {name},\n\nKode verifikasi Anda untuk {accountName} adalah {code}. Kode ini akan kedaluwarsa dalam {expiresInMinutes} menit.\nJika Anda tidak meminta verifikasi ini, silakan abaikan pesan ini.\n\nSalam hangat,\nTim {accountName}\n{supportEmail}"
+        }
+      }
+    },
+    "passwordReset": {
+      "subject": "Reset Your Password - {accountName}",
+      "html": "<p>Hello {name},</p><p>You requested to reset your password.</p><p>Please use the following link: <a href='{resetLink}'>{resetLink}</a></p><p>Regards,<br />{accountName} Team</p>",
+      "text": "Hello {name},\n\nYou requested a password reset for {accountName}. Use the link below:\n{resetLink}\n\nRegards, {accountName} Team",
+      "tags": ["password_reset"]
+    },
+    "approval": {
+      "subject": "Application Approved - {accountName}",
+      "html": "<p>Hello {name},</p><p>Congratulations! Your clearance application has been approved.</p><p>You can review the details inside the {accountName} portal.</p><p>Regards,<br />{accountName} Team</p>",
+      "text": "Hello {name},\n\nYour application has been approved. You can review the details in the {accountName} portal.\n\nRegards, {accountName} Team",
+      "tags": ["application_approval"]
+    },
+    "rejection": {
+      "subject": "Application Update - {accountName}",
+      "html": "<p>Hello {name},</p><p>We regret to inform you that your application requires additional information.</p><p>Please check the {accountName} portal for details and resubmit.</p><p>Regards,<br />{accountName} Team</p>",
+      "text": "Hello {name},\n\nYour application requires additional information before we can continue. Please review the remarks in the {accountName} portal.\n\nRegards, {accountName} Team",
+      "tags": ["application_rejection"]
+    },
+    "accountApproved": {
+      "subject": "Account approved - {accountName}",
+      "html": "<p>Hello {name},</p><p>{statusSummary}</p><p>{actionText}</p><p>Regards,<br />{accountName} Team</p>",
+      "text": "Hello {name},\n\n{statusSummary}\n{actionText}\n\nRegards, {accountName} Team",
+      "tags": ["account_approval"]
+    },
+    "accountRejected": {
+      "subject": "Account update - {accountName}",
+      "html": "<p>Hello {name},</p><p>{statusSummary}</p><p>{actionText}</p><p>Regards,<br />{accountName} Team</p>",
+      "text": "Hello {name},\n\n{statusSummary}\n{actionText}\n\nRegards, {accountName} Team",
+      "tags": ["account_rejection"]
+    },
+    "twoFactorCode": {
+      "defaultLanguage": "en",
+      "tags": ["security", "twofactor"],
+      "languages": {
+        "en": {
+          "subject": "Your {accountName} security code",
+          "html": "<p>Hi {name},</p><p>Your security code for {accountName} is <strong style=\"font-size:24px;letter-spacing:4px;\">{code}</strong>.</p><p>The code expires in {expiresInMinutes} minutes.</p><p>Device: {deviceName}<br/>Time: {timestamp}</p><p>If this wasn't you, please secure your account immediately.</p><p>Regards,<br />{accountName} Support</p>",
+          "text": "Hi {name},\n\nYour security code for {accountName} is {code}. It expires in {expiresInMinutes} minutes.\nDevice: {deviceName}\nTime: {timestamp}\n\nIf this was not you, please secure your account immediately.\n\nRegards,\n{accountName} Support"
+        },
+        "id": {
+          "subject": "Kode keamanan {accountName}",
+          "html": "<p>Halo {name},</p><p>Kode keamanan Anda untuk {accountName} adalah <strong style=\"font-size:24px;letter-spacing:4px;\">{code}</strong>.</p><p>Kode akan kedaluwarsa dalam {expiresInMinutes} menit.</p><p>Perangkat: {deviceName}<br/>Waktu: {timestamp}</p><p>Jika ini bukan Anda, segera amankan akun Anda.</p><p>Salam,<br />Dukungan {accountName}</p>",
+          "text": "Halo {name},\n\nKode keamanan Anda untuk {accountName} adalah {code}. Kode kedaluwarsa dalam {expiresInMinutes} menit.\nPerangkat: {deviceName}\nWaktu: {timestamp}\n\nJika ini bukan Anda, segera amankan akun Anda.\n\nSalam,\nDukungan {accountName}"
+        }
+      }
+    },
+    "loginAlert": {
+      "defaultLanguage": "en",
+      "tags": ["security", "login-alert"],
+      "languages": {
+        "en": {
+          "subject": "New login on your {accountName} account",
+          "html": "<p>Hello {name},</p><p>A new login was detected on <strong>{device}</strong> ({trustLabel}).</p><p>Time: {timestamp}<br/>IP Address: {ipAddress}</p><p>If this was you, no action is needed. If not, please reset your password immediately.</p><p>Regards,<br/>{accountName} Support</p>",
+          "text": "Hello {name},\n\nA new login was detected on {device} ({trustLabel}).\nTime: {timestamp}\nIP Address: {ipAddress}\n\nIf this was you, no action is needed. If not, please reset your password immediately.\n\n{accountName} Support"
+        },
+        "id": {
+          "subject": "Masuk baru pada akun {accountName}",
+          "html": "<p>Halo {name},</p><p>Ada login baru pada <strong>{device}</strong> ({trustLabel}).</p><p>Waktu: {timestamp}<br/>Alamat IP: {ipAddress}</p><p>Jika ini adalah Anda, tidak ada tindakan yang diperlukan. Jika bukan, segera reset kata sandi Anda.</p><p>Salam,<br/>Dukungan {accountName}</p>",
+          "text": "Halo {name},\n\nAda login baru pada {device} ({trustLabel}).\nWaktu: {timestamp}\nAlamat IP: {ipAddress}\n\nJika ini Anda, tidak perlu tindakan. Jika bukan, segera reset kata sandi Anda.\n\nDukungan {accountName}"
+        }
+      }
+    }
+  }
+}

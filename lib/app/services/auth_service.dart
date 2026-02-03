@@ -3,39 +3,79 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
+import 'package:m_clearance_imigrasi/app/models/security_settings.dart';
 import 'package:m_clearance_imigrasi/app/models/user_model.dart';
-import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
 import 'package:m_clearance_imigrasi/app/services/cache_manager.dart';
-import 'package:m_clearance_imigrasi/app/services/network_utils.dart';
+import 'package:m_clearance_imigrasi/app/services/functions_service.dart';
 import 'package:m_clearance_imigrasi/app/services/logging_service.dart';
+import 'package:m_clearance_imigrasi/app/services/network_utils.dart';
+import 'package:m_clearance_imigrasi/app/services/security_service.dart';
+import 'package:m_clearance_imigrasi/app/utils/biometric_authenticator.dart';
+import 'package:m_clearance_imigrasi/app/utils/device_utils.dart';
+import 'package:m_clearance_imigrasi/app/utils/storage_reference_utils.dart';
+import 'package:m_clearance_imigrasi/app/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class UploadedDocumentDescriptor {
+  const UploadedDocumentDescriptor({
+    required this.storagePath,
+    this.downloadUrl,
+    this.documentType,
+    this.documentName,
+    this.originalName,
+  });
+
+  final String storagePath;
+  final String? downloadUrl;
+  final String? documentType;
+  final String? documentName;
+  final String? originalName;
+
+  String get canonicalPath => StorageReferenceUtils.canonicalize(storagePath);
+}
 
 class AuthService {
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  final SecurityService _securityService;
+  final BiometricAuthenticator _biometricAuth;
   late final CacheManager _cacheManager;
+  Future<void>? _cacheInitFuture;
 
   AuthService({
     FirebaseAuth? firebaseAuth,
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
-  }) : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-       _firestore = firestore ?? FirebaseFirestore.instance,
-       _storage = storage ?? FirebaseStorage.instance {
-    _initializeCacheManager();
+    SecurityService? securityService,
+    BiometricAuthenticator? biometricAuthenticator,
+  })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
+        _firestore = firestore ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance,
+        _securityService = securityService ?? SecurityService(),
+        _biometricAuth = biometricAuthenticator ?? const BiometricAuthenticator() {
+    _cacheInitFuture = _initializeCacheManager();
   }
 
   Future<void> _initializeCacheManager() async {
     _cacheManager = await CacheManager.getInstance();
   }
 
+  Future<void> _ensureCacheManagerInitialized() async {
+    _cacheInitFuture ??= _initializeCacheManager();
+    await _cacheInitFuture;
+  }
+
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
   Future<UserModel?> signInWithEmailAndPassword(
     String email,
-    String password,
-  ) async {
+    String password, {
+    bool skipSecurityChecks = false,
+    DeviceIdentity? reuseDeviceIdentity,
+  }) async {
     final startTime = DateTime.now();
     try {
       final UserCredential userCredential = await _firebaseAuth
@@ -43,7 +83,121 @@ class AuthService {
       final authTime = DateTime.now().difference(startTime);
       LoggingService().debug('Auth sign-in took ${authTime.inMilliseconds}ms');
       if (userCredential.user != null) {
-        final userModel = await getUserData(userCredential.user!.uid);
+        await _ensureCacheManagerInitialized();
+        final uid = userCredential.user!.uid;
+        UserModel? userModel = await getUserData(uid);
+
+        if (userModel == null) {
+          LoggingService().warning(
+            'Primary user data fetch returned null after sign-in; retrying with cache flush',
+          );
+          try {
+            await _cacheManager.clearUserDataCache();
+            LoggingService().debug('Cleared cached user data after null fetch');
+          } catch (cacheError) {
+            LoggingService().warning(
+              'Failed to clear cached user data before retrying fetch',
+              cacheError,
+            );
+          }
+
+          final retryStart = DateTime.now();
+          userModel = await getUserData(uid, forceRefresh: true);
+          final retryDuration = DateTime.now().difference(retryStart);
+          LoggingService().debug(
+            'Force-refresh fetch completed in ${retryDuration.inMilliseconds}ms (success: ${userModel != null})',
+          );
+        }
+
+        if (userModel == null) {
+          final diagnosticMessage =
+              'Authenticated user $uid missing Firestore profile after retries';
+          LoggingService().reportCustomError(
+            'sign_in_profile_fetch',
+            diagnosticMessage,
+          );
+          await _firebaseAuth.signOut();
+          throw NetworkException(
+            'Failed to load your profile data. Please try again.',
+            isRetryable: true,
+          );
+        }
+
+        if (!skipSecurityChecks) {
+          final securitySettings = await _securityService.fetchSettings();
+          final deviceIdentity = reuseDeviceIdentity ??
+              await DeviceUtils.resolveIdentity();
+          final deviceMeta = _composeDeviceMeta(
+            deviceIdentity,
+            securitySettings,
+          );
+          final isTrusted = await _securityService
+              .isDeviceTrusted(deviceIdentity.fingerprint);
+
+          final requiresBiometric = securitySettings.biometricLockEnabled &&
+              await _biometricAuth.isSupported();
+
+          if (requiresBiometric) {
+            try {
+              final authenticated = await _biometricAuth.authenticate(
+                reason: 'Authenticate to continue',
+              );
+              if (!authenticated) {
+                await _firebaseAuth.signOut();
+                throw const BiometricAuthenticationRequiredException(
+                  reason: 'Biometric authentication cancelled',
+                );
+              }
+            } catch (error, stackTrace) {
+              if (error is BiometricAuthenticationRequiredException) {
+                rethrow;
+              }
+              LoggingService().warning(
+                'Failed to complete biometric authentication',
+                error,
+                stackTrace,
+              );
+              await _firebaseAuth.signOut();
+              throw const BiometricAuthenticationRequiredException(
+                reason: 'Unable to verify biometrics',
+              );
+            }
+          }
+
+          final needsTwoFactor =
+              (securitySettings.twoFactorEnabled ||
+                      securitySettings.deviceApprovalRequired) &&
+                  !isTrusted;
+
+          if (needsTwoFactor) {
+            final challenge = await _securityService
+                .initiateTwoFactorChallenge(deviceMeta: deviceMeta);
+            if (challenge == null) {
+              LoggingService().warning(
+                'Two-factor challenge could not be created. Bypassing requirement.',
+              );
+              await _securityService.logSuccessfulLogin(
+                deviceMeta: deviceMeta,
+                trusted: isTrusted,
+              );
+            } else {
+              await _firebaseAuth.signOut();
+              throw TwoFactorRequiredException(
+                email: email,
+                password: password,
+                challenge: challenge,
+                deviceIdentity: deviceIdentity,
+                rememberDeviceDays: securitySettings.rememberDeviceDays,
+              );
+            }
+          } else {
+            await _securityService.logSuccessfulLogin(
+              deviceMeta: deviceMeta,
+              trusted: isTrusted,
+            );
+          }
+        }
+
         final totalTime = DateTime.now().difference(startTime);
         LoggingService().debug(
           'Total sign-in process took ${totalTime.inMilliseconds}ms',
@@ -52,11 +206,14 @@ class AuthService {
       }
       return null;
     } on FirebaseAuthException catch (e) {
-      LoggingService().error('Firebase Auth Exception: ${e.message}', e);
-      return null;
+      LoggingService().error(
+        'Firebase Auth Exception: code=${e.code}, message=${e.message}',
+        e,
+      );
+      rethrow;
     } catch (e) {
       LoggingService().error('An unexpected error occurred during sign-in', e);
-      return null;
+      rethrow;
     }
   }
 
@@ -73,13 +230,16 @@ class AuthService {
           .createUserWithEmailAndPassword(email: email, password: password);
       final User? user = userCredential.user;
       if (user != null) {
+        final sanitizedNationality =
+            nationality.trim().isEmpty ? 'N/A' : nationality.trim();
+
         final newUser = UserModel(
           uid: user.uid,
           email: email,
-          corporateName: corporateName,
-          username: username,
-          fullName: fullName,
-          nationality: nationality,
+          corporateName: corporateName.trim(),
+          username: username.trim(),
+          fullName: fullName.trim(),
+          nationality: sanitizedNationality,
           role: 'user',
           status: 'pending_email_verification',
           isEmailVerified: false,
@@ -89,17 +249,54 @@ class AuthService {
           documents: [],
         );
 
-        await _firestore
-            .collection('users')
-            .doc(user.uid)
-            .set(newUser.toFirestore());
-        // Fire-and-forget email verification code issuance to avoid blocking registration
-        FunctionsService().issueEmailVerificationCode().catchError((e) {
+        final userDocRef = _firestore.collection('users').doc(user.uid);
+        const maxAttempts = 3;
+        for (var attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            await userDocRef.set(newUser.toFirestore());
+            break;
+          } catch (firestoreError) {
+            if (attempt == maxAttempts - 1) {
+              LoggingService().error(
+                'Error writing user document during registration, rolling back auth user',
+                firestoreError,
+              );
+              await user.delete().catchError((deleteError) {
+                LoggingService().warning(
+                  'Failed deleting auth user after Firestore write failure',
+                  deleteError,
+                );
+              });
+              rethrow;
+            }
+            await Future.delayed(Duration(milliseconds: 200 * (attempt + 1)));
+          }
+        }
+
+        final snapshot = await userDocRef.get();
+        final data = snapshot.data();
+        if (!snapshot.exists || data == null) {
+          throw StateError('User document missing after registration');
+        }
+
+        final criticalFields = ['corporateName', 'username', 'fullName', 'email'];
+        final missing = criticalFields.where((field) {
+          final value = data[field];
+          return value is! String || value.trim().isEmpty;
+        }).toList();
+        if (missing.isNotEmpty) {
+          final missingList = missing.join(', ');
+          throw StateError('User document incomplete: missing $missingList');
+        }
+
+        FunctionsService()
+            .issueEmailVerificationCode(language: _currentLocale())
+            .catchError((e) {
           LoggingService().warning('Failed issuing verification code', e);
-          // Non-critical error, don't fail registration
         });
 
         return newUser;
+
       }
       return null;
     } on FirebaseAuthException catch (e) {
@@ -107,12 +304,74 @@ class AuthService {
         'Firebase Auth Exception during registration: ${e.message}',
         e,
       );
-      return null;
+      rethrow;
     } catch (e) {
       LoggingService().error(
         'An unexpected error occurred during registration',
         e,
       );
+      rethrow;
+    }
+  }
+
+  Future<UserModel?> completeTwoFactorSignIn({
+    required String email,
+    required String password,
+    required String challengeId,
+    required String code,
+    required DeviceIdentity deviceIdentity,
+    required bool trustDevice,
+    required int rememberDeviceDays,
+  }) async {
+    final deviceMeta = deviceIdentity.toMap()
+      ..['rememberDeviceDays'] = rememberDeviceDays
+      ..['trusted'] = trustDevice;
+
+    final result = await _securityService.verifyTwoFactorCode(
+      challengeId: challengeId,
+      code: code,
+      deviceMeta: deviceMeta,
+      trustDevice: trustDevice,
+    );
+
+    if (!result.success) {
+      throw const TwoFactorVerificationFailedException();
+    }
+
+    final userModel = await signInWithEmailAndPassword(
+      email,
+      password,
+      skipSecurityChecks: true,
+      reuseDeviceIdentity: deviceIdentity,
+    );
+
+    if (userModel != null) {
+      await _securityService.logSuccessfulLogin(
+        deviceMeta: deviceMeta,
+        trusted: trustDevice,
+      );
+    }
+    return userModel;
+  }
+
+  Map<String, dynamic> _composeDeviceMeta(
+    DeviceIdentity identity,
+    SecuritySettings settings,
+  ) {
+    final map = identity.toMap();
+    map['rememberDeviceDays'] = settings.rememberDeviceDays;
+    map['twoFactorEnabled'] = settings.twoFactorEnabled;
+    map['deviceApprovalRequired'] = settings.deviceApprovalRequired;
+    map['loginAlertsEnabled'] = settings.loginAlertsEnabled;
+    map['biometricLockEnabled'] = settings.biometricLockEnabled;
+    return map;
+  }
+
+  String? _currentLocale() {
+    try {
+      final locale = WidgetsBinding.instance.platformDispatcher.locale;
+      return locale.toLanguageTag();
+    } catch (_) {
       return null;
     }
   }
@@ -122,6 +381,8 @@ class AuthService {
     bool forceRefresh = false,
   }) async {
     final startTime = DateTime.now();
+    LoggingService().debug('getUserData called with uid: $uid');
+    await _ensureCacheManagerInitialized();
 
     final shouldSkipCache = forceRefresh || kDebugMode;
 
@@ -154,6 +415,7 @@ class AuthService {
     try {
       final userModel = await NetworkUtils.executeWithRetry(() async {
         final serverStart = DateTime.now();
+        LoggingService().debug('Performing doc.get() on users/$uid');
         final DocumentSnapshot doc = await NetworkUtils.withTimeout(
           _firestore.collection('users').doc(uid).get(),
           const Duration(seconds: 10),
@@ -162,6 +424,7 @@ class AuthService {
         LoggingService().debug(
           'Server fetch took ${serverTime.inMilliseconds}ms',
         );
+        LoggingService().debug('Document exists: ${doc.exists}');
 
         if (!doc.exists || doc.data() == null) {
           throw NetworkException('User document not found', isRetryable: false);
@@ -217,7 +480,7 @@ class AuthService {
   ///
   /// Uses file bytes for upload, handled uniformly across platforms by file_picker.
   /// Generates unique filename using timestamp and UUID to prevent overwrites.
-  Future<String?> uploadDocument(
+  Future<UploadedDocumentDescriptor?> uploadDocument(
     String uid,
     Uint8List fileBytes,
     String docName, {
@@ -231,7 +494,13 @@ class AuthService {
       );
 
       final ref = _storage.ref().child('users/$uid/documents/$uniqueFileName');
-      final uploadTask = ref.putData(fileBytes);
+      final metadata = SettableMetadata(
+        customMetadata: {
+          if (docType != null && docType.isNotEmpty) 'documentType': docType,
+          'originalName': docName,
+        },
+      );
+      final uploadTask = ref.putData(fileBytes, metadata);
       final snapshot = await NetworkUtils.withTimeout(
         uploadTask.whenComplete(() => null),
         const Duration(seconds: 90),
@@ -242,19 +511,14 @@ class AuthService {
           ref.getDownloadURL(),
           const Duration(seconds: 15),
         );
-        await _firestore.collection('users').doc(uid).update({
-          'documents': FieldValue.arrayUnion([
-            {
-              'documentName': docName, // Keep original name for display
-              'storagePath': downloadUrl,
-              'uploadedAt': Timestamp.now(),
-            },
-          ]),
-          'status': 'pending_approval',
-          'hasUploadedDocuments': true,
-          'updatedAt': Timestamp.now(),
-        });
-        return downloadUrl;
+        final storagePath = StorageReferenceUtils.canonicalize(ref.fullPath);
+        return UploadedDocumentDescriptor(
+          storagePath: storagePath,
+          downloadUrl: downloadUrl,
+          documentType: docType,
+          documentName: uniqueFileName,
+          originalName: docName,
+        );
       } else {
         throw NetworkException('Upload failed', isRetryable: true);
       }
@@ -358,7 +622,10 @@ class AuthService {
         }
 
         await docRef.update(updates);
-        final result = await getUserData(user.uid);
+        final result = await getUserData(user.uid, forceRefresh: true);
+        if (result != null) {
+          await _cacheManager.cacheUserData(result.toJson());
+        }
         LoggingService().debug(
           'updateEmailVerified: returning userModel with status ${result?.status}',
         );
@@ -423,7 +690,7 @@ class AuthService {
   /// 'pending_documents'. Accepts a list of storage paths or references.
   /// Idempotent: only adds document entries whose storagePath is not already present.
   Future<UserModel?> markDocumentsUploaded({
-    required List<String> storagePathsOrRefs,
+    required List<UploadedDocumentDescriptor> documents,
   }) async {
     final user = _firebaseAuth.currentUser;
     if (user == null) return null;
@@ -441,22 +708,48 @@ class AuthService {
       final List existingDocs = (data['documents'] as List?) ?? const [];
       final Set<String> existingPaths = existingDocs
           .whereType<Map>()
-          .map((m) => (m['storagePath'] as String?) ?? '')
+          .map(
+            (m) => StorageReferenceUtils.canonicalize(
+              (m['storagePath'] as String?) ??
+                  (m['downloadUrl'] as String?) ??
+                  (m['path'] as String?) ??
+                  (m['url'] as String?) ??
+                  (m['reference'] as String?),
+            ),
+          )
           .where((s) => s.isNotEmpty)
           .toSet();
 
-      // Build only new entries not already present by storagePath
       final List<Map<String, dynamic>> toAdd = [];
-      for (final p in storagePathsOrRefs) {
-        if (!existingPaths.contains(p)) {
-          final parts = p.split('/');
-          final name = parts.isNotEmpty ? parts.last : 'document';
-          toAdd.add({
-            'documentName': name,
-            'storagePath': p,
-            'uploadedAt': FieldValue.serverTimestamp(),
-          });
+      for (final descriptor in documents) {
+        final canonicalPath =
+            StorageReferenceUtils.canonicalize(descriptor.storagePath);
+        if (canonicalPath.isEmpty || existingPaths.contains(canonicalPath)) {
+          continue;
         }
+        final documentName = descriptor.documentName ??
+            StorageReferenceUtils.fileName(canonicalPath);
+        final originalName = descriptor.originalName?.trim().isNotEmpty == true
+            ? descriptor.originalName
+            : null;
+        final entry = <String, dynamic>{
+          'storagePath': canonicalPath,
+          'documentName': documentName,
+          'uploadedAt': FieldValue.serverTimestamp(),
+        };
+        if (descriptor.downloadUrl != null &&
+            descriptor.downloadUrl!.trim().isNotEmpty) {
+          entry['downloadUrl'] = descriptor.downloadUrl;
+        }
+        if (descriptor.documentType != null &&
+            descriptor.documentType!.trim().isNotEmpty) {
+          entry['documentType'] = descriptor.documentType;
+        }
+        if (originalName != null) {
+          entry['originalName'] = originalName;
+        }
+        toAdd.add(entry);
+        existingPaths.add(canonicalPath);
       }
 
       final Map<String, dynamic> updates = {
@@ -488,16 +781,13 @@ class AuthService {
 
   Future<void> sendPasswordResetEmail(String email) async {
     try {
-      await _firebaseAuth.sendPasswordResetEmail(email: email);
-    } on FirebaseAuthException catch (e) {
-      LoggingService().error(
-        'Firebase Auth Exception during password reset: ${e.message}',
-        e,
+      await FunctionsService().sendPasswordResetEmailLink(
+        email: email,
+        language: _currentLocale(),
       );
-      rethrow;
     } catch (e) {
       LoggingService().error(
-        'An unexpected error occurred during password reset',
+        'An unexpected error occurred during password reset request',
         e,
       );
       rethrow;
@@ -508,40 +798,44 @@ class AuthService {
     String currentPassword,
     String newPassword,
   ) async {
-    bool success = false;
     try {
       final user = _firebaseAuth.currentUser;
-      if (user == null) {
-        throw Exception('No user is currently signed in.');
+      if (user == null || user.email == null) {
+        throw const ChangePasswordException('no-auth-user');
       }
 
-      // Re-authenticate the user with their current password
       final cred = EmailAuthProvider.credential(
         email: user.email!,
-        password: currentPassword,
+        password: currentPassword.trim(),
       );
 
       await user.reauthenticateWithCredential(cred);
-
-      // If re-authentication is successful, update the password
-      await user.updatePassword(newPassword);
+      await user.updatePassword(newPassword.trim());
 
       LoggingService().info(
         'Password updated successfully for user: ${user.uid}',
       );
-      success = true;
+      return true;
     } on FirebaseAuthException catch (e) {
       LoggingService().error('Error changing password: ${e.message}', e);
-      // Consider mapping specific error codes to user-friendly messages
-      rethrow;
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          throw const ChangePasswordException('invalid-current-password');
+        case 'requires-recent-login':
+          throw const ChangePasswordException('requires-recent-login');
+        case 'weak-password':
+          throw const ChangePasswordException('weak-password');
+        default:
+          throw ChangePasswordException(e.code.isNotEmpty ? e.code : 'unknown');
+      }
     } catch (e) {
       LoggingService().error(
         'An unexpected error occurred while changing password',
         e,
       );
-      rethrow;
+      throw const ChangePasswordException('unknown');
     }
-    return success;
   }
 
   Future<void> updateUserEmail(String newEmail) async {
@@ -552,31 +846,50 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    final notificationService = NotificationService();
+    await notificationService.clearFcmToken();
     await _firebaseAuth.signOut();
+    await _ensureCacheManagerInitialized();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('user_selected_index');
     await prefs.remove('officer_selected_index');
     // Clear cache on sign out
     await _cacheManager.clearUserDataCache();
+    await notificationService.stopRealtimeListener();
   }
 
   /// Clear user data cache (useful when user data is updated)
   Future<void> clearUserDataCache() async {
+    await _ensureCacheManagerInitialized();
     await _cacheManager.clearUserDataCache();
   }
 
   /// Download file data from Firebase Storage using download URL or storage path
   Future<Uint8List?> downloadFileData(String filePathOrUrl) async {
     try {
-      // Validate the input
       if (filePathOrUrl.isEmpty) {
         LoggingService().error('File path or URL is empty');
         return null;
       }
 
-      final ref = filePathOrUrl.startsWith('https')
-          ? _storage.refFromURL(filePathOrUrl)
-          : _storage.ref().child(filePathOrUrl);
+      var normalized = filePathOrUrl.trim();
+      final resolvedUrl = await _resolveShortUrlIfNeeded(normalized);
+      if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+        normalized = resolvedUrl.trim();
+      }
+
+      final bool isHttpUrl =
+          normalized.startsWith('http://') || normalized.startsWith('https://');
+      final bool isStorageUrl = _looksLikeFirebaseStorageUrl(normalized);
+
+      if (isHttpUrl && !isStorageUrl) {
+        return await _downloadViaHttpUrl(normalized);
+      }
+
+      final Reference ref = isStorageUrl || normalized.startsWith('gs://')
+          ? _storage.refFromURL(normalized)
+          : _storage.ref().child(normalized);
+
       const int maxDownloadSize = 25 * 1024 * 1024; // Cap download to 25MB
       final data = await ref.getData(maxDownloadSize);
 
@@ -591,7 +904,6 @@ class AuthService {
         'Error downloading file data from $filePathOrUrl: $e',
       );
 
-      // Handle specific Firebase exceptions
       if (kIsWeb && e.toString().contains('FirebaseException')) {
         LoggingService().error('A web-specific Firebase error occurred: $e');
       } else if (e.toString().contains('ClientException') ||
@@ -604,4 +916,115 @@ class AuthService {
       return null;
     }
   }
+
+  Future<String?> _resolveShortUrlIfNeeded(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    final bool isShortDomain =
+        uri.host.contains('mclearanceisam.com') || uri.host.contains('mclearanceisam.co');
+
+    if (uri.pathSegments.isEmpty) return null;
+    if (!isShortDomain || uri.pathSegments.first != 's') return null;
+
+    final shortId = uri.pathSegments.last;
+    if (shortId.isEmpty) return null;
+
+    try {
+      final doc =
+          await _firestore.collection('shortUrls').doc(shortId).get();
+      if (!doc.exists) {
+        LoggingService().warning('Short URL $shortId not found in Firestore');
+        return null;
+      }
+      final data = doc.data();
+      final originalUrl = data?['originalUrl'] as String?;
+      if (originalUrl == null || originalUrl.trim().isEmpty) {
+        LoggingService().warning(
+          'Short URL $shortId missing originalUrl mapping',
+        );
+        return null;
+      }
+      LoggingService().debug('Resolved short URL $shortId to storage URL');
+      return originalUrl;
+    } catch (e) {
+      LoggingService().error('Failed to resolve short URL $url', e);
+      return null;
+    }
+  }
+
+  bool _looksLikeFirebaseStorageUrl(String url) {
+    if (url.startsWith('gs://')) {
+      return true;
+    }
+    final lower = url.toLowerCase();
+    return lower.contains('firebasestorage.googleapis.com') ||
+        lower.contains('.storage.googleapis.com');
+  }
+
+  Future<Uint8List?> _downloadViaHttpUrl(String url) async {
+    try {
+      final uri = Uri.tryParse(url);
+      if (uri == null) {
+        LoggingService().error('Invalid URL for HTTP download: $url');
+        return null;
+      }
+
+      final response = await http.get(uri);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.bodyBytes;
+      }
+
+      LoggingService().error(
+        'HTTP download failed (${response.statusCode}) for $url',
+      );
+      return null;
+    } catch (e) {
+      LoggingService().error('HTTP download error for $url: $e');
+      return null;
+    }
+  }
+}
+
+class TwoFactorRequiredException implements Exception {
+  const TwoFactorRequiredException({
+    required this.email,
+    required this.password,
+    required this.challenge,
+    required this.deviceIdentity,
+    required this.rememberDeviceDays,
+  });
+
+  final String email;
+  final String password;
+  final TwoFactorChallenge challenge;
+  final DeviceIdentity deviceIdentity;
+  final int rememberDeviceDays;
+
+  @override
+  String toString() => 'Two-factor authentication required';
+}
+
+class TwoFactorVerificationFailedException implements Exception {
+  const TwoFactorVerificationFailedException();
+
+  @override
+  String toString() => 'Two-factor verification failed';
+}
+
+class BiometricAuthenticationRequiredException implements Exception {
+  const BiometricAuthenticationRequiredException({required this.reason});
+
+  final String reason;
+
+  @override
+  String toString() => 'Biometric authentication required: $reason';
+}
+
+class ChangePasswordException implements Exception {
+  const ChangePasswordException(this.code);
+
+  final String code;
+
+  @override
+  String toString() => 'ChangePasswordException($code)';
 }
